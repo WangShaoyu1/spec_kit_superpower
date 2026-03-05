@@ -1,0 +1,1168 @@
+openapi: 3.0.3
+info:
+  title: SmartChef Admin Management API
+  description: |
+    智能对话管理平台后台管理 API —— 供 PM 管理系统前端调用。
+    涵盖认证、意图管理、知识库、对话方案、测试、版本发布、监控等功能。
+  version: 1.0.0
+
+servers:
+  - url: https://admin.smartchef.example.com/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Development
+
+tags:
+  - name: Auth
+    description: 认证与用户管理
+  - name: Intents
+    description: 意图配置管理
+  - name: Knowledge
+    description: 知识库管理
+  - name: Profiles
+    description: 对话方案管理
+  - name: Testing
+    description: 手动测试与批量测试
+  - name: Versions
+    description: 版本发布管理
+  - name: Monitoring
+    description: 监控仪表盘与设备日志
+
+paths:
+  # ========== Auth ==========
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: "bearer"
+                  user:
+                    $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: 认证失败
+
+  /auth/users:
+    get:
+      tags: [Auth]
+      summary: 用户列表
+      operationId: listUsers
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 用户列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserInfo'
+    post:
+      tags: [Auth]
+      summary: 创建用户（仅管理员）
+      operationId: createUser
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: 创建成功
+        '403':
+          description: 权限不足
+
+  /auth/roles:
+    get:
+      tags: [Auth]
+      summary: 角色列表
+      operationId: listRoles
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 角色列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleInfo'
+    post:
+      tags: [Auth]
+      summary: 创建角色（仅管理员）
+      operationId: createRole
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: 创建成功
+
+  # ========== Intents ==========
+  /intents:
+    get:
+      tags: [Intents]
+      summary: 意图列表
+      operationId: listIntents
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 按分类筛选
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: 意图列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IntentDetail'
+    post:
+      tags: [Intents]
+      summary: 创建意图
+      operationId: createIntent
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIntentRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntentDetail'
+
+  /intents/{intent_id}:
+    get:
+      tags: [Intents]
+      summary: 意图详情（含槽位和训练数据）
+      operationId: getIntent
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: intent_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 意图详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntentDetail'
+    put:
+      tags: [Intents]
+      summary: 更新意图
+      operationId: updateIntent
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: intent_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIntentRequest'
+      responses:
+        '200':
+          description: 更新成功
+    delete:
+      tags: [Intents]
+      summary: 删除意图
+      operationId: deleteIntent
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: intent_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 删除成功
+        '409':
+          description: 意图被已发布版本引用，无法删除
+
+  /intents/{intent_id}/training-data:
+    get:
+      tags: [Intents]
+      summary: 获取意图的训练数据
+      operationId: getTrainingData
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: intent_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 训练数据列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingDataItem'
+    post:
+      tags: [Intents]
+      summary: 批量添加/更新训练数据
+      operationId: upsertTrainingData
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: intent_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TrainingDataItem'
+      responses:
+        '200':
+          description: 更新成功
+
+  # ========== Knowledge ==========
+  /knowledge-bases:
+    get:
+      tags: [Knowledge]
+      summary: 知识库列表
+      operationId: listKnowledgeBases
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 知识库列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KnowledgeBaseInfo'
+    post:
+      tags: [Knowledge]
+      summary: 创建知识库
+      operationId: createKnowledgeBase
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: 创建成功
+
+  /knowledge-bases/{kb_id}/documents:
+    post:
+      tags: [Knowledge]
+      summary: 上传文档到知识库
+      operationId: uploadDocument
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: kb_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JSON 或 Markdown 文件
+      responses:
+        '202':
+          description: 文件已接收，正在解析和索引
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentInfo'
+
+  /knowledge-bases/{kb_id}/search:
+    post:
+      tags: [Knowledge]
+      summary: 知识库搜索（内部测试）
+      operationId: searchKnowledge
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: kb_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                top_k:
+                  type: integer
+                  default: 5
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+
+  # ========== Profiles ==========
+  /profiles:
+    get:
+      tags: [Profiles]
+      summary: 对话方案列表
+      operationId: listProfiles
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 方案列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProfileSummary'
+    post:
+      tags: [Profiles]
+      summary: 创建对话方案
+      operationId: createProfile
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProfileRequest'
+      responses:
+        '201':
+          description: 创建成功
+
+  /profiles/{profile_id}:
+    get:
+      tags: [Profiles]
+      summary: 对话方案详情
+      operationId: getProfile
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 方案详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileDetail'
+    put:
+      tags: [Profiles]
+      summary: 更新对话方案
+      operationId: updateProfile
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: 更新成功
+
+  # ========== Testing ==========
+  /testing/manual/{profile_id}/sessions:
+    post:
+      tags: [Testing]
+      summary: 创建手动测试会话
+      operationId: createTestSession
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_context:
+                  $ref: '#/components/schemas/DeviceContext'
+      responses:
+        '201':
+          description: 测试会话创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  test_session_id:
+                    type: string
+
+  /testing/manual/{profile_id}/sessions/{test_session_id}/chat:
+    post:
+      tags: [Testing]
+      summary: 手动测试发送消息
+      description: 在测试会话中发送一条消息，返回对话结果和完整调试信息
+      operationId: sendTestMessage
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: test_session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                device_context:
+                  $ref: '#/components/schemas/DeviceContext'
+      responses:
+        '200':
+          description: 测试结果（含调试信息）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestChatResponse'
+
+  /testing/batch/{profile_id}/generate:
+    post:
+      tags: [Testing]
+      summary: 自动生成批量测试用例
+      operationId: generateTestCases
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: 测试集生成成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestSuiteInfo'
+
+  /testing/batch/{suite_id}/execute:
+    post:
+      tags: [Testing]
+      summary: 执行批量测试
+      operationId: executeBatchTest
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: suite_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                accuracy_threshold:
+                  type: number
+                  default: 0.95
+                latency_threshold_ms:
+                  type: integer
+                  default: 200
+      responses:
+        '202':
+          description: 测试执行中（异步）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: string
+                    format: uuid
+
+  /testing/batch/reports/{report_id}:
+    get:
+      tags: [Testing]
+      summary: 获取测试报告（含智能分析）
+      operationId: getTestReport
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: report_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 测试报告
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestReportDetail'
+
+  # ========== Versions ==========
+  /versions:
+    get:
+      tags: [Versions]
+      summary: 版本历史列表
+      operationId: listVersions
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 版本列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VersionSummary'
+
+  /versions/publish:
+    post:
+      tags: [Versions]
+      summary: 发布新版本
+      description: 将对话方案打包发布为新版本。旧版本立即失效，所有设备会话重置。
+      operationId: publishVersion
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profile_id]
+              properties:
+                profile_id:
+                  type: string
+                  format: uuid
+                version_number:
+                  type: string
+                  description: 版本号（可选，自动递增）
+      responses:
+        '201':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionSummary'
+
+  # ========== Monitoring ==========
+  /monitoring/dashboard:
+    get:
+      tags: [Monitoring]
+      summary: 监控仪表盘指标
+      operationId: getDashboardMetrics
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: time_range
+          in: query
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: 仪表盘指标
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetrics'
+
+  /monitoring/devices/{device_id}/sessions:
+    get:
+      tags: [Monitoring]
+      summary: 按设备 ID 查看历史会话列表
+      operationId: getDeviceSessions
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 设备会话列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceSessionList'
+
+  /monitoring/sessions/{session_id}/logs:
+    get:
+      tags: [Monitoring]
+      summary: 查看会话中每轮请求的完整处理链路
+      operationId: getSessionLogs
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 请求日志列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestLogDetail'
+
+  /monitoring/logs:
+    get:
+      tags: [Monitoring]
+      summary: 请求日志查询（多维筛选）
+      operationId: queryRequestLogs
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: device_id
+          in: query
+          schema:
+            type: string
+        - name: route_type
+          in: query
+          schema:
+            type: string
+            enum: [command, knowledge, chitchat]
+        - name: intent_name
+          in: query
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: min_latency_ms
+          in: query
+          schema:
+            type: integer
+        - name: max_latency_ms
+          in: query
+          schema:
+            type: integer
+        - name: is_error
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: 日志查询结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestLogPage'
+
+  /monitoring/alerts:
+    get:
+      tags: [Monitoring]
+      summary: 告警规则列表
+      operationId: listAlertRules
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: 告警规则列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlertRuleInfo'
+    post:
+      tags: [Monitoring]
+      summary: 创建告警规则
+      operationId: createAlertRule
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlertRuleRequest'
+      responses:
+        '201':
+          description: 创建成功
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ----- Auth -----
+    UserInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        display_name: { type: string }
+        role: { $ref: '#/components/schemas/RoleInfo' }
+        is_active: { type: boolean }
+
+    CreateUserRequest:
+      type: object
+      required: [username, password, display_name, role_id]
+      properties:
+        username: { type: string }
+        password: { type: string }
+        display_name: { type: string }
+        role_id: { type: string, format: uuid }
+
+    RoleInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        permissions: { type: object }
+        is_system: { type: boolean }
+
+    CreateRoleRequest:
+      type: object
+      required: [name, permissions]
+      properties:
+        name: { type: string }
+        permissions: { type: object }
+
+    # ----- Intents -----
+    IntentDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        intent_key: { type: string }
+        display_name: { type: string }
+        category: { type: string }
+        description: { type: string }
+        is_active: { type: boolean }
+        slots:
+          type: array
+          items: { $ref: '#/components/schemas/SlotDefinition' }
+        training_data_count: { type: integer }
+        updated_at: { type: string, format: date-time }
+
+    CreateIntentRequest:
+      type: object
+      required: [intent_key, display_name, category]
+      properties:
+        intent_key: { type: string }
+        display_name: { type: string }
+        category: { type: string }
+        description: { type: string }
+        slots:
+          type: array
+          items: { $ref: '#/components/schemas/SlotDefinition' }
+
+    UpdateIntentRequest:
+      type: object
+      properties:
+        display_name: { type: string }
+        category: { type: string }
+        description: { type: string }
+        is_active: { type: boolean }
+        slots:
+          type: array
+          items: { $ref: '#/components/schemas/SlotDefinition' }
+
+    SlotDefinition:
+      type: object
+      required: [slot_key, display_name, entity_type]
+      properties:
+        slot_key: { type: string }
+        display_name: { type: string }
+        entity_type: { type: string }
+        is_required: { type: boolean, default: false }
+        prompt_text: { type: string }
+        constraints: { type: object }
+
+    TrainingDataItem:
+      type: object
+      required: [text]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        language: { type: string, default: "zh" }
+        slot_annotations: { type: array, items: { type: object } }
+
+    # ----- Knowledge -----
+    KnowledgeBaseInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        document_count: { type: integer }
+        updated_at: { type: string, format: date-time }
+
+    DocumentInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        source_format: { type: string }
+        index_status: { type: string }
+        created_at: { type: string, format: date-time }
+
+    SearchResult:
+      type: object
+      properties:
+        document_id: { type: string, format: uuid }
+        document_title: { type: string }
+        chunk_text: { type: string }
+        relevance_score: { type: number }
+
+    DeviceContext:
+      type: object
+      properties:
+        cooking_state: { type: string }
+        door_closed: { type: boolean }
+        current_temp: { type: number }
+        current_page: { type: string }
+        screen_info: { type: object }
+        remaining_time: { type: integer }
+
+    # ----- Profiles -----
+    ProfileSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        llm_provider: { type: string }
+        status: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    ProfileDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        llm_provider: { type: string }
+        llm_config: { type: object }
+        persona: { $ref: '#/components/schemas/PersonaInfo' }
+        routing_strategy: { type: string }
+        session_timeout_minutes: { type: integer }
+        intent_ids: { type: array, items: { type: string, format: uuid } }
+        knowledge_base_ids: { type: array, items: { type: string, format: uuid } }
+        status: { type: string }
+
+    CreateProfileRequest:
+      type: object
+      required: [name, llm_provider]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        llm_provider: { type: string }
+        llm_config: { type: object }
+        persona_id: { type: string, format: uuid }
+        routing_strategy: { type: string, default: "command_first" }
+        session_timeout_minutes: { type: integer, default: 10 }
+        intent_ids: { type: array, items: { type: string, format: uuid } }
+        knowledge_base_ids: { type: array, items: { type: string, format: uuid } }
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        llm_provider: { type: string }
+        llm_config: { type: object }
+        persona_id: { type: string, format: uuid }
+        routing_strategy: { type: string }
+        session_timeout_minutes: { type: integer }
+        intent_ids: { type: array, items: { type: string, format: uuid } }
+        knowledge_base_ids: { type: array, items: { type: string, format: uuid } }
+
+    PersonaInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        personality: { type: string }
+        tone_style: { type: string }
+
+    # ----- Testing -----
+    TestChatResponse:
+      type: object
+      properties:
+        response_text: { type: string }
+        debug_info:
+          type: object
+          properties:
+            route_result: { type: string }
+            route_confidence: { type: number }
+            intent: { type: string }
+            intent_confidence: { type: number }
+            slots: { type: array, items: { type: object } }
+            dialog_state_change: { type: object }
+            knowledge_hit: { type: object }
+            latency_ms: { type: integer }
+            reference_resolution: { type: object }
+
+    TestSuiteInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        case_count: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    TestReportDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        total_cases: { type: integer }
+        passed_cases: { type: integer }
+        accuracy: { type: number }
+        avg_latency_ms: { type: integer }
+        p95_latency_ms: { type: integer }
+        is_passed: { type: boolean }
+        analysis_report:
+          type: object
+          properties:
+            summary: { type: string }
+            intent_accuracy_ranking: { type: array, items: { type: object } }
+            confusion_matrix: { type: object }
+            failure_analysis: { type: array, items: { type: object } }
+            optimization_suggestions: { type: array, items: { type: string } }
+        executed_at: { type: string, format: date-time }
+
+    # ----- Versions -----
+    VersionSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        version_number: { type: string }
+        profile_name: { type: string }
+        is_active: { type: boolean }
+        published_by: { type: string }
+        published_at: { type: string, format: date-time }
+
+    # ----- Monitoring -----
+    DashboardMetrics:
+      type: object
+      properties:
+        total_requests: { type: integer }
+        qps: { type: number }
+        avg_latency_ms: { type: integer }
+        p95_latency_ms: { type: integer }
+        p99_latency_ms: { type: integer }
+        accuracy: { type: number }
+        error_rate: { type: number }
+        route_distribution:
+          type: object
+          properties:
+            command: { type: number }
+            knowledge: { type: number }
+            chitchat: { type: number }
+        time_series:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp: { type: string }
+              qps: { type: number }
+              latency_ms: { type: integer }
+              accuracy: { type: number }
+
+    DeviceSessionList:
+      type: object
+      properties:
+        device_id: { type: string }
+        total: { type: integer }
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              session_id: { type: string }
+              start_time: { type: string, format: date-time }
+              end_time: { type: string, format: date-time }
+              turn_count: { type: integer }
+              version_number: { type: string }
+
+    RequestLogDetail:
+      type: object
+      properties:
+        request_id: { type: string }
+        device_id: { type: string }
+        session_id: { type: string }
+        input_text: { type: string }
+        route_result: { type: string }
+        route_confidence: { type: number }
+        intent_result: { type: string }
+        intent_confidence: { type: number }
+        slots_extracted: { type: object }
+        response_text: { type: string }
+        knowledge_hit: { type: object }
+        device_context: { type: object }
+        latency_ms: { type: integer }
+        is_error: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    RequestLogPage:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestLogDetail'
+
+    AlertRuleInfo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        metric_name: { type: string }
+        operator: { type: string }
+        threshold: { type: number }
+        duration_minutes: { type: integer }
+        is_enabled: { type: boolean }
+
+    CreateAlertRuleRequest:
+      type: object
+      required: [name, metric_name, operator, threshold, duration_minutes]
+      properties:
+        name: { type: string }
+        metric_name: { type: string }
+        operator: { type: string, enum: [lt, gt, lte, gte] }
+        threshold: { type: number }
+        duration_minutes: { type: integer }
+        notification_config: { type: object }

@@ -1,0 +1,693 @@
+{
+  "intents" : {
+    "volume_value" : {
+      "slots" : {
+        "number" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您想将音量设置为多少" ]
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "volume_value",
+      "chineseName" : "设置音量为目标值",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_category_size" : {
+      "slots" : {
+        "portion" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "portion",
+          "order" : 1
+        },
+        "category" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供品类" ]
+          },
+          "entity" : "category",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "set_category_size",
+      "chineseName" : "选择品类份量",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "broadcast_mode_switch" : {
+      "slots" : {
+        "broadcast_mode" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您想使用标准模式还是简易模式呢" ]
+          },
+          "entity" : "broadcast_mode",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "broadcast_mode_switch",
+      "chineseName" : "切换播报模式",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "voice_cmd_continue_cooking" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "voice_cmd_continue_cooking",
+      "chineseName" : "继续烹饪",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "remaining_cooking_time_query" : {
+      "slots" : {
+        "dish_name" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "dish_name",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "remaining_cooking_time_query",
+      "chineseName" : "播报烹饪剩余时间",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "bright_max" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "bright_max",
+      "chineseName" : "设置最高亮度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "volume_up" : {
+      "slots" : {
+        "delta_number" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "volume_up",
+      "chineseName" : "调高音量",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "volume_max" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "volume_max",
+      "chineseName" : "设置最高音量",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "search_recipe_by_cuisine_type" : {
+      "slots" : {
+        "cuisine_type" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "OK" ]
+          },
+          "entity" : "cuisine_type",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "search_recipe_by_cuisine_type",
+      "chineseName" : "通过菜系搜索",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "jump_to_page" : {
+      "slots" : {
+        "page_name" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供页面名称" ]
+          },
+          "entity" : "page_name",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "jump_to_page",
+      "chineseName" : "打开指定页面",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "bright_down" : {
+      "slots" : {
+        "delta_number" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "bright_down",
+      "chineseName" : "调低亮度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "select_list_id" : {
+      "slots" : {
+        "order_number" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您要选择第几个" ]
+          },
+          "entity" : "order_number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "select_list_id",
+      "chineseName" : "选择序号",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "search_recipe_by_diet_preference" : {
+      "slots" : {
+        "diet_preference" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "OK" ]
+          },
+          "entity" : "diet_preference",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "search_recipe_by_diet_preference",
+      "chineseName" : "通过饮食习惯搜索",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "voice_cmd_start_cooking" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "voice_cmd_start_cooking",
+      "chineseName" : "启动烹饪",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_cooking_time" : {
+      "slots" : {
+        "duration" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您想烹饪多长时间" ]
+          },
+          "entity" : "IFLYTEK.Datetime1.1",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "set_cooking_time",
+      "chineseName" : "设置烹饪时间",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_cooking_temp" : {
+      "slots" : {
+        "number" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您想设置多少度呢" ]
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "set_cooking_temp",
+      "chineseName" : "加热到指定温度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "bright_min" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "bright_min",
+      "chineseName" : "设置最低亮度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "bright_up" : {
+      "slots" : {
+        "delta_number" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "bright_up",
+      "chineseName" : "调高亮度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "search_recipe_by_age_group" : {
+      "slots" : {
+        "age_group" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "OK" ]
+          },
+          "entity" : "age_group",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "search_recipe_by_age_group",
+      "chineseName" : "通过年龄段搜索",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "unmute" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "unmute",
+      "chineseName" : "解除静音",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "cooking_unfreeze" : {
+      "slots" : {
+        "portion" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "portion",
+          "order" : 1
+        },
+        "category" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供品类" ]
+          },
+          "entity" : "category",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "cooking_unfreeze",
+      "chineseName" : "解冻",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "voice_cmd_stop_cooking" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "voice_cmd_stop_cooking",
+      "chineseName" : "终止烹饪",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "affirmative_judgment" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "affirmative_judgment",
+      "chineseName" : "肯定判断",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "AI_cooking_page_open" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "AI_cooking_page_open",
+      "chineseName" : "选择智能烹饪模式",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "heat_cooking_page_open" : {
+      "slots" : {
+        "portion" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "portion",
+          "order" : 1
+        },
+        "category" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供品类" ]
+          },
+          "entity" : "category",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "heat_cooking_page_open",
+      "chineseName" : "选择智能复热模式",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "dismiss" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "dismiss",
+      "chineseName" : "退下",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "mute" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "mute",
+      "chineseName" : "开启静音",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "negative_judgment" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "negative_judgment",
+      "chineseName" : "否定判断",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_taste" : {
+      "slots" : {
+        "taste" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供口感" ]
+          },
+          "entity" : "taste",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "set_taste",
+      "chineseName" : "选择口感",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_foodtype_taste" : {
+      "slots" : {
+        "taste" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供口感" ]
+          },
+          "entity" : "taste",
+          "order" : 1
+        },
+        "dish_name" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供菜品名称" ]
+          },
+          "entity" : "dish_name",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "set_foodtype_taste",
+      "chineseName" : "选择食物口感",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "volume_down" : {
+      "slots" : {
+        "delta_number" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "volume_down",
+      "chineseName" : "调低音量",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "voice_cmd_pause_cooking" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "voice_cmd_pause_cooking",
+      "chineseName" : "暂停烹饪",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_foodtype" : {
+      "slots" : {
+        "local_dish_name" : {
+          "elicitation" : {
+            "required" : false
+          },
+          "min" : 1,
+          "max" : 20,
+          "entity" : "IFLYTEK.Wildcard",
+          "order" : 1
+        },
+        "dish_name" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供菜品名称" ]
+          },
+          "entity" : "dish_name",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "set_foodtype",
+      "chineseName" : "选择食物",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "search_recipe_by_region" : {
+      "slots" : {
+        "region" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "OK" ]
+          },
+          "entity" : "region",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "search_recipe_by_region",
+      "chineseName" : "通过地区搜索",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "search_recipe_by_global_region" : {
+      "slots" : {
+        "global_region" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "OK" ]
+          },
+          "entity" : "global_region",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "search_recipe_by_global_region",
+      "chineseName" : "通过全球区域搜索",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "set_food_cooking_temp" : {
+      "slots" : {
+        "number" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供温度" ]
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        },
+        "dish_name" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "请提供菜品名称" ]
+          },
+          "min" : 1,
+          "max" : 10,
+          "entity" : "IFLYTEK.Wildcard",
+          "order" : 2
+        }
+      },
+      "arc" : true,
+      "name" : "set_food_cooking_temp",
+      "chineseName" : "加热食物到指定温度",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "screen_off" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "screen_off",
+      "chineseName" : "息屏",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "bright_value" : {
+      "slots" : {
+        "number" : {
+          "elicitation" : {
+            "required" : true,
+            "prompts" : [ "您想将亮度设置为多少" ]
+          },
+          "entity" : "IFLYTEK.Number",
+          "order" : 1
+        }
+      },
+      "arc" : true,
+      "name" : "bright_value",
+      "chineseName" : "设置亮度为目标值",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    },
+    "DIY_cooking_page_open" : {
+      "slots" : { },
+      "arc" : true,
+      "name" : "DIY_cooking_page_open",
+      "chineseName" : "选择厨师模式",
+      "confirmation" : {
+        "required" : false
+      },
+      "assistWords" : { },
+      "entranceIntent" : true
+    }
+  },
+  "version" : "2.1"
+}

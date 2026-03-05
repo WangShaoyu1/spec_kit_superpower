@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: SmartChef Dialog Management API
+  description: |
+    智能对话管理平台 API —— 供设备端 APP 调用的对话管理接口。
+    接收文本输入和设备上下文，返回统一格式的语义理解结果（指令/知识/闲聊）。
+  version: 1.0.0
+  contact:
+    name: SmartChef Team
+
+servers:
+  - url: https://api.smartchef.example.com/v1
+    description: Production
+  - url: http://localhost:8000/v1
+    description: Development
+
+tags:
+  - name: Dialog
+    description: 对话管理核心接口（设备端调用）
+  - name: Health
+    description: 服务健康检查
+
+paths:
+  /dialog/parse:
+    post:
+      tags: [Dialog]
+      summary: 对话解析（核心接口）
+      description: |
+        接收用户文本和设备上下文，执行语义理解与对话管理，返回统一格式响应。
+        - 自动路由到指令域/知识域/闲聊域
+        - 指令域返回结构化指令 + 确认文本
+        - 知识域返回检索结果 + 回复文本
+        - 闲聊域返回大模型生成的回复文本
+        - 必填槽位缺失时返回追问
+      operationId: parseDialog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DialogRequest'
+            examples:
+              command_simple:
+                summary: 简单指令
+                value:
+                  device_id: "device_001"
+                  text: "开始烹饪"
+                  device_context:
+                    cooking_state: "idle"
+                    door_closed: true
+                    current_temp: 25
+                    current_page: "home"
+                    screen_info: { active_screen: "7inch" }
+              command_with_slot:
+                summary: 带槽位的指令
+                value:
+                  device_id: "device_001"
+                  text: "设置温度180度"
+                  device_context:
+                    cooking_state: "cooking"
+                    door_closed: true
+                    current_temp: 150
+                    current_page: "cooking_control"
+              knowledge_qa:
+                summary: 知识问答
+                value:
+                  device_id: "device_001"
+                  text: "柠香雪梨银耳汤需要哪些食材"
+                  device_context:
+                    cooking_state: "idle"
+                    current_page: "recipe_browse"
+              chitchat:
+                summary: 闲聊
+                value:
+                  device_id: "device_001"
+                  text: "今天上海天气怎么样"
+                  device_context:
+                    cooking_state: "idle"
+                    current_page: "home"
+      responses:
+        '200':
+          description: 对话解析成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DialogResponse'
+              examples:
+                command_result:
+                  summary: 指令识别结果
+                  value:
+                    request_id: "req_abc123"
+                    session_id: "sess_xyz789"
+                    domain: "command"
+                    intent: "set_cooking_temp"
+                    intent_confidence: 0.97
+                    slots:
+                      - key: "number"
+                        value: "180"
+                        entity_type: "number"
+                    response_text: "好的，已设置温度为180度"
+                    needs_clarification: false
+                    latency_ms: 85
+                    detected_language: "zh"
+                slot_prompting:
+                  summary: 槽位追问
+                  value:
+                    request_id: "req_def456"
+                    session_id: "sess_xyz789"
+                    domain: "command"
+                    intent: "set_cooking_time"
+                    intent_confidence: 0.93
+                    slots: []
+                    response_text: "请问您要加热多长时间？"
+                    needs_clarification: true
+                    clarification_target: "duration"
+                    latency_ms: 72
+                    detected_language: "zh"
+                knowledge_result:
+                  summary: 知识问答结果
+                  value:
+                    request_id: "req_ghi789"
+                    session_id: "sess_xyz789"
+                    domain: "knowledge"
+                    intent: null
+                    intent_confidence: null
+                    slots: null
+                    response_text: "柠香雪梨银耳汤需要以下食材：主料有银耳、雪梨..."
+                    needs_clarification: false
+                    knowledge_source:
+                      document_id: "doc_001"
+                      document_title: "柠香雪梨银耳汤"
+                      relevance_score: 0.92
+                    latency_ms: 1850
+                    detected_language: "zh"
+                chitchat_result:
+                  summary: 闲聊结果
+                  value:
+                    request_id: "req_jkl012"
+                    session_id: "sess_xyz789"
+                    domain: "chitchat"
+                    intent: null
+                    intent_confidence: null
+                    slots: null
+                    response_text: "上海今天多云，气温15-22℃，适合外出呢！"
+                    needs_clarification: false
+                    latency_ms: 2300
+                    detected_language: "zh"
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: 请求频率超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 服务内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /dialog/sessions/{device_id}:
+    get:
+      tags: [Dialog]
+      summary: 查询设备当前会话状态
+      description: 返回指定设备的当前会话信息（用于调试和监控）
+      operationId: getDeviceSession
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 会话信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+        '404':
+          description: 该设备无活跃会话
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Dialog]
+      summary: 重置设备会话
+      description: 清除指定设备的会话上下文（用于调试或版本切换）
+      operationId: resetDeviceSession
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 会话已重置
+        '404':
+          description: 该设备无活跃会话
+
+  /dialog/version:
+    get:
+      tags: [Dialog]
+      summary: 查询当前生效版本
+      description: 返回当前生产环境的活跃版本信息
+      operationId: getActiveVersion
+      responses:
+        '200':
+          description: 当前版本信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+
+  /health:
+    get:
+      tags: [Health]
+      summary: 服务健康检查
+      operationId: healthCheck
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    DialogRequest:
+      type: object
+      required: [device_id, text]
+      properties:
+        device_id:
+          type: string
+          description: 设备唯一标识
+          example: "device_001"
+        text:
+          type: string
+          description: 用户输入文本（ASR 转写结果）
+          maxLength: 500
+          example: "设置温度180度"
+        device_context:
+          $ref: '#/components/schemas/DeviceContext'
+        session_id:
+          type: string
+          description: 会话 ID（可选，为空时自动创建或复用设备现有会话）
+
+    DeviceContext:
+      type: object
+      description: 设备当前状态上下文
+      properties:
+        cooking_state:
+          type: string
+          enum: [idle, cooking, paused, preheating, defrosting, done]
+          description: 烹饪状态
+        door_closed:
+          type: boolean
+          description: 炉门是否关闭
+        current_temp:
+          type: number
+          description: 当前温度（℃）
+        current_page:
+          type: string
+          description: 当前 UI 页面标识
+        screen_info:
+          type: object
+          properties:
+            active_screen:
+              type: string
+              enum: ["15inch", "7inch"]
+              description: 当前活跃屏幕
+          description: 屏幕信息
+        remaining_time:
+          type: integer
+          description: 剩余烹饪时间（秒）
+        extra:
+          type: object
+          additionalProperties: true
+          description: 扩展上下文字段
+
+    DialogResponse:
+      type: object
+      required: [request_id, session_id, domain, response_text, needs_clarification, latency_ms, detected_language]
+      properties:
+        request_id:
+          type: string
+          description: 请求追踪 ID
+        session_id:
+          type: string
+          description: 会话 ID
+        domain:
+          type: string
+          enum: [command, knowledge, chitchat]
+          description: 路由域类型
+        intent:
+          type: string
+          nullable: true
+          description: 意图标识（仅指令域）
+        intent_confidence:
+          type: number
+          format: float
+          nullable: true
+          description: 意图置信度（仅指令域）
+          minimum: 0
+          maximum: 1
+        slots:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SlotResult'
+          description: 提取的槽位列表（仅指令域）
+        response_text:
+          type: string
+          description: 回复文本
+        needs_clarification:
+          type: boolean
+          description: 是否需要追问（槽位缺失或意图不明确）
+        clarification_target:
+          type: string
+          nullable: true
+          description: 追问目标槽位名称
+        knowledge_source:
+          $ref: '#/components/schemas/KnowledgeSource'
+        latency_ms:
+          type: integer
+          description: 处理耗时（毫秒）
+        detected_language:
+          type: string
+          enum: [zh, en]
+          description: 检测到的输入语言
+
+    SlotResult:
+      type: object
+      required: [key, value, entity_type]
+      properties:
+        key:
+          type: string
+          description: 槽位标识
+          example: "number"
+        value:
+          type: string
+          description: 槽位值
+          example: "180"
+        entity_type:
+          type: string
+          description: 实体类型
+          example: "number"
+
+    KnowledgeSource:
+      type: object
+      nullable: true
+      description: 命中的知识库来源（仅知识域）
+      properties:
+        document_id:
+          type: string
+        document_title:
+          type: string
+        relevance_score:
+          type: number
+          format: float
+
+    SessionInfo:
+      type: object
+      properties:
+        session_id:
+          type: string
+        device_id:
+          type: string
+        version_id:
+          type: string
+        state:
+          type: string
+          enum: [IDLE, ROUTING, COMMAND_PROCESSING, SLOT_PROMPTING, KNOWLEDGE_QA, CHITCHAT]
+        current_domain:
+          type: string
+          nullable: true
+        dialog_turns:
+          type: integer
+          description: 当前会话对话轮数
+        created_at:
+          type: string
+          format: date-time
+        last_active_at:
+          type: string
+          format: date-time
+        ttl_seconds:
+          type: integer
+          description: 剩余存活时间（秒）
+
+    VersionInfo:
+      type: object
+      properties:
+        version_id:
+          type: string
+        version_number:
+          type: string
+        profile_name:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        components:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [ok, error]
+            redis:
+              type: string
+              enum: [ok, error]
+            nlu_model:
+              type: string
+              enum: [ok, error]
+
+    ErrorResponse:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code:
+          type: string
+          description: 错误码
+          example: "INVALID_INPUT"
+        message:
+          type: string
+          description: 错误描述
+          example: "输入文本不能为空"
+        request_id:
+          type: string
+          description: 请求追踪 ID
