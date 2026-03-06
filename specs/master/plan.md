@@ -1,7 +1,7 @@
 # 实施计划: SmartChef 智能对话管理平台
 
 **分支**: `master` | **日期**: 2026-03-03 | **规范**: [spec.md](./spec.md)
-**输入**: 来自 `/specs/master/spec.md` 的功能规范（澄清完毕，10 个用户故事，35 条 FR，12 条 SC）
+**输入**: 来自 `/specs/master/spec.md` 的功能规范（澄清完毕，10 个用户故事，38 条 FR，13 条 SC）
 
 ## 摘要
 
@@ -10,18 +10,18 @@
 1. **后台管理系统**（Web）：PM 配置指令/知识库/人设、手动测试、批量测试、监控仪表盘、版本发布
 2. **对话管理 API**（云端）：设备端 APP 调用，按设备 ID 隔离会话，统一路由（指令/知识/闲聊）
 
-技术方案采用**小模型 + 大模型混合架构**：小模型（JointBERT 类）负责指令意图分类与槽位提取（< 200ms），大模型（可配置 LLM）负责知识问答与开放闲聊（2-4s）。小模型需导出为 ONNX/TensorRT 格式，支持在 Jetson Nano 上以 C++ 运行。
+技术方案采用**小模型 + 大模型混合架构**：小模型（JointBERT 类）负责指令意图分类与槽位提取（< 200ms），大模型（通过 ZenMux 统一网关调用 GPT-5/千问/DeepSeek/Claude 等 120+ 模型）负责知识问答与开放闲聊（2-4s）。小模型需导出为 ONNX/TensorRT 格式，支持在 Jetson Nano 上以 C++ 运行。
 
 ## 技术背景
 
-**语言/版本**: Python 3.11+（后端服务、模型训练）、TypeScript 5.x（前端管理系统）、C++17（设备端小模型推理）
+**语言/版本**: Python 3.11+（后端服务、模型训练）、JavaScript ES2022+（前端管理系统，React + Vite，不使用 TypeScript）、C++17（设备端小模型推理）
 **主要依赖**:
 - 后端 API: FastAPI + Uvicorn + Pydantic v2
 - NLU 模型: PyTorch 2.x + Transformers（训练）、ONNX Runtime（推理加速）
 - 知识检索: PostgreSQL + pgvector（复用主存储，万级向量规模足够，详见 research.md R1）
-- 大模型: LiteLLM（统一多 LLM 调用接口，支持 GPT-4o/千问/DeepSeek 等可配置切换）
-- 联网搜索: Tavily Search API（AI-native，LLM 友好，~1.9s 响应，详见 research.md R2）
-- 前端: React 18 + Ant Design 5 + Vite
+- 大模型: ZenMux API Gateway（统一 OpenAI 兼容接口，120+ 模型，`base_url=https://zenmux.ai/api/v1`）
+- 联网搜索: Brave Search API（自建索引，隐私友好，团队已有 Key，详见 research.md R2）
+- 前端: React 18 + Ant Design 5 + Vite（JavaScript，不使用 TypeScript）
 - 缓存/会话: Redis 7.x
 
 **存储**:
@@ -31,7 +31,7 @@
 
 **测试**:
 - 后端: pytest + pytest-asyncio + httpx（单元/集成/E2E）
-- 前端: Vitest + Playwright（组件/E2E）
+- 前端: Vitest + Playwright（组件/E2E，JavaScript）
 - NLU 模型: 标准化评估脚本（F1-Score、混淆矩阵、延迟基准）
 
 **目标平台**:
@@ -162,15 +162,14 @@ smartchef-platform/
 │   │   ├── integration/
 │   │   └── e2e/
 │   ├── scripts/                      # 模型训练与评估脚本
-│   │   ├── train_intent_model.py
-│   │   ├── train_slot_model.py
+│   │   ├── train_intent_model.py      # JointBERT 联合训练（意图+槽位）
 │   │   ├── evaluate_model.py
 │   │   ├── export_onnx.py           # 导出 ONNX 格式
-│   │   └── translate_training_data.py # 中→英训练数据翻译
-│   ├── pyproject.toml
-│   └── Dockerfile
+│   │   ├── translate_training_data.py # 中→英训练数据翻译
+│   │   └── export_training_data.py  # 导出标注数据
+│   └── pyproject.toml
 │
-├── frontend/                         # React 管理系统前端
+├── frontend/                         # React 管理系统前端（JavaScript）
 │   ├── src/
 │   │   ├── components/               # 通用组件
 │   │   ├── pages/
@@ -186,8 +185,7 @@ smartchef-platform/
 │   │   ├── stores/                   # 状态管理
 │   │   └── utils/
 │   ├── tests/
-│   ├── package.json
-│   └── Dockerfile
+│   └── package.json
 │
 ├── device-inference/                 # 设备端 C++ 推理引擎（可选交付）
 │   ├── src/
@@ -199,8 +197,8 @@ smartchef-platform/
 │   ├── CMakeLists.txt
 │   └── tests/
 │
-├── docker-compose.yml               # 本地开发环境编排
-├── docker-compose.prod.yml          # 生产部署编排
+├── scripts/
+│   └── manage_services.py           # 本地 PostgreSQL + Redis 启停脚本
 └── README.md
 ```
 

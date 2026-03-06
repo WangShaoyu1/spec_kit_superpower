@@ -39,19 +39,19 @@
 
 ## R2: 联网搜索服务选型
 
-**Decision**: Tavily Search API
+**Decision**: Brave Search API
 
 **Rationale**:
-- AI-native 设计，返回清洗后的 Markdown 格式结果，可直接作为 LLM 上下文注入，无需额外解析
-- 平均响应时间 ~1.9s，符合闲聊域 2-4s 的整体延迟预算
-- 原生 LangChain 集成，与 LiteLLM + 大模型调用链路配合良好
-- 定价合理（$5-8/千次查询），1000 次/月免费额度可覆盖开发和测试阶段
-- 支持 Search、Extract、Crawl 等多种 API，未来可扩展至深度内容抓取
+- 独立搜索引擎，拥有自建索引，不依赖 Google/Bing，结果来源多样且隐私友好
+- 提供 Web Search API，返回 JSON 结构化结果（标题、描述、URL），便于提取后注入 LLM 上下文
+- 响应时间 ~1-2s，符合闲聊域 2-4s 的整体延迟预算
+- 免费额度 2000 次/月，付费计划性价比高（$3/千次起）
+- 团队已持有 API Key（`Brave_Search_API_KEY`），可直接使用，零接入成本
 
 **Alternatives considered**:
-- **SerpAPI**: 覆盖 40+ 搜索引擎，但返回原始 SERP 数据需额外预处理，价格更高（$15/千次），对 LLM 集成不友好
+- **Tavily**: AI-native 设计，LLM 友好，但团队未持有 Key，需额外申请和付费
+- **SerpAPI**: 覆盖 40+ 搜索引擎，但返回原始 SERP 数据需额外预处理，价格更高
 - **Bing Search API**: 已于 2025 年 8 月退役，不可用
-- **自建爬虫**: 开发维护成本高，反爬对抗风险大，V1 阶段不现实
 
 ---
 
@@ -114,19 +114,42 @@
 
 ## R6: 大模型统一调用方案
 
-**Decision**: LiteLLM Python SDK
+**Decision**: ZenMux API Gateway
 
 **Rationale**:
-- 提供统一 OpenAI 兼容接口，调用 100+ 模型提供商（GPT-4o、千问、DeepSeek、Claude 等），与"对话方案可配置大模型"需求完美契合
-- 内置重试/降级逻辑，当主模型不可用时自动切换备用模型
-- Python SDK 模式（非 Proxy 模式），直接集成到 FastAPI 服务中，无额外进程
-- 支持流式输出（streaming），预留后续优化空间
-- 生产级性能：~8ms P95 路由开销，对 2-4s 的闲聊响应时间影响可忽略
+- ZenMux 提供统一的 OpenAI 兼容 API 端点（`https://zenmux.ai/api/v1`），仅需修改 `base_url` 和 `api_key` 即可通过 OpenAI SDK 调用 120+ 模型
+- 支持项目所需的全部模型提供商：OpenAI（GPT-5 系列）、Anthropic（Claude 4.x）、Google（Gemini 3.x）、通义千问（Qwen3.x）、DeepSeek（V3.x）、智谱（GLM 4.x）、百度（ERNIE 5.0）等
+- 模型格式为 `供应商/模型名称`（如 `openai/gpt-5`、`qwen/qwen3.5-plus`），与"对话方案可配置大模型"需求完美契合——PM 在对话方案中选择不同模型标识即可切换
+- 内置供应商路由、兜底模型、流式输出、结构化输出等高级能力
+- 团队已持有 API Key（`ZenMux_API_KEY`），零接入成本
+- 同时支持 OpenAI 协议和 Anthropic 协议，灵活性高
+
+**集成方式**:
+```python
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://zenmux.ai/api/v1",
+    api_key="<ZenMux_API_KEY>"
+)
+completion = client.chat.completions.create(
+    model="openai/gpt-5",  # 由对话方案配置动态决定
+    messages=[...]
+)
+```
+
+**可用模型（部分，完整列表见 temp_data/zenmux_models.txt）**:
+- OpenAI: GPT-5, GPT-5 Mini, GPT-5.1, GPT-5.2, GPT-4.1 等
+- Anthropic: Claude Opus 4.6, Claude Sonnet 4.6, Claude Sonnet 4.5 等
+- Google: Gemini 3.1 Pro, Gemini 2.5 Flash 等
+- Qwen: Qwen3.5-Plus, Qwen3-Max-Thinking 等
+- DeepSeek: V3.2, R1 等
+- 智谱: GLM 5, GLM 4.7 等
+- MiniMax, StepFun, MoonshotAI, Baidu ERNIE 等
 
 **Alternatives considered**:
-- **直接调用各 LLM SDK**: 每个模型一套代码，切换成本高，对话方案配置需大量 if-else
-- **LiteLLM Proxy Server**: 功能更丰富（多租户、计费），但对 2-3 人团队过度设计
-- **LangChain ChatModel**: 抽象层太厚，调试困难，且绑定 LangChain 生态
+- **LiteLLM**: 开源方案，功能相似，但需自行维护 SDK 版本和模型映射配置，不如 ZenMux 托管网关省心
+- **直接调用各 LLM SDK**: 每个模型一套代码，切换成本高
+- **LangChain ChatModel**: 抽象层太厚，调试困难
 
 ---
 
@@ -173,10 +196,10 @@
 | 领域 | 决策 | 关键理由 |
 |------|------|---------|
 | 向量数据库 | pgvector (PostgreSQL) | 复用现有基础设施，万级规模足够 |
-| 联网搜索 | Tavily Search API | AI-native，LLM 友好，性价比高 |
+| 联网搜索 | Brave Search API | 自建索引，隐私友好，团队已有 Key |
 | NLU 架构 | JointBERT（联合意图+槽位） | 行业标准，单次推理，ONNX 友好 |
 | 中文基座 | chinese-roberta-wwm-ext | 中文 NLU 最优，全词遮蔽 |
 | 对话状态 | Redis Hash + TTL + FSM | 低延迟，可配置超时，支持分布式 |
-| LLM 适配 | LiteLLM Python SDK | 统一接口，100+ 模型，内置降级 |
+| LLM 适配 | ZenMux API Gateway | 统一 OpenAI 兼容接口，120+ 模型，团队已有 Key |
 | 设备端推理 | ONNX Runtime C++ | 跨平台，Jetson Nano 支持好 |
 | 指代消解 | 规则引擎(指令域) + LLM(闲聊域) | 指令域保 200ms，闲聊域靠 LLM |

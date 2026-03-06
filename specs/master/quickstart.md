@@ -60,19 +60,20 @@ DATABASE_URL=postgresql+asyncpg://smartchef:smartchef@localhost:5432/smartchef
 # Redis
 REDIS_URL=redis://localhost:6379/0
 
-# LLM（根据对话方案配置的模型填写对应 Key）
-OPENAI_API_KEY=sk-xxx          # GPT-4o
-DASHSCOPE_API_KEY=sk-xxx       # 千问
-DEEPSEEK_API_KEY=sk-xxx        # DeepSeek
+# LLM（通过 ZenMux 统一网关调用，一个 Key 覆盖所有模型）
+ZENMUX_API_KEY=your-zenmux-api-key
+ZENMUX_BASE_URL=https://zenmux.ai/api/v1
 
 # 联网搜索
-TAVILY_API_KEY=tvly-xxx
+BRAVE_SEARCH_API_KEY=your-brave-search-api-key
 
 # 安全
 SECRET_KEY=your-secret-key-here
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
 ```
+
+> **说明**: ZenMux 是统一 LLM 网关，通过 OpenAI SDK 兼容接口调用 120+ 模型（GPT-5、Claude、千问、DeepSeek 等），对话方案中配置模型标识如 `openai/gpt-5`、`qwen/qwen3.5-plus` 即可切换。详见 [ZenMux 文档](https://zenmux.ai/docs/zh/guide/quickstart.html)。
 
 ### 初始化数据库
 
@@ -198,6 +199,6 @@ npm run test
 |------|---------|
 | pgvector 扩展未安装 | `docker exec -it postgres psql -U smartchef -c "CREATE EXTENSION vector;"` |
 | Redis 连接失败 | 检查 Docker 容器是否运行：`docker-compose ps` |
-| LLM API 超时 | 检查 .env 中的 API Key 和网络代理配置 |
+| LLM API 超时 | 检查 .env 中的 ZENMUX_API_KEY 和网络代理配置；ZenMux 端点 `https://zenmux.ai/api/v1` |
 | 模型训练 OOM | 减小 batch_size 或使用 gradient accumulation |
 | 前端 CORS 错误 | 确认后端 CORS 配置包含 `http://localhost:5173` |
