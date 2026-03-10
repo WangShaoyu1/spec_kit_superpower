@@ -45,6 +45,11 @@ class RoleCreate(BaseModel):
     permissions: dict = Field(default_factory=dict)
 
 
+class RoleUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=64)
+    permissions: dict | None = None
+
+
 class RoleInfo(BaseModel):
     id: UUID
     name: str

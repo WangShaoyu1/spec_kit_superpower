@@ -69,3 +69,21 @@ async def create_role(db: AsyncSession, name: str, permissions: dict, is_system:
 async def list_roles(db: AsyncSession) -> list[Role]:
     result = await db.execute(select(Role).order_by(Role.name))
     return list(result.scalars().all())
+
+
+async def update_role(
+    db: AsyncSession, role_id: UUID, name: str | None = None, permissions: dict | None = None
+) -> Role:
+    result = await db.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="角色不存在")
+    if role.is_system:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="系统角色不可修改")
+    if name is not None:
+        role.name = name
+    if permissions is not None:
+        role.permissions = permissions
+    await db.flush()
+    await db.refresh(role)
+    return role

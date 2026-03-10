@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,7 +7,7 @@ from app.api.deps import get_current_user, require_permission
 from app.schemas.user import (
     TokenRequest, TokenResponse,
     UserCreate, UserInfo,
-    RoleCreate, RoleInfo,
+    RoleCreate, RoleUpdate, RoleInfo,
 )
 from app.services import auth_service
 
@@ -92,4 +93,17 @@ async def create_role(
     _=Depends(require_permission("user_management")),
 ):
     role = await auth_service.create_role(db, body.name, body.permissions)
+    return RoleInfo.model_validate(role)
+
+
+@router.patch("/roles/{role_id}", response_model=RoleInfo)
+async def update_role(
+    role_id: UUID,
+    body: RoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_permission("user_management")),
+):
+    role = await auth_service.update_role(
+        db, role_id, name=body.name, permissions=body.permissions
+    )
     return RoleInfo.model_validate(role)

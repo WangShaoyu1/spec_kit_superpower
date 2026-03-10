@@ -31,7 +31,19 @@ async def get_db() -> AsyncSession:
 
 
 async def init_pgvector():
-    async with engine.begin() as conn:
-        await conn.execute(
-            __import__("sqlalchemy").text("CREATE EXTENSION IF NOT EXISTS vector")
-        )
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(
+                __import__("sqlalchemy").text("CREATE EXTENSION IF NOT EXISTS vector")
+            )
+    except Exception as e:
+        err_msg = str(e)
+        is_refused = (
+            isinstance(e, OSError) and getattr(e, "winerror", None) == 10061
+        ) or (getattr(e, "args", None) and "10061" in str(e.args)) or "Connect call failed" in err_msg or "connection refused" in err_msg.lower()
+        if is_refused:
+            raise RuntimeError(
+                "PostgreSQL is not running or not reachable at localhost:5432. "
+                "Start the database (e.g. run: python scripts/manage_services.py start from repo root, or start PostgreSQL service) and try again."
+            ) from e
+        raise
