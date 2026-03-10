@@ -1,4 +1,6 @@
 """Device-facing API: high-concurrency, device-isolated sessions."""
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,19 +18,27 @@ from app.services.session.device_session import delete_session
 
 router = APIRouter(prefix="/dialog", tags=["设备端 API"])
 
-_profile_cache: dict = {}
+CACHE_TTL_SECONDS = 300
+_profile_cache: dict = {
+    "version_id": None,
+    "config": None,
+    "loaded_at": 0.0,
+}
 
 
-async def _get_active_profile(db: AsyncSession) -> DialogProfile:
+async def _get_active_version(db: AsyncSession) -> PublishedVersion:
     result = await db.execute(
         select(PublishedVersion).where(PublishedVersion.is_active == True).limit(1)
     )
     version = result.scalar_one_or_none()
     if not version:
         raise HTTPException(status_code=503, detail="无已发布的对话方案版本")
+    return version
 
+
+async def _get_profile(db: AsyncSession, profile_id) -> DialogProfile:
     result = await db.execute(
-        select(DialogProfile).where(DialogProfile.id == version.profile_id)
+        select(DialogProfile).where(DialogProfile.id == profile_id)
     )
     profile = result.scalar_one_or_none()
     if not profile:
@@ -51,9 +61,14 @@ async def _build_pipeline_config(db: AsyncSession, profile: DialogProfile) -> Pi
             "display_name": intent.display_name,
             "category": intent.category,
             "slots": [
-                {"slot_key": s.slot_key, "entity_type": s.entity_type,
-                 "is_required": s.is_required, "prompt_text": s.prompt_text,
-                 "display_name": s.display_name, "sort_order": s.sort_order}
+                {
+                    "slot_key": s.slot_key,
+                    "entity_type": s.entity_type,
+                    "is_required": s.is_required,
+                    "prompt_text": s.prompt_text,
+                    "display_name": s.display_name,
+                    "sort_order": s.sort_order,
+                }
                 for s in (intent.slots or [])
             ],
             "training_texts": [td.text for td in (intent.training_data or [])],
@@ -81,20 +96,40 @@ async def _build_pipeline_config(db: AsyncSession, profile: DialogProfile) -> Pi
     )
 
 
+async def _get_pipeline_config(db: AsyncSession) -> PipelineConfig:
+    version = await _get_active_version(db)
+
+    if (
+        _profile_cache["config"] is not None
+        and _profile_cache["version_id"] == str(version.id)
+        and (time.time() - _profile_cache["loaded_at"] < CACHE_TTL_SECONDS)
+    ):
+        return _profile_cache["config"]
+
+    profile = await _get_profile(db, version.profile_id)
+    config = await _build_pipeline_config(db, profile)
+    _profile_cache["version_id"] = str(version.id)
+    _profile_cache["config"] = config
+    _profile_cache["loaded_at"] = time.time()
+    return config
+
+
 @router.post("/chat", response_model=DeviceDialogResponse)
 async def device_chat(
     body: DeviceDialogRequest,
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
 ):
-    profile = await _get_active_profile(db)
-    config = await _build_pipeline_config(db, profile)
+    config = await _get_pipeline_config(db)
 
     device_context = body.device_context.model_dump() if body.device_context else None
 
     result = await run_pipeline(
-        db=db, redis=redis, text=body.text,
-        device_id=body.device_id, device_context=device_context,
+        db=db,
+        redis=redis,
+        text=body.text,
+        device_id=body.device_id,
+        device_context=device_context,
         config=config,
     )
 

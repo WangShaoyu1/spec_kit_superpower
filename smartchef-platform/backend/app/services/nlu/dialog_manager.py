@@ -42,7 +42,7 @@ def build_progressive_error_response(unrecognized_count: int, context: str = "")
     elif unrecognized_count == 2:
         return "我还是没有理解，您可以试试以下操作：\n1. 开始烹饪\n2. 设置温度\n3. 搜索菜谱\n4. 查看菜谱", False
     else:
-        return "很抱歉一直无法理解您的指令，建议您使用屏幕触控操作。如需继续语音交互，请说"你好"重新开始。", True
+        return "很抱歉一直无法理解您的指令，建议您使用屏幕触控操作。如需继续语音交互，请说'你好'重新开始。", True
 
 
 def process_command_state(

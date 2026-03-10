@@ -17,6 +17,8 @@ import app.models.test_session  # noqa: F401, E402
 import app.models.published_version  # noqa: F401, E402
 import app.models.batch_test  # noqa: F401, E402
 import app.models.request_log  # noqa: F401, E402
+import app.models.alert_rule  # noqa: F401, E402
+import app.models.test_suite  # noqa: F401, E402
 from app.core.database import Base  # noqa: E402
 
 target_metadata = Base.metadata

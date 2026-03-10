@@ -13,9 +13,11 @@ DEFAULT_ADMIN_PERMISSIONS = {
     "knowledge_management": {"read": True, "write": True, "delete": True},
     "dialog_profile": {"read": True, "write": True, "delete": True},
     "testing": {"manual": True, "batch": True},
+    "test_debug": {"read": True, "write": True},
     "version_publish": True,
     "monitoring": {"dashboard": True, "device_logs": True, "alerts": True},
     "user_management": True,
+    "data_management": True,
 }
 
 EDITOR_PERMISSIONS = {

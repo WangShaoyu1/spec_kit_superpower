@@ -48,7 +48,7 @@ class Slot(UUIDPrimaryKey, Base):
     )
 
 
-class TrainingData(UUIDPrimaryKey, Base):
+class TrainingData(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "training_data"
 
     intent_id: Mapped[uuid.UUID] = mapped_column(
@@ -58,6 +58,5 @@ class TrainingData(UUIDPrimaryKey, Base):
     language: Mapped[str] = mapped_column(String(8), default="zh")
     slot_annotations: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_auto_translated: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at = TimestampMixin.created_at
 
     intent: Mapped["Intent"] = relationship(back_populates="training_data")

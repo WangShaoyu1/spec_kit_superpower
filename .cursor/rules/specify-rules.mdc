@@ -1,24 +1,34 @@
-﻿# spec_kit_superpower 开发指南
+# SmartChef 智能对话管理平台 — 项目导航
 
-基于所有功能计划自动生成. 最后更新时间: 2026-03-05
+## 文档索引(不要复制这些文档, 按需读取)
 
-## 活跃技术
+| 需要了解什么 | 读哪个文件 |
+|-------------|-----------|
+| 项目定位、用户故事、功能需求、验收标准 | `specs/master/spec.md` |
+| 技术栈、架构、项目结构、性能目标 | `specs/master/plan.md` |
+| 数据库表、字段、关系、索引 | `specs/master/data-model.md` |
+| API 接口定义(OpenAPI) | `specs/master/contracts/` |
+| 技术选型决策、调研结论 | `specs/master/research.md` |
+| 端到端集成场景 | `specs/master/quickstart.md` |
+| 任务列表与执行进度 | `specs/master/tasks.md` |
 
+## 技术栈速查
 
-## 项目结构
-```
-src/
-tests/
-```
+- **后端**: Python 3.11+ / FastAPI + Pydantic v2 + SQLAlchemy async + Alembic
+- **前端**: React 18 + Vite + Ant Design 5 + Zustand (JavaScript, 不用 TypeScript)
+- **存储**: PostgreSQL 16 + pgvector + Redis 7.x
+- **大模型**: ZenMux API (`base_url=https://zenmux.ai/api/v1`, OpenAI 兼容)
+- **测试**: pytest + httpx (后端) / Vitest + Playwright (前端)
 
-## 命令
-# Add commands for 
+## 编码规范
 
-## 代码风格
-General: Follow standard conventions
+- 后端: TDD, async/await, Pydantic v2 验证
+- 前端: 函数式组件, Ant Design, 不使用 TypeScript
+- 通用: 中文注释/文档
 
-## 最近变更
+## 实施工作流
 
-
-<!-- 手动添加内容开始 -->
-<!-- 手动添加内容结束 -->
+运行 `/implement` 自动执行任务. 采用**指挥官+子代理工人**模式:
+- 指挥官(主对话): 读 tasks.md → 规划批次 → 派发子代理 → 验证 → 标记进度
+- 子代理(工人): 每个工人有独立上下文, 只读取所需文档, 完成具体任务
+- 断点续传: tasks.md 中的 `[X]` 标记即进度, 新对话 `/implement continue` 自动接续

@@ -1,0 +1,38 @@
+﻿# Directories and file patterns to ignore during indexing
+
+# Dependencies and virtual environments
+**/.venv/
+**/venv/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+
+# Build artifacts
+**/build/
+**/dist/
+**/*.egg-info/
+**/*.egg
+
+# Frontend build cache
+**/.next/
+**/.nuxt/
+**/.cache/
+
+# IDE and editors
+**/.idea/
+**/.vscode/
+
+# Logs and temp files
+**/*.log
+**/logs/
+**/tmp/
+**/temp/
+
+# Large binary and data files
+**/*.sqlite
+**/*.db
+**/*.pkl
+**/*.h5
+**/*.bin
+**/*.tar.gz
+**/*.zip

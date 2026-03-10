@@ -22,7 +22,7 @@ class KnowledgeBase(UUIDPrimaryKey, TimestampMixin, Base):
     )
 
 
-class KnowledgeDocument(UUIDPrimaryKey, Base):
+class KnowledgeDocument(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "knowledge_documents"
 
     knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
@@ -34,7 +34,6 @@ class KnowledgeDocument(UUIDPrimaryKey, Base):
     source_filename: Mapped[str | None] = mapped_column(String(256), nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     index_status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
-    created_at = TimestampMixin.created_at
 
     knowledge_base: Mapped["KnowledgeBase"] = relationship(back_populates="documents")
     chunks: Mapped[list["DocumentChunk"]] = relationship(

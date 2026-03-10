@@ -1,4 +1,3 @@
-import asyncio
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -13,13 +12,6 @@ TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/smart
 
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 test_session_factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(autouse=True)
@@ -60,9 +52,11 @@ async def admin_role(db_session):
             "knowledge_management": {"read": True, "write": True, "delete": True},
             "dialog_profile": {"read": True, "write": True, "delete": True},
             "testing": {"manual": True, "batch": True},
+            "test_debug": {"read": True, "write": True},
             "version_publish": True,
             "monitoring": {"dashboard": True, "device_logs": True, "alerts": True},
             "user_management": True,
+            "data_management": True,
         },
         is_system=True,
     )

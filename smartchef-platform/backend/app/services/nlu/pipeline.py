@@ -167,7 +167,7 @@ async def _handle_command(db, redis, text, language, session, config, device_id,
 
     needs_confirmation = _check_high_risk(intent_result.intent_key, all_slots)
     if needs_confirmation:
-        response_text = f"⚠️ {needs_confirmation}\n\n请确认是否继续？（说"确认"或"取消"）"
+        response_text = f"⚠️ {needs_confirmation}\n\n请确认是否继续？（说'确认'或'取消'）"
         debug_info["high_risk"] = True
 
     session["state"] = "IDLE"

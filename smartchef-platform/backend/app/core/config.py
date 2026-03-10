@@ -23,6 +23,23 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # API 限流 (T138)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_QPS: int = 10
+    RATE_LIMIT_WINDOW_SECONDS: int = 1
+
+    # 输入校验 (T138)
+    INPUT_MAX_LENGTH: int = 2048
+    INPUT_XSS_FILTER_ENABLED: bool = True
+
+    # 数据加密 (T139)
+    ENCRYPTION_KEY: str = ""
+    DB_SSL_REQUIRED: bool = False
+
+    # ONNX 模型 (T137)
+    ONNX_MODEL_PATH: str = "models/intent_model.onnx"
+    ONNX_CACHE_SIZE: int = 512
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

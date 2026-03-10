@@ -7,13 +7,12 @@ from app.core.database import Base
 from app.models.base import UUIDPrimaryKey, TimestampMixin
 
 
-class Role(UUIDPrimaryKey, Base):
+class Role(UUIDPrimaryKey, TimestampMixin, Base):
     __tablename__ = "roles"
 
     name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     permissions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at = TimestampMixin.created_at
 
     users: Mapped[list["User"]] = relationship(back_populates="role")
 

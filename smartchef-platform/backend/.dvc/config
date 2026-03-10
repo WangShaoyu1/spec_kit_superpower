@@ -1,0 +1,19 @@
+# DVC 配置文件 - SmartChef NLU 训练管道
+# 用途：配置 DVC 跟踪训练数据集和模型产物，确保训练管道可审计可复现
+#
+# 使用说明：安装 DVC 后运行 `dvc init` 会扩展此配置。
+# 当前为手动创建，未执行 dvc init 命令。
+#
+# 核心配置节（可按需取消注释并填写）:
+# [core]
+#     remote = default
+#
+# [remote "default"]
+#     url = s3://your-bucket/dvc-storage
+#     # 或使用本地路径: url = /path/to/local/storage
+#
+# [cache]
+#     dir = .dvc/cache
+#     type = reflink,hardlink,symlink,copy
+#
+# 训练数据与模型产物应通过 dvc add 跟踪，大文件存储于 remote。

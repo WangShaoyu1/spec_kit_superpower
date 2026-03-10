@@ -1,0 +1,41 @@
+# DVC 训练管道 - SmartChef NLU (JointBERT 意图+槽位)
+# 引用 T131-T135 脚本路径，确保训练管道可审计可复现
+#
+# 执行顺序: export_data -> train -> evaluate, export_onnx
+# 运行: dvc repro （需先安装 DVC: pip install dvc）
+
+stages:
+  # T135: 从数据库导出标注训练数据
+  export_data:
+    cmd: python scripts/export_training_data.py --out data/training/
+    deps:
+      - scripts/export_training_data.py
+    outs:
+      - data/training
+
+  # T131: JointBERT 联合训练（意图分类+槽位提取）
+  train:
+    cmd: python scripts/train_intent_model.py --data data/training --out models/checkpoint
+    deps:
+      - scripts/train_intent_model.py
+      - data/training
+    outs:
+      - models/checkpoint
+
+  # T132: 模型评估（F1-Score、混淆矩阵、延迟基准）
+  evaluate:
+    cmd: python scripts/evaluate_model.py --model models/checkpoint --out reports/eval_results.json
+    deps:
+      - scripts/evaluate_model.py
+      - models/checkpoint
+    outs:
+      - reports/eval_results.json
+
+  # T133: 导出 ONNX 格式（含 INT8 量化）
+  export_onnx:
+    cmd: python scripts/export_onnx.py --model models/checkpoint --out models/intent_model.onnx
+    deps:
+      - scripts/export_onnx.py
+      - models/checkpoint
+    outs:
+      - models/intent_model.onnx
