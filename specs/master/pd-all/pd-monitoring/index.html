@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监控仪表盘 | SmartChef PD</title>
+    <!-- React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        .metric-card { text-align: center; }
+        .metric-card .metric-value { font-size: 32px; font-weight: 700; line-height: 1.2; }
+        .metric-card .metric-label { font-size: 14px; color: #8c8c8c; margin-bottom: 8px; }
+        .metric-card .metric-sub { font-size: 12px; color: #8c8c8c; margin-top: 4px; }
+
+        .route-bar { display: flex; align-items: center; margin-bottom: 12px; }
+        .route-bar .bar-label { width: 80px; font-weight: 500; flex-shrink: 0; }
+        .route-bar .bar-track { flex: 1; height: 24px; background: #f0f0f0; border-radius: 4px; overflow: hidden; margin: 0 12px; }
+        .route-bar .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 12px; font-weight: 500; transition: width 0.6s ease; }
+        .route-bar .bar-info { width: 180px; flex-shrink: 0; text-align: right; font-size: 13px; color: #595959; }
+
+        .countdown-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; font-size: 13px; color: #52c41a; }
+        .countdown-badge.paused { background: #fff7e6; border-color: #ffd591; color: #fa8c16; }
+
+        .log-input-text { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: "default",
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" }
+        });
+
+        const { useState, useMemo, useCallback, useEffect, useRef } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Alert, Card, Input, Select, Space,
+            Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip, Badge, Modal,
+            Form, Progress, DatePicker, Spin, Divider
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            MessageOutlined, ExperimentOutlined, RocketOutlined, UserOutlined,
+            BarChartOutlined, SearchOutlined, QuestionCircleOutlined,
+            ColumnWidthOutlined, ReloadOutlined, ArrowUpOutlined, ArrowDownOutlined,
+            ClockCircleOutlined, CheckCircleOutlined, WarningOutlined,
+            CloseCircleOutlined, LinkOutlined, AlertOutlined,
+            SyncOutlined, DashboardOutlined, ApiOutlined, FundOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { RangePicker } = DatePicker;
+
+        // ── Mock Data ──
+
+        const mockLogs = [
+            { id: "req_001", time: "2026-03-18 09:30:15", deviceId: "DEV_A001", input: "设置温度180度", route: "command", intent: "set_cooking_temp", confidence: 0.96, latency: 128, status: "normal" },
+            { id: "req_002", time: "2026-03-18 09:30:42", deviceId: "DEV_A001", input: "柠香雪梨银耳汤需要哪些食材", route: "knowledge", intent: null, confidence: 0.88, latency: 1850, status: "normal" },
+            { id: "req_003", time: "2026-03-18 09:31:05", deviceId: "DEV_B002", input: "开始烹饪", route: "command", intent: "voice_cmd_start_cooking", confidence: 0.99, latency: 95, status: "normal" },
+            { id: "req_004", time: "2026-03-18 09:31:20", deviceId: "DEV_A001", input: "讲个笑话", route: "chitchat", intent: null, confidence: 0.95, latency: 2340, status: "normal" },
+            { id: "req_005", time: "2026-03-18 09:32:01", deviceId: "DEV_C003", input: "解冻鸡胸肉", route: "command", intent: "defrost_food", confidence: 0.91, latency: 145, status: "normal" },
+            { id: "req_006", time: "2026-03-18 09:32:15", deviceId: "DEV_B002", input: "What is the weather today", route: "chitchat", intent: null, confidence: 0.87, latency: 3200, status: "normal" },
+            { id: "req_007", time: "2026-03-18 09:33:00", deviceId: "DEV_A001", input: "加热一下", route: "command", intent: "set_cooking_time", confidence: 0.45, latency: 180, status: "normal" },
+            { id: "req_008", time: "2026-03-18 09:33:30", deviceId: "DEV_D004", input: "", route: "error", intent: null, confidence: 0, latency: 12, status: "error" }
+        ];
+
+        const ROUTE_COLOR = { command: "blue", knowledge: "green", chitchat: "purple", error: "red" };
+        const ROUTE_LABEL = { command: "指令", knowledge: "知识", chitchat: "闲聊", error: "异常" };
+        const STATUS_TAG = {
+            normal:  { color: "green",  text: "正常" },
+            timeout: { color: "orange", text: "超时" },
+            error:   { color: "red",    text: "异常" }
+        };
+
+        function latencyTag(ms) {
+            if (ms < 200) return <Tag color="green">{ms}ms</Tag>;
+            if (ms < 2000) return <Tag color="blue">{ms}ms</Tag>;
+            if (ms < 4000) return <Tag color="orange">{ms}ms</Tag>;
+            return <Tag color="red">{ms}ms</Tag>;
+        }
+
+        function confidenceColor(val) {
+            if (val >= 0.9) return "#52c41a";
+            if (val >= 0.7) return "#1890ff";
+            if (val >= 0.5) return "#faad14";
+            return "#ff4d4f";
+        }
+
+        // ── App ──
+
+        function App() {
+            const inIframe = typeof window !== "undefined" && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(["monitoring"]);
+            const [openKeys, setOpenKeys] = useState(["system"]);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [refreshing, setRefreshing] = useState(false);
+            const [countdown, setCountdown] = useState(30);
+            const countdownRef = useRef(null);
+
+            const [filters, setFilters] = useState({
+                timeRange: null,
+                deviceId: "",
+                routeType: undefined,
+                intentName: "",
+                latencyRange: undefined,
+                anomaly: undefined
+            });
+
+            const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: mockLogs.length });
+
+            // ── Auto-refresh countdown (FR-038) ──
+
+            useEffect(() => {
+                countdownRef.current = setInterval(() => {
+                    setCountdown(prev => {
+                        if (prev <= 1) {
+                            doRefresh();
+                            return 30;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+                return () => clearInterval(countdownRef.current);
+            }, []);
+
+            const doRefresh = () => {
+                setRefreshing(true);
+                setTimeout(() => {
+                    setRefreshing(false);
+                    message.success("数据已刷新");
+                }, 800);
+            };
+
+            const handleManualRefresh = () => {
+                setCountdown(30);
+                doRefresh();
+            };
+
+            // ── Navigation ──
+
+            const goTo = (page) => {
+                const map = {
+                    "libraries": "../pd-intent-library/index.html",
+                    "datasets": "../pd-intent-library/datasets.html",
+                    "profiles": "../pd-dialog-profile/index.html",
+                    "manual-test": "../pd-dialog-profile/test-chat.html",
+                    "batch-test": "../pd-batch-test/index.html",
+                    "monitoring": "index.html",
+                    "device-logs": "device-logs.html",
+                    "alert-rules": "alert-rules.html"
+                };
+                if (map[page]) window.location.href = map[page];
+            };
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            // ── Mermaid rendering ──
+
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            // ── Filtered logs ──
+
+            const filteredLogs = useMemo(() => {
+                return mockLogs.filter(log => {
+                    if (filters.deviceId && !log.deviceId.toLowerCase().includes(filters.deviceId.toLowerCase())) return false;
+                    if (filters.routeType && log.route !== filters.routeType) return false;
+                    if (filters.intentName && (!log.intent || !log.intent.toLowerCase().includes(filters.intentName.toLowerCase()))) return false;
+                    if (filters.latencyRange) {
+                        const r = filters.latencyRange;
+                        if (r === "<200" && log.latency >= 200) return false;
+                        if (r === "200-500" && (log.latency < 200 || log.latency >= 500)) return false;
+                        if (r === "500-2000" && (log.latency < 500 || log.latency >= 2000)) return false;
+                        if (r === "2000-4000" && (log.latency < 2000 || log.latency >= 4000)) return false;
+                        if (r === ">4000" && log.latency < 4000) return false;
+                    }
+                    if (filters.anomaly === "normal" && log.status !== "normal") return false;
+                    if (filters.anomaly === "abnormal" && log.status === "normal") return false;
+                    return true;
+                });
+            }, [filters]);
+
+            const resetFilters = () => {
+                setFilters({ timeRange: null, deviceId: "", routeType: undefined, intentName: "", latencyRange: undefined, anomaly: undefined });
+            };
+
+            // ── Table columns (FR-034) ──
+
+            const logColumns = [
+                {
+                    title: "请求 ID",
+                    dataIndex: "id",
+                    key: "id",
+                    width: 110,
+                    render: (text) => <span style={{ fontFamily: "monospace", fontSize: 12 }}>{text}</span>
+                },
+                {
+                    title: "时间",
+                    dataIndex: "time",
+                    key: "time",
+                    width: 170
+                },
+                {
+                    title: "设备 ID",
+                    dataIndex: "deviceId",
+                    key: "deviceId",
+                    width: 120,
+                    render: (text) => (
+                        <a onClick={() => { window.location.href = "device-logs.html?device=" + text; }} style={{ fontFamily: "monospace", cursor: "pointer" }}>{text}</a>
+                    )
+                },
+                {
+                    title: "输入文本",
+                    dataIndex: "input",
+                    key: "input",
+                    width: 200,
+                    ellipsis: { showTitle: false },
+                    render: (text) => text ? (
+                        <Tooltip title={text}><span className="log-input-text">{text}</span></Tooltip>
+                    ) : <span style={{ color: "#d9d9d9" }}>(空)</span>
+                },
+                {
+                    title: "路由",
+                    dataIndex: "route",
+                    key: "route",
+                    width: 80,
+                    render: (val) => <Tag color={ROUTE_COLOR[val] || "default"}>{ROUTE_LABEL[val] || val}</Tag>
+                },
+                {
+                    title: "意图",
+                    dataIndex: "intent",
+                    key: "intent",
+                    width: 180,
+                    render: (val, record) => record.route === "command" && val ? (
+                        <span style={{ fontFamily: "monospace", fontSize: 12 }}>{val}</span>
+                    ) : <span style={{ color: "#d9d9d9" }}>-</span>
+                },
+                {
+                    title: "置信度",
+                    dataIndex: "confidence",
+                    key: "confidence",
+                    width: 130,
+                    render: (val) => val > 0 ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Progress percent={Math.round(val * 100)} size="small" strokeColor={confidenceColor(val)} showInfo={false} style={{ flex: 1, margin: 0 }} />
+                            <span style={{ fontSize: 12, fontFamily: "monospace", width: 36 }}>{(val * 100).toFixed(0)}%</span>
+                        </div>
+                    ) : <span style={{ color: "#d9d9d9" }}>-</span>
+                },
+                {
+                    title: "响应耗时",
+                    dataIndex: "latency",
+                    key: "latency",
+                    width: 100,
+                    sorter: (a, b) => a.latency - b.latency,
+                    render: (val) => latencyTag(val)
+                },
+                {
+                    title: "状态",
+                    dataIndex: "status",
+                    key: "status",
+                    width: 80,
+                    render: (val) => {
+                        const cfg = STATUS_TAG[val] || STATUS_TAG.normal;
+                        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                    }
+                }
+            ];
+
+            // ── Menu ──
+
+            const menuItems = [
+                {
+                    key: "config",
+                    icon: <SettingOutlined />,
+                    label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: <DatabaseOutlined />, label: "指令库管理", onClick: () => goTo("libraries") },
+                        { key: "datasets", icon: <FileTextOutlined />, label: "数据集管理", onClick: () => goTo("datasets") },
+                        { key: "profiles", icon: <RobotOutlined />, label: "对话方案", onClick: () => goTo("profiles") }
+                    ]
+                },
+                {
+                    key: "testing",
+                    icon: <ExperimentOutlined />,
+                    label: "测试验证",
+                    children: [
+                        { key: "manual-test", icon: <MessageOutlined />, label: "手动测试", onClick: () => goTo("manual-test") },
+                        { key: "batch-test", icon: <ExperimentOutlined />, label: "批量测试", onClick: () => goTo("batch-test") }
+                    ]
+                },
+                {
+                    key: "system",
+                    icon: <UserOutlined />,
+                    label: "系统管理",
+                    children: [
+                        { key: "versions", icon: <RocketOutlined />, label: "版本管理" },
+                        { key: "users", icon: <UserOutlined />, label: "用户管理" },
+                        { key: "monitoring", icon: <BarChartOutlined />, label: "监控仪表盘" }
+                    ]
+                }
+            ];
+
+            // ── Drawer tabs ──
+
+            const drawerTabs = [
+                {
+                    key: "flow",
+                    label: "数据流向",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">API 请求到仪表盘展示全链路</div>
+                                <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 }}>
+{`[API Request]  用户设备发起请求
+    ├─ HTTP Request → FastAPI 接收
+    ├─ Middleware 记录请求元数据
+    └─ 路由到 NLU Pipeline
+           ↓
+[Structured Log]  结构化日志写入
+    ├─ request_id, device_id, timestamp
+    ├─ input_text, route_type, intent, confidence
+    ├─ latency_ms, response_status
+    └─ 写入数据库 / 日志存储
+           ↓
+[Aggregation]  指标聚合
+    ├─ 实时: QPS、活跃请求数
+    ├─ 周期: 24h 请求量、平均延迟、P95/P99
+    ├─ 统计: 路由分布、准确率、错误率
+    └─ 趋势: 同比 / 环比计算
+           ↓
+[Dashboard Display]  仪表盘展示
+    ├─ 指标卡片 (30s 自动刷新)
+    ├─ 路由分布柱状图
+    └─ 请求日志表 (可筛选/排序)`}
+                                </pre>
+                            </div>
+                            <Alert
+                                message="数据时效性"
+                                description="仪表盘聚合指标默认统计最近 24 小时数据，QPS 为实时采样值。日志表支持按时间范围筛选历史数据。自动刷新周期 30 秒。"
+                                type="info"
+                                showIcon
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: "state",
+                    label: "状态流转",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">请求生命周期状态机</div>
+                                <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 }}>
+{`received ──→ routing ──→ processing ──→ response ──→ logged
+    │            │            │              │            │
+    │            │            │              │            └─ 写入结构化日志
+    │            │            │              └─ 返回响应给设备
+    │            │            └─ 执行意图/知识检索/闲聊生成
+    │            └─ NLU Pipeline 判定路由类型
+    └─ API Gateway 接收请求
+
+异常分支:
+  routing  ──→ error  (路由失败: 空输入、格式异常)
+  processing ──→ timeout  (处理超时: LLM 响应慢、知识检索超时)
+  processing ──→ error  (处理失败: 模型异常、服务不可用)`}
+                                </pre>
+                            </div>
+                            <List
+                                size="small"
+                                bordered
+                                style={{ marginTop: 16 }}
+                                dataSource={[
+                                    { state: "received", desc: "API Gateway 收到 HTTP 请求，分配 request_id，记录起始时间" },
+                                    { state: "routing", desc: "NLU Pipeline 对输入文本进行分类，判定路由类型（指令/知识/闲聊）" },
+                                    { state: "processing", desc: "根据路由结果执行对应处理：意图识别+槽位填充 / 知识检索 / LLM 闲聊生成" },
+                                    { state: "response", desc: "组装响应体并返回给设备端，记录结束时间，计算延迟" },
+                                    { state: "logged", desc: "将完整请求上下文写入结构化日志，供仪表盘聚合查询" }
+                                ]}
+                                renderItem={item => (
+                                    <List.Item>
+                                        <Tag color="blue" style={{ fontFamily: "monospace" }}>{item.state}</Tag> {item.desc}
+                                    </List.Item>
+                                )}
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: "fields",
+                    label: "字段说明",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">仪表盘指标定义</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="metric"
+                                    columns={[
+                                        { title: "指标", dataIndex: "metric", width: 140 },
+                                        { title: "定义", dataIndex: "definition" },
+                                        { title: "阈值 / 目标", dataIndex: "threshold", width: 180 }
+                                    ]}
+                                    dataSource={[
+                                        { metric: "总请求量 (24h)", definition: "最近 24 小时内 API 接收的总请求数", threshold: "无固定阈值，关注趋势" },
+                                        { metric: "实时 QPS", definition: "最近 1 分钟内每秒平均请求数", threshold: "< 10 正常 (绿)，>= 10 关注 (橙)" },
+                                        { metric: "平均延迟", definition: "最近 24h 所有请求的算术平均响应时间", threshold: "< 200ms 正常 (绿)" },
+                                        { metric: "P95 延迟", definition: "95% 的请求响应时间在此值以下", threshold: "< 200ms 正常 (绿)" },
+                                        { metric: "P99 延迟", definition: "99% 的请求响应时间在此值以下", threshold: "< 500ms 正常 (绿)，>= 500ms 告警 (橙)" },
+                                        { metric: "意图识别准确率", definition: "NLU 正确识别意图的请求数 / 指令域总请求数", threshold: ">= 95% 达标 (绿)" },
+                                        { metric: "错误率", definition: "状态为 error 的请求数 / 总请求数", threshold: "< 1% 正常 (绿)" },
+                                        { metric: "平均对话轮次", definition: "单次会话内的平均交互轮次数", threshold: "参考值，无硬性阈值" }
+                                    ]}
+                                />
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">日志字段说明</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="field"
+                                    columns={[
+                                        { title: "字段", dataIndex: "field", width: 120 },
+                                        { title: "类型", dataIndex: "type", width: 80 },
+                                        { title: "说明", dataIndex: "desc" }
+                                    ]}
+                                    dataSource={[
+                                        { field: "request_id", type: "string", desc: "全局唯一请求标识，格式 req_XXX" },
+                                        { field: "timestamp", type: "datetime", desc: "请求到达时间，UTC+8" },
+                                        { field: "device_id", type: "string", desc: "设备唯一标识，格式 DEV_XXXX" },
+                                        { field: "input_text", type: "string", desc: "用户原始输入文本" },
+                                        { field: "route_type", type: "enum", desc: "路由类型：command / knowledge / chitchat / error" },
+                                        { field: "intent", type: "string?", desc: "识别的意图名称（仅 command 路由有值）" },
+                                        { field: "confidence", type: "float", desc: "NLU 模型置信度，0~1" },
+                                        { field: "latency_ms", type: "int", desc: "请求端到端响应时间（毫秒）" },
+                                        { field: "status", type: "enum", desc: "请求状态：normal / timeout / error" }
+                                    ]}
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "operations",
+                    label: "操作说明",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">自动刷新流程</div>
+                                <div className="mermaid" key="op-refresh">
+{`flowchart TD
+    A[页面加载] --> B[启动 30s 倒计时]
+    B --> C{倒计时归零?}
+    C -->|否| D[每秒递减显示]
+    D --> C
+    C -->|是| E[触发数据刷新]
+    E --> F[显示 Loading 状态]
+    F --> G[拉取最新指标和日志]
+    G --> H[更新页面数据]
+    H --> I[重置倒计时为 30s]
+    I --> C`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">日志筛选流程</div>
+                                <div className="mermaid" key="op-filter">
+{`flowchart TD
+    A[设置筛选条件] --> B{多维度筛选}
+    B --> C[时间范围]
+    B --> D[设备 ID]
+    B --> E[路由类型]
+    B --> F[意图名称]
+    B --> G[响应耗时]
+    B --> H[是否异常]
+    C --> I[组合条件查询]
+    D --> I
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+    I --> J[返回过滤结果]
+    J --> K[更新表格 + 分页]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">导出流程</div>
+                                <div className="mermaid" key="op-export">
+{`flowchart TD
+    A[点击导出按钮] --> B{选择格式}
+    B -->|CSV| C[生成 CSV 文件]
+    B -->|JSON| D[生成 JSON 文件]
+    C --> E[应用当前筛选条件]
+    D --> E
+    E --> F[下载文件]`}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "logic",
+                    label: "业务逻辑",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">指标计算规则</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <ol>
+                                        <li><strong>意图识别准确率</strong> = 置信度 &ge; 阈值且人工标注正确的请求数 / 指令域总请求数 &times; 100%</li>
+                                        <li><strong>P95 延迟</strong>：将所有请求按延迟排序，取第 95 百分位的值。即 95% 的请求延迟低于该值</li>
+                                        <li><strong>P99 延迟</strong>：将所有请求按延迟排序，取第 99 百分位的值。即 99% 的请求延迟低于该值</li>
+                                        <li><strong>QPS</strong> = 最近 60 秒请求总数 / 60</li>
+                                        <li><strong>错误率</strong> = status=error 的请求数 / 总请求数 &times; 100%</li>
+                                        <li><strong>平均对话轮次</strong> = 所有已结束会话的总轮次数 / 已结束会话数</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">自动刷新策略</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <ul style={{ paddingLeft: 20 }}>
+                                        <li>默认刷新间隔：<strong>30 秒</strong></li>
+                                        <li>页面加载后立即执行一次数据拉取</li>
+                                        <li>倒计时归零时自动触发刷新，重置计时器</li>
+                                        <li>手动刷新按钮：立即执行刷新 + 重置倒计时</li>
+                                        <li>页面不可见时（浏览器 tab 切走）暂停倒计时以节省资源</li>
+                                    </ul>
+                                </div>
+                                <Alert
+                                    message="刷新频率说明"
+                                    description="30 秒刷新间隔在实时性与服务端负载之间取得平衡。如需更高实时性，可考虑 WebSocket 推送方案（当前未实现）。"
+                                    type="info"
+                                    showIcon
+                                />
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">路由分布计算</div>
+                                <div style={{ lineHeight: 1.8 }}>
+                                    <p>路由分布百分比 = 该路由类型请求数 / 24h 总请求数。分为三类：</p>
+                                    <ul style={{ paddingLeft: 20 }}>
+                                        <li><strong>指令域 (command)</strong>：经过意图识别且置信度 &ge; 阈值的请求</li>
+                                        <li><strong>知识域 (knowledge)</strong>：触发知识库检索的请求</li>
+                                        <li><strong>闲聊域 (chitchat)</strong>：由 LLM 直接生成回复的请求</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "tips",
+                    label: "易错点",
+                    children: (
+                        <div>
+                            <Alert
+                                message="实时指标 vs 聚合数据的时间差"
+                                description="QPS 是实时采样值（最近 60s），而总请求量、准确率等是 24h 聚合值。刷新时二者的数据窗口不同，可能出现短暂不一致（如 QPS 为 0 但总请求量仍在增长），属于正常现象。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="设备 ID 格式必须完全匹配"
+                                description="日志筛选中的设备 ID 为模糊匹配，但跳转到设备日志页面时使用精确匹配。确保设备 ID 格式正确（DEV_ 前缀 + 字母数字编号），大小写敏感。"
+                                type="error"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="时区处理"
+                                description="所有日志时间戳使用 UTC+8（中国标准时间）。前端展示时直接显示服务端返回的时间，无需额外转换。注意：跨时区部署时需在服务端统一时区设置。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="P95/P99 延迟可能高于平均值数倍"
+                                description="P95/P99 反映长尾请求的性能。当知识检索或 LLM 闲聊响应慢时，P99 可能显著高于平均延迟。此时应关注具体的慢请求日志，而非仅看平均值。"
+                                type="info"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="错误率突增不一定是系统故障"
+                                description="设备发送空文本、格式错误的请求也会计入错误率。排查时应先通过日志筛选「是否异常=异常」查看具体错误请求，区分设备端问题和服务端问题。"
+                                type="info"
+                            />
+                        </div>
+                    )
+                }
+            ];
+
+            // ── Render ──
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">智能对话管理平台</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    {/* Main Content */}
+                    <Content className={"main-content" + (inIframe ? " main-content-no-sider" : "")}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>监控仪表盘</h1>
+                                    <p style={{ color: "#8c8c8c", fontSize: 14 }}>实时监控生产 API 运行状况，查看请求日志与设备会话</p>
+                                </div>
+                                <Space>
+                                    <div className={countdown <= 5 ? "countdown-badge paused" : "countdown-badge"}>
+                                        <ClockCircleOutlined />
+                                        <span>下次刷新: {countdown}s</span>
+                                    </div>
+                                    <Button icon={<ReloadOutlined spin={refreshing} />} onClick={handleManualRefresh} loading={refreshing}>手动刷新</Button>
+                                    <Tooltip title="查看数据流向、指标定义、业务逻辑和易错点">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button icon={<FundOutlined />} onClick={() => goTo("device-logs")}>设备日志</Button>
+                                    <Button icon={<AlertOutlined />} onClick={() => goTo("alert-rules")}>告警规则</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        <Spin spinning={refreshing} tip="刷新中...">
+                            {/* Section 1: Real-time Metrics Cards - Row 1 (FR-030) */}
+                            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">总请求量 (24h)</div>
+                                            <div className="metric-value" style={{ color: "#262626" }}>15,682</div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>
+                                                    <ArrowUpOutlined /> +12.3% 较昨日
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">实时 QPS</div>
+                                            <div className="metric-value" style={{ color: "#52c41a" }}>8.5</div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>
+                                                    <CheckCircleOutlined /> 容量正常 (&lt;10)
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">平均延迟</div>
+                                            <div className="metric-value" style={{ color: "#52c41a" }}>156<span style={{ fontSize: 16, fontWeight: 400 }}>ms</span></div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>
+                                                    <CheckCircleOutlined /> 正常 (&lt;200ms)
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">P95 / P99 延迟</div>
+                                            <div style={{ display: "flex", justifyContent: "center", gap: 16, alignItems: "baseline" }}>
+                                                <div>
+                                                    <span style={{ fontSize: 24, fontWeight: 700, color: "#52c41a" }}>189</span>
+                                                    <span style={{ fontSize: 12, color: "#8c8c8c" }}>ms P95</span>
+                                                </div>
+                                                <Divider type="vertical" style={{ height: 28 }} />
+                                                <div>
+                                                    <span style={{ fontSize: 24, fontWeight: 700, color: "#fa8c16" }}>342</span>
+                                                    <span style={{ fontSize: 12, color: "#8c8c8c" }}>ms P99</span>
+                                                </div>
+                                            </div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>P95 正常</Tag>
+                                                <Tag color="orange" style={{ border: "none", fontSize: 12 }}>P99 关注</Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                            </Row>
+
+                            {/* Section 1: Real-time Metrics Cards - Row 2 (FR-030) */}
+                            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">意图识别准确率</div>
+                                            <div className="metric-value" style={{ color: "#52c41a" }}>96.2<span style={{ fontSize: 16, fontWeight: 400 }}>%</span></div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>
+                                                    <CheckCircleOutlined /> 目标 &ge; 95%
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">错误率</div>
+                                            <div className="metric-value" style={{ color: "#52c41a" }}>0.3<span style={{ fontSize: 16, fontWeight: 400 }}>%</span></div>
+                                            <div className="metric-sub">
+                                                <Tag color="green" style={{ border: "none", fontSize: 12 }}>
+                                                    <CheckCircleOutlined /> 正常 (&lt;1%)
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">平均对话轮次</div>
+                                            <div className="metric-value" style={{ color: "#262626" }}>2.4</div>
+                                            <div className="metric-sub" style={{ color: "#8c8c8c" }}>轮 / 会话</div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                                <Col span={6}>
+                                    <Card>
+                                        <div className="metric-card">
+                                            <div className="metric-label">路由分布</div>
+                                            <div style={{ textAlign: "left", padding: "4px 0" }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                                                    <span><Tag color="blue" style={{ margin: 0 }}>指令</Tag></span>
+                                                    <span style={{ fontFamily: "monospace", fontSize: 13 }}>62%</span>
+                                                </div>
+                                                <Progress percent={62} showInfo={false} strokeColor="#1890ff" size="small" style={{ margin: 0 }} />
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, marginTop: 6 }}>
+                                                    <span><Tag color="green" style={{ margin: 0 }}>知识</Tag></span>
+                                                    <span style={{ fontFamily: "monospace", fontSize: 13 }}>23%</span>
+                                                </div>
+                                                <Progress percent={23} showInfo={false} strokeColor="#52c41a" size="small" style={{ margin: 0 }} />
+                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, marginTop: 6 }}>
+                                                    <span><Tag color="purple" style={{ margin: 0 }}>闲聊</Tag></span>
+                                                    <span style={{ fontFamily: "monospace", fontSize: 13 }}>15%</span>
+                                                </div>
+                                                <Progress percent={15} showInfo={false} strokeColor="#722ed1" size="small" style={{ margin: 0 }} />
+                                            </div>
+                                        </div>
+                                    </Card>
+                                </Col>
+                            </Row>
+
+                            {/* Section 2: Route Distribution (FR-030) */}
+                            <Card title="路由分布（24小时）" style={{ marginBottom: 24 }}>
+                                <div style={{ padding: "8px 0" }}>
+                                    <div className="route-bar">
+                                        <div className="bar-label" style={{ color: "#1890ff" }}>指令域</div>
+                                        <div className="bar-track">
+                                            <div className="bar-fill" style={{ width: "62%", background: "linear-gradient(90deg, #1890ff, #69c0ff)" }}>62%</div>
+                                        </div>
+                                        <div className="bar-info">
+                                            9,723 请求
+                                            <Tag color="green" style={{ marginLeft: 8, fontSize: 11 }}><ArrowUpOutlined /> +3.1%</Tag>
+                                        </div>
+                                    </div>
+                                    <div className="route-bar">
+                                        <div className="bar-label" style={{ color: "#52c41a" }}>知识域</div>
+                                        <div className="bar-track">
+                                            <div className="bar-fill" style={{ width: "23%", background: "linear-gradient(90deg, #52c41a, #95de64)" }}>23%</div>
+                                        </div>
+                                        <div className="bar-info">
+                                            3,607 请求
+                                            <Tag color="orange" style={{ marginLeft: 8, fontSize: 11 }}><ArrowDownOutlined /> -1.2%</Tag>
+                                        </div>
+                                    </div>
+                                    <div className="route-bar">
+                                        <div className="bar-label" style={{ color: "#722ed1" }}>闲聊域</div>
+                                        <div className="bar-track">
+                                            <div className="bar-fill" style={{ width: "15%", background: "linear-gradient(90deg, #722ed1, #b37feb)" }}>15%</div>
+                                        </div>
+                                        <div className="bar-info">
+                                            2,352 请求
+                                            <Tag color="green" style={{ marginLeft: 8, fontSize: 11 }}><ArrowUpOutlined /> +0.8%</Tag>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* Section 3: Request Logs (FR-034) */}
+                            <Card
+                                title={
+                                    <Space>
+                                        <span>请求日志</span>
+                                        <Badge count={filteredLogs.length} style={{ backgroundColor: "#1890ff" }} />
+                                    </Space>
+                                }
+                            >
+                                {/* Multi-dimensional filter form */}
+                                <div style={{ marginBottom: 16 }}>
+                                    <Row gutter={[12, 12]}>
+                                        <Col span={6}>
+                                            <RangePicker
+                                                style={{ width: "100%" }}
+                                                placeholder={["开始时间", "结束时间"]}
+                                                showTime
+                                                value={filters.timeRange}
+                                                onChange={(val) => setFilters({ ...filters, timeRange: val })}
+                                            />
+                                        </Col>
+                                        <Col span={3}>
+                                            <Input
+                                                placeholder="设备 ID"
+                                                value={filters.deviceId}
+                                                onChange={(e) => setFilters({ ...filters, deviceId: e.target.value })}
+                                                allowClear
+                                            />
+                                        </Col>
+                                        <Col span={3}>
+                                            <Select
+                                                placeholder="路由类型"
+                                                value={filters.routeType}
+                                                onChange={(val) => setFilters({ ...filters, routeType: val })}
+                                                style={{ width: "100%" }}
+                                                allowClear
+                                            >
+                                                <Option value="command">指令</Option>
+                                                <Option value="knowledge">知识</Option>
+                                                <Option value="chitchat">闲聊</Option>
+                                            </Select>
+                                        </Col>
+                                        <Col span={3}>
+                                            <Input
+                                                placeholder="意图名称"
+                                                value={filters.intentName}
+                                                onChange={(e) => setFilters({ ...filters, intentName: e.target.value })}
+                                                allowClear
+                                            />
+                                        </Col>
+                                        <Col span={3}>
+                                            <Select
+                                                placeholder="响应耗时"
+                                                value={filters.latencyRange}
+                                                onChange={(val) => setFilters({ ...filters, latencyRange: val })}
+                                                style={{ width: "100%" }}
+                                                allowClear
+                                            >
+                                                <Option value="<200">&lt;200ms</Option>
+                                                <Option value="200-500">200-500ms</Option>
+                                                <Option value="500-2000">500ms-2s</Option>
+                                                <Option value="2000-4000">2-4s</Option>
+                                                <Option value=">4000">&gt;4s</Option>
+                                            </Select>
+                                        </Col>
+                                        <Col span={3}>
+                                            <Select
+                                                placeholder="是否异常"
+                                                value={filters.anomaly}
+                                                onChange={(val) => setFilters({ ...filters, anomaly: val })}
+                                                style={{ width: "100%" }}
+                                                allowClear
+                                            >
+                                                <Option value="normal">正常</Option>
+                                                <Option value="abnormal">异常</Option>
+                                            </Select>
+                                        </Col>
+                                        <Col span={3}>
+                                            <Space>
+                                                <Button type="primary" icon={<SearchOutlined />} onClick={() => message.success("查询条件已应用")}>查询</Button>
+                                                <Button onClick={resetFilters}>重置</Button>
+                                            </Space>
+                                        </Col>
+                                    </Row>
+                                </div>
+
+                                {/* Logs Table */}
+                                <Table
+                                    columns={logColumns}
+                                    dataSource={filteredLogs}
+                                    pagination={{
+                                        current: pagination.current,
+                                        pageSize: pagination.pageSize,
+                                        total: filteredLogs.length,
+                                        showSizeChanger: true,
+                                        showQuickJumper: true,
+                                        showTotal: (total) => "共 " + total + " 条"
+                                    }}
+                                    rowKey="id"
+                                    scroll={{ x: 1300 }}
+                                    size="middle"
+                                    onChange={(pag) => setPagination({ ...pagination, current: pag.current, pageSize: pag.pageSize })}
+                                />
+                            </Card>
+                        </Spin>
+                    </Content>
+
+                    {/* Help Drawer */}
+                    <Drawer
+                        title={
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? "切换到窄视图" : "切换到宽视图"}>
+                                    <Button
+                                        type="text"
+                                        icon={<ColumnWidthOutlined />}
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? "800px" : "1200px"}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={drawerTabs} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

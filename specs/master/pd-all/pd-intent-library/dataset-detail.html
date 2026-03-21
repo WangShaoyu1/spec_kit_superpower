@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理数据 | SmartChef PD</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+        .stat-row { display: flex; gap: 24px; margin-bottom: 24px; }
+        .stat-card { background: #fff; border-radius: 8px; padding: 16px 20px; flex: 1; border: 1px solid #f0f0f0; }
+        .stat-card-value { font-size: 28px; font-weight: 700; }
+        .stat-card-label { font-size: 13px; color: #8c8c8c; margin-top: 4px; }
+        .q-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #fafafa; border-radius: 4px; margin-bottom: 6px; transition: background .2s; }
+        .q-item:hover { background: #e6f7ff; }
+        .q-item .q-text { flex: 1; font-size: 13px; }
+        .q-item .q-actions { opacity: 0; transition: opacity .2s; display: flex; gap: 4px; }
+        .q-item:hover .q-actions { opacity: 1; }
+        .slot-card { border: 1px solid #f0f0f0; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+        .slot-card:hover { border-color: #1890ff; }
+        .slot-card-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fafafa; }
+        .slot-card-header:hover { background: #e6f7ff; }
+        .slot-key { font-family: monospace; font-weight: 600; color: #1890ff; }
+        .slot-name { color: #595959; }
+        .slot-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .slot-badge.system { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+        .slot-badge.custom { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+        .slot-entities { padding: 12px 16px; border-top: 1px solid #f0f0f0; }
+        .entity-value-item { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 0 6px 6px 0; border-radius: 4px; font-size: 13px; background: #fff; border: 1px solid #d9d9d9; }
+        .entity-value-item .synonyms { color: #8c8c8c; font-size: 11px; }
+        .followup-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+        .followup-badge.yes { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+        .followup-badge.no { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const { Layout, Menu, Breadcrumb, Button, Table, Tag, Badge, Alert, Card, Space, Modal, Form, Input, Select, InputNumber, Drawer, Tabs, List, message, Row, Col, Divider, Tooltip, Popconfirm, Switch, Empty, Upload } = antd;
+        const { SettingOutlined, DatabaseOutlined, FileTextOutlined, MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined, ApartmentOutlined, ArrowLeftOutlined, QuestionCircleOutlined, PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ColumnWidthOutlined, CopyOutlined, ExportOutlined, CheckCircleOutlined, CloseCircleOutlined, TagOutlined, InfoCircleOutlined, SaveOutlined, SoundOutlined, ToolOutlined, AppstoreOutlined, UploadOutlined, DownloadOutlined, InboxOutlined, FileExcelOutlined } = icons;
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { TextArea } = Input;
+        const { Dragger } = Upload;
+
+        /*
+         * 核心数据模型（术语约定）:
+         *
+         *  意图 (Intent) → 引用词槽 (Slot)
+         *  词槽 (Slot)   → 包含多个实体值 (Entity)
+         *
+         *  意图配置中的"话术":
+         *    - 命中话术: 意图被命中后，系统返回给用户的回复
+         *    - 未命中话术: 意图未命中时，系统的兜底回复
+         *
+         *  相似问管理（训练数据）:
+         *    - 相似问: 用户说这些话时，应该匹配到此意图（正样本）
+         *    - 排除问: 用户说这些话时，不应匹配此意图（负样本/反例）
+         */
+
+        // =============================================
+        // Mock: 词槽库
+        // =============================================
+        const initialSystemSlots = [
+            { id: 'ss_01', key: 'sys.device', name_zh: '设备', category: 'system', value_type: 'enum', description: '平台预置的厨房设备词槽', entities: [
+                { id: 'e01', value: '烤箱', synonyms: ['烤炉', 'oven'] }, { id: 'e02', value: '微波炉', synonyms: ['微波'] }, { id: 'e03', value: '抽油烟机', synonyms: ['油烟机', '排烟机'] }, { id: 'e04', value: '蒸锅', synonyms: ['蒸笼'] }, { id: 'e05', value: '电饭煲', synonyms: ['电饭锅', '煲'] }, { id: 'e06', value: '洗碗机', synonyms: [] }, { id: 'e07', value: '冰箱', synonyms: ['冰柜'] },
+            ]},
+            { id: 'ss_02', key: 'sys.temperature', name_zh: '温度', category: 'system', value_type: 'number', description: '温度数值', entities: [
+                { id: 'e10', value: '℃ (摄氏度)', synonyms: ['度', 'C'] }, { id: 'e11', value: '℉ (华氏度)', synonyms: ['F'] },
+            ]},
+            { id: 'ss_03', key: 'sys.duration', name_zh: '时长', category: 'system', value_type: 'number', description: '时间段', entities: [
+                { id: 'e12', value: '秒', synonyms: ['s'] }, { id: 'e13', value: '分钟', synonyms: ['分', 'min'] }, { id: 'e14', value: '小时', synonyms: ['h', '个小时'] },
+            ]},
+            { id: 'ss_04', key: 'sys.datetime', name_zh: '日期时间', category: 'system', value_type: 'datetime', description: '日期时间识别', entities: [
+                { id: 'e15', value: '具体时间', synonyms: [] }, { id: 'e16', value: '相对时间', synonyms: [] },
+            ]},
+            { id: 'ss_05', key: 'sys.number', name_zh: '数字', category: 'system', value_type: 'number', description: '通用数字', entities: [
+                { id: 'e17', value: '整数', synonyms: [] }, { id: 'e18', value: '小数', synonyms: [] }, { id: 'e19', value: '中文数字', synonyms: [] },
+            ]},
+        ];
+
+        const initialCustomSlots = [
+            { id: 'cs_01', key: 'dish', name_zh: '菜品', category: 'custom', value_type: 'text', description: '菜品名称', entities: [
+                { id: 'ce01', value: '红烧肉', synonyms: ['红烧五花'] }, { id: 'ce02', value: '宫保鸡丁', synonyms: ['宫爆鸡丁'] }, { id: 'ce03', value: '番茄炒蛋', synonyms: ['西红柿炒蛋'] }, { id: 'ce04', value: '麻婆豆腐', synonyms: [] }, { id: 'ce05', value: '糖醋排骨', synonyms: ['糖醋小排'] },
+            ]},
+            { id: 'cs_02', key: 'cuisine', name_zh: '菜系', category: 'custom', value_type: 'enum', description: '菜系分类', entities: [
+                { id: 'ce10', value: '中餐', synonyms: ['中式'] }, { id: 'ce11', value: '西餐', synonyms: ['西式'] }, { id: 'ce12', value: '日料', synonyms: ['日式'] }, { id: 'ce13', value: '韩餐', synonyms: ['韩式'] },
+            ]},
+            { id: 'cs_03', key: 'cook_mode', name_zh: '烹饪模式', category: 'custom', value_type: 'enum', description: '烹饪模式', entities: [
+                { id: 'ce20', value: '标准', synonyms: ['正常'] }, { id: 'ce21', value: '快速', synonyms: ['加速'] }, { id: 'ce22', value: '低温慢煮', synonyms: ['慢煮'] }, { id: 'ce23', value: '蒸', synonyms: ['清蒸'] }, { id: 'ce24', value: '烤', synonyms: ['烘烤'] },
+            ]},
+            { id: 'cs_04', key: 'purpose', name_zh: '用途', category: 'custom', value_type: 'text', description: '定时器用途', entities: [
+                { id: 'ce30', value: '烹饪', synonyms: ['做饭'] }, { id: 'ce31', value: '预热', synonyms: ['加热'] }, { id: 'ce32', value: '解冻', synonyms: ['化冻'] },
+            ]},
+        ];
+
+        // =============================================
+        // Mock: 意图定义
+        // =============================================
+        const initialIntents = [
+            { id: 'int_001', intent_key: 'device.on', name_zh: '打开设备', description: '用户要求打开或启动智能厨房设备',
+              slots: [{ slot_key: 'sys.device', required: true }, { slot_key: 'sys.temperature', required: false }, { slot_key: 'sys.duration', required: false }],
+              has_followup: true, followup_prompt: '请问您要打开哪个设备？',
+              hit_response: '好的，正在为您打开{device}', miss_response: '抱歉，我不太确定您要操作什么设备',
+              similar_questions: [
+                { id: 'q001', text: '帮我打开烤箱', source: 'manual', language: 'zh' }, { id: 'q002', text: '把微波炉开一下', source: 'llm', language: 'zh' }, { id: 'q003', text: '启动抽油烟机', source: 'manual', language: 'zh' }, { id: 'q004', text: '烤箱打开预热200度', source: 'llm', language: 'zh' }, { id: 'q005', text: '帮我把蒸锅开了', source: 'llm', language: 'zh' }, { id: 'q006', text: 'Turn on the oven', source: 'manual', language: 'en' }, { id: 'q007', text: '开下微波炉呗', source: 'llm', language: 'zh' },
+              ],
+              negative_examples: [
+                { id: 'n001', text: '烤箱温度多少了', source: 'manual', language: 'zh' }, { id: 'n002', text: '微波炉好了吗', source: 'manual', language: 'zh' }, { id: 'n003', text: '帮我查下烤箱的菜谱', source: 'llm', language: 'zh' },
+              ]
+            },
+            { id: 'int_002', intent_key: 'device.off', name_zh: '关闭设备', description: '用户要求关闭设备',
+              slots: [{ slot_key: 'sys.device', required: true }], has_followup: true, followup_prompt: '请问您要关闭哪个设备？',
+              hit_response: '好的，已为您关闭{device}', miss_response: '抱歉，请告诉我您要关闭哪个设备',
+              similar_questions: [{ id: 'q010', text: '关掉烤箱', source: 'manual', language: 'zh' }, { id: 'q011', text: '把微波炉关了', source: 'llm', language: 'zh' }, { id: 'q012', text: '停止抽油烟机', source: 'manual', language: 'zh' }],
+              negative_examples: [{ id: 'n010', text: '帮我打开烤箱', source: 'manual', language: 'zh' }, { id: 'n011', text: '烤箱还在工作吗', source: 'manual', language: 'zh' }]
+            },
+            { id: 'int_003', intent_key: 'timer.set', name_zh: '设置定时器', description: '设置倒计时或提醒',
+              slots: [{ slot_key: 'sys.duration', required: true }, { slot_key: 'purpose', required: false }], has_followup: false, followup_prompt: '',
+              hit_response: '已为您设置{duration}的定时器', miss_response: '请告诉我需要定时多长时间',
+              similar_questions: [{ id: 'q020', text: '帮我定时5分钟', source: 'manual', language: 'zh' }, { id: 'q021', text: '10分钟后提醒我', source: 'manual', language: 'zh' }, { id: 'q022', text: '设一个半小时的计时器', source: 'llm', language: 'zh' }, { id: 'q023', text: '倒计时20分钟', source: 'llm', language: 'zh' }],
+              negative_examples: [{ id: 'n020', text: '现在几点了', source: 'manual', language: 'zh' }, { id: 'n021', text: '取消定时器', source: 'manual', language: 'zh' }]
+            },
+            { id: 'int_004', intent_key: 'recipe.query', name_zh: '查询菜谱', description: '查询菜品做法',
+              slots: [{ slot_key: 'dish', required: true }, { slot_key: 'cuisine', required: false }], has_followup: false, followup_prompt: '',
+              hit_response: '为您找到{dish}的做法', miss_response: '抱歉，我没有找到相关菜谱',
+              similar_questions: [{ id: 'q030', text: '红烧肉怎么做', source: 'manual', language: 'zh' }, { id: 'q031', text: '教我做宫保鸡丁', source: 'llm', language: 'zh' }, { id: 'q032', text: '查一下番茄炒蛋的做法', source: 'llm', language: 'zh' }],
+              negative_examples: [{ id: 'n030', text: '帮我开始做饭', source: 'manual', language: 'zh' }, { id: 'n031', text: '今天吃什么好', source: 'llm', language: 'zh' }]
+            },
+            { id: 'int_005', intent_key: 'cook.start', name_zh: '开始烹饪', description: '按参数开始烹饪',
+              slots: [{ slot_key: 'dish', required: false }, { slot_key: 'cook_mode', required: false }, { slot_key: 'sys.temperature', required: false }, { slot_key: 'sys.duration', required: false }],
+              has_followup: true, followup_prompt: '请问您想烹饪什么菜品？',
+              hit_response: '好的，开始为您烹饪', miss_response: '请告诉我您想做什么菜',
+              similar_questions: [{ id: 'q040', text: '开始做红烧肉', source: 'manual', language: 'zh' }, { id: 'q041', text: '用标准模式烹饪', source: 'llm', language: 'zh' }, { id: 'q042', text: '180度烤30分钟', source: 'manual', language: 'zh' }],
+              negative_examples: [{ id: 'n040', text: '红烧肉怎么做', source: 'manual', language: 'zh' }]
+            },
+            { id: 'int_006', intent_key: 'device.query', name_zh: '查询设备状态', description: '查询设备运行状态',
+              slots: [{ slot_key: 'sys.device', required: true }], has_followup: false, followup_prompt: '',
+              hit_response: '{device}当前状态正常', miss_response: '请告诉我您要查询哪个设备',
+              similar_questions: [{ id: 'q050', text: '烤箱现在温度多少', source: 'manual', language: 'zh' }, { id: 'q051', text: '微波炉还有多久', source: 'llm', language: 'zh' }, { id: 'q052', text: '蒸锅好了没', source: 'manual', language: 'zh' }],
+              negative_examples: [{ id: 'n050', text: '帮我打开烤箱', source: 'manual', language: 'zh' }]
+            }
+        ];
+
+        // =============================================
+        // App
+        // =============================================
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [intents, setIntents] = useState(initialIntents);
+            const [systemSlots] = useState(initialSystemSlots);
+            const [customSlots, setCustomSlots] = useState(initialCustomSlots);
+            const [selectedKeys, setSelectedKeys] = useState(['datasets']);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [helpDrawerVisible, setHelpDrawerVisible] = useState(false);
+            const [helpDrawerWidth, setHelpDrawerWidth] = useState(1200);
+            const [searchText, setSearchText] = useState('');
+            const [activeTopTab, setActiveTopTab] = useState('intents');
+
+            const [configDrawerVisible, setConfigDrawerVisible] = useState(false);
+            const [configIntent, setConfigIntent] = useState(null);
+            const [configForm, setConfigForm] = useState({ intent_key: '', name_zh: '', description: '', has_followup: false, followup_prompt: '', hit_response: '', miss_response: '', slots: [] });
+
+            const [simDrawerVisible, setSimDrawerVisible] = useState(false);
+            const [simIntent, setSimIntent] = useState(null);
+
+            const [addQVisible, setAddQVisible] = useState(false);
+            const [addQType, setAddQType] = useState('similar');
+            const [addQBatch, setAddQBatch] = useState(false);
+            const [addQText, setAddQText] = useState('');
+            const [addQBatchText, setAddQBatchText] = useState('');
+            const [addQLang, setAddQLang] = useState('zh');
+            const [addQSource, setAddQSource] = useState('manual');
+
+            const [slotDrawerVisible, setSlotDrawerVisible] = useState(false);
+            const [editingSlot, setEditingSlot] = useState(null);
+            const [slotForm, setSlotForm] = useState({ key: '', name_zh: '', value_type: 'text', description: '', entities: [] });
+
+            const [addEntityVisible, setAddEntityVisible] = useState(false);
+            const [newEntityValue, setNewEntityValue] = useState('');
+            const [newEntitySynonyms, setNewEntitySynonyms] = useState('');
+
+            const [importEntityVisible, setImportEntityVisible] = useState(false);
+
+            const allSlots = useMemo(() => [...systemSlots, ...customSlots], [systemSlots, customSlots]);
+            const getSlotInfo = useCallback((key) => allSlots.find(s => s.key === key), [allSlots]);
+            const datasetInfo = { id: 'ds_003', name: '训练集_v2.2', type: 'train', boundModel: 'v2.2-beta', createdAt: '2024-03-10' };
+            const filteredIntents = useMemo(() => intents.filter(i => !searchText || i.intent_key.includes(searchText) || i.name_zh.includes(searchText)), [intents, searchText]);
+            const totalEntities = useMemo(() => allSlots.reduce((sum, s) => sum + s.entities.length, 0), [allSlots]);
+            const stats = useMemo(() => ({ intentCount: intents.length, slotCount: allSlots.length, entityCount: totalEntities, simTotal: intents.reduce((s, i) => s + i.similar_questions.length, 0), negTotal: intents.reduce((s, i) => s + i.negative_examples.length, 0) }), [intents, allSlots, totalEntities]);
+
+            const goTo = (page) => { if (page === 'index') window.location.href = 'index.html'; else if (page === 'datasets') window.location.href = 'datasets.html'; };
+            const handleOpenChange = useCallback((keys) => { setOpenKeys(keys); }, []);
+            const toggleHelpWidth = () => { setHelpDrawerWidth(prev => prev === 1200 ? 800 : 1200); };
+            const menuItems = [
+                { key: 'config', icon: <SettingOutlined />, label: '配置管理', children: [{ key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('index') }, { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') }, { key: 'profiles', icon: <ApartmentOutlined />, label: '对话方案' }] },
+                { key: 'deploy', icon: <RocketOutlined />, label: '部署与监控', children: [{ key: 'versions', icon: <CloudUploadOutlined />, label: '版本发布' }, { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }] },
+                { key: 'system', icon: <SettingOutlined />, label: '系统管理', children: [{ key: 'users', icon: <DatabaseOutlined />, label: '用户管理' }] }
+            ];
+
+            // ===== 意图配置抽屉 (含命中/未命中话术) =====
+            const openConfigDrawer = (intent) => {
+                if (intent) { setConfigIntent(intent); setConfigForm({ intent_key: intent.intent_key, name_zh: intent.name_zh, description: intent.description, has_followup: intent.has_followup, followup_prompt: intent.followup_prompt || '', hit_response: intent.hit_response || '', miss_response: intent.miss_response || '', slots: [...intent.slots] }); }
+                else { setConfigIntent(null); setConfigForm({ intent_key: '', name_zh: '', description: '', has_followup: false, followup_prompt: '', hit_response: '', miss_response: '', slots: [] }); }
+                setConfigDrawerVisible(true);
+            };
+            const saveConfig = () => {
+                if (!configForm.intent_key.trim()) return message.error('英文标识不能为空');
+                if (!configForm.name_zh.trim()) return message.error('中文名不能为空');
+                if (configIntent) { setIntents(prev => prev.map(i => i.id === configIntent.id ? { ...i, ...configForm } : i)); message.success('意图已保存'); }
+                else { setIntents(prev => [...prev, { id: 'int_' + Date.now(), ...configForm, similar_questions: [], negative_examples: [] }]); message.success('意图已创建'); }
+                setConfigDrawerVisible(false);
+            };
+            const deleteIntent = (id) => { setIntents(prev => prev.filter(i => i.id !== id)); message.success('意图已删除'); };
+
+            // ===== 相似问抽屉 =====
+            const openSimDrawer = (intent) => { setSimIntent(intent); setSimDrawerVisible(true); };
+            const openAddQ = (type) => { setAddQType(type); setAddQText(''); setAddQBatchText(''); setAddQBatch(false); setAddQLang('zh'); setAddQSource('manual'); setAddQVisible(true); };
+            const handleAddQ = () => {
+                let items;
+                if (addQBatch) { const lines = addQBatchText.split('\n').map(l => l.trim()).filter(Boolean); if (!lines.length) return message.error('请输入至少一条'); items = lines.map(t => ({ id: 'q_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), text: t, language: addQLang, source: addQSource })); }
+                else { if (!addQText.trim()) return message.error('内容不能为空'); items = [{ id: 'q_' + Date.now(), text: addQText.trim(), language: addQLang, source: addQSource }]; }
+                const field = addQType === 'similar' ? 'similar_questions' : 'negative_examples';
+                setIntents(prev => prev.map(i => i.id !== simIntent.id ? i : { ...i, [field]: [...i[field], ...items] }));
+                setSimIntent(prev => prev ? { ...prev, [field]: [...prev[field], ...items] } : prev);
+                setAddQVisible(false); message.success(`已添加 ${items.length} 条`);
+            };
+            const deleteQ = (qId, type) => {
+                const field = type === 'similar' ? 'similar_questions' : 'negative_examples';
+                setIntents(prev => prev.map(i => i.id !== simIntent.id ? i : { ...i, [field]: i[field].filter(q => q.id !== qId) }));
+                setSimIntent(prev => prev ? { ...prev, [field]: prev[field].filter(q => q.id !== qId) } : prev);
+            };
+
+            // ===== 词槽管理 =====
+            const openSlotDrawer = (slot) => {
+                if (slot) { setEditingSlot(slot); setSlotForm({ key: slot.key, name_zh: slot.name_zh, value_type: slot.value_type, description: slot.description, entities: [...slot.entities] }); }
+                else { setEditingSlot(null); setSlotForm({ key: '', name_zh: '', value_type: 'text', description: '', entities: [] }); }
+                setSlotDrawerVisible(true);
+            };
+            const saveSlot = () => {
+                if (!slotForm.key.trim()) return message.error('词槽Key不能为空');
+                if (!slotForm.name_zh.trim()) return message.error('中文名不能为空');
+                if (editingSlot) { setCustomSlots(prev => prev.map(s => s.id === editingSlot.id ? { ...s, ...slotForm, category: 'custom' } : s)); message.success('词槽已保存'); }
+                else { if (allSlots.find(s => s.key === slotForm.key)) return message.error('Key已存在'); setCustomSlots(prev => [...prev, { id: 'cs_' + Date.now(), ...slotForm, category: 'custom' }]); message.success('词槽已创建'); }
+                setSlotDrawerVisible(false);
+            };
+            const deleteSlot = (id) => { setCustomSlots(prev => prev.filter(s => s.id !== id)); message.success('词槽已删除'); };
+
+            const addEntityToSlot = () => {
+                if (!newEntityValue.trim()) return message.error('实体值不能为空');
+                const synonyms = newEntitySynonyms.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+                setSlotForm(prev => ({ ...prev, entities: [...prev.entities, { id: 'e_' + Date.now(), value: newEntityValue.trim(), synonyms }] }));
+                setNewEntityValue(''); setNewEntitySynonyms(''); setAddEntityVisible(false);
+            };
+            const removeEntityFromSlot = (eid) => { setSlotForm(prev => ({ ...prev, entities: prev.entities.filter(e => e.id !== eid) })); };
+
+            const handleImportEntities = () => {
+                const mockImported = [
+                    { id: 'ei_' + Date.now() + '_1', value: '水煮鱼', synonyms: ['水煮鱼片'] },
+                    { id: 'ei_' + Date.now() + '_2', value: '回锅肉', synonyms: [] },
+                    { id: 'ei_' + Date.now() + '_3', value: '鱼香肉丝', synonyms: ['鱼香'] },
+                    { id: 'ei_' + Date.now() + '_4', value: '酸菜鱼', synonyms: ['酸菜鱼片'] },
+                    { id: 'ei_' + Date.now() + '_5', value: '东坡肉', synonyms: ['东坡红烧肉'] },
+                ];
+                setSlotForm(prev => ({ ...prev, entities: [...prev.entities, ...mockImported] }));
+                setImportEntityVisible(false);
+                message.success(`已导入 ${mockImported.length} 个实体值`);
+            };
+
+            const currentSimIntent = useMemo(() => { if (!simIntent) return null; return intents.find(i => i.id === simIntent.id) || simIntent; }, [intents, simIntent]);
+
+            // ===== 意图表格 =====
+            const columns = [
+                { title: '英文标识', dataIndex: 'intent_key', width: 140, render: (t) => <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#1890ff' }}>{t}</span>, sorter: (a, b) => a.intent_key.localeCompare(b.intent_key) },
+                { title: '中文名', dataIndex: 'name_zh', width: 100 },
+                { title: '描述', dataIndex: 'description', ellipsis: true, render: (t) => <Tooltip title={t}><span style={{ color: '#595959' }}>{t}</span></Tooltip> },
+                { title: '词槽', key: 'slots', width: 180, render: (_, r) => <Space size={4} wrap>{r.slots.map((s, i) => { const info = getSlotInfo(s.slot_key); return <Tag key={i} color={info?.category === 'system' ? 'blue' : 'orange'}>@{s.slot_key}{s.required ? '*' : ''}</Tag>; })}</Space> },
+                { title: '追问', key: 'fu', width: 50, render: (_, r) => <span className={`followup-badge ${r.has_followup ? 'yes' : 'no'}`}>{r.has_followup ? '是' : '否'}</span> },
+                { title: '相似问', key: 'sim', width: 65, render: (_, r) => <Tag color="success">{r.similar_questions.length}</Tag> },
+                { title: '排除问', key: 'neg', width: 65, render: (_, r) => <Tag color="warning">{r.negative_examples.length}</Tag> },
+                { title: '操作', key: 'action', width: 210, render: (_, r) => (
+                    <Space>
+                        <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openConfigDrawer(r)}>配置</Button>
+                        <Button type="link" size="small" icon={<MessageOutlined />} onClick={() => openSimDrawer(r)}>相似问</Button>
+                        <Tooltip title="复制"><Button type="text" size="small" icon={<CopyOutlined />} onClick={() => { navigator.clipboard?.writeText(r.intent_key); message.success('已复制'); }} /></Tooltip>
+                        <Popconfirm title={`删除 ${r.intent_key}？`} onConfirm={() => deleteIntent(r.id)} okType="danger">
+                            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                    </Space>
+                )}
+            ];
+
+            const renderSlotSection = (slots, isSystem) => slots.map(slot => (
+                <div key={slot.id} className="slot-card">
+                    <div className="slot-card-header" style={{ cursor: isSystem ? 'default' : 'pointer' }}>
+                        <span className="slot-key">@{slot.key}</span>
+                        <span className="slot-name">{slot.name_zh}</span>
+                        <span className={`slot-badge ${isSystem ? 'system' : 'custom'}`}>{isSystem ? '系统' : '自定义'}</span>
+                        <Tag color={slot.value_type === 'enum' ? 'purple' : slot.value_type === 'number' ? 'orange' : 'default'}>{slot.value_type}</Tag>
+                        <span style={{ flex: 1, color: '#8c8c8c', fontSize: 12 }}>{slot.description}</span>
+                        <Tag>{slot.entities.length} 个实体</Tag>
+                        {!isSystem && <Space size={4} onClick={e => e.stopPropagation()}><Button type="text" size="small" icon={<EditOutlined />} onClick={() => openSlotDrawer(slot)} /><Popconfirm title={`删除 @${slot.key}？`} onConfirm={() => deleteSlot(slot.id)} okType="danger"><Button type="text" size="small" danger icon={<DeleteOutlined />} /></Popconfirm></Space>}
+                    </div>
+                    <div className="slot-entities">
+                        {slot.entities.slice(0, 20).map(e => <span key={e.id} className="entity-value-item"><strong>{e.value}</strong>{e.synonyms.length > 0 && <span className="synonyms">({e.synonyms.join(', ')})</span>}</span>)}
+                        {slot.entities.length > 20 && <Tag color="default">+{slot.entities.length - 20} 更多</Tag>}
+                        {slot.entities.length === 0 && <span style={{ color: '#bfbfbf' }}>暂无实体值</span>}
+                    </div>
+                </div>
+            ));
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header"><div className="sidebar-logo">SmartChef 平台</div><div className="sidebar-subtitle">D016 管理数据</div></div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        <div className="page-header">
+                            <Breadcrumb style={{ marginBottom: 16 }}><Breadcrumb.Item onClick={() => goTo('index')} style={{ cursor: 'pointer' }}>首页</Breadcrumb.Item><Breadcrumb.Item onClick={() => goTo('datasets')} style={{ cursor: 'pointer' }}>数据集管理</Breadcrumb.Item><Breadcrumb.Item>管理数据</Breadcrumb.Item></Breadcrumb>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                    <Button icon={<ArrowLeftOutlined />} onClick={() => goTo('datasets')} style={{ marginTop: 4 }}>返回</Button>
+                                    <div><h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>管理数据 <Tag color="blue" style={{ fontSize: 14, verticalAlign: 'middle' }}>{datasetInfo.name}</Tag></h1>
+                                        <Space size={16}><span style={{ color: '#8c8c8c', fontSize: 13 }}>类型: <Tag>{datasetInfo.type === 'train' ? '训练集' : '评估集'}</Tag></span><span style={{ color: '#8c8c8c', fontSize: 13 }}>绑定模型: <Tag color="purple">{datasetInfo.boundModel || '未绑定'}</Tag></span></Space></div>
+                                </div>
+                                <Space><Button icon={<QuestionCircleOutlined />} onClick={() => setHelpDrawerVisible(true)}>说明</Button><Button icon={<ExportOutlined />}>导出数据</Button></Space>
+                            </div>
+                        </div>
+                        <div className="stat-row">
+                            <div className="stat-card"><div className="stat-card-value" style={{ color: '#1890ff' }}>{stats.intentCount}</div><div className="stat-card-label">意图总数</div></div>
+                            <div className="stat-card"><div className="stat-card-value" style={{ color: '#722ed1' }}>{stats.slotCount}</div><div className="stat-card-label">词槽总数</div></div>
+                            <div className="stat-card"><div className="stat-card-value" style={{ color: '#13c2c2' }}>{stats.entityCount}</div><div className="stat-card-label">实体值总数</div></div>
+                            <div className="stat-card"><div className="stat-card-value" style={{ color: '#52c41a' }}>{stats.simTotal}</div><div className="stat-card-label">相似问总数</div></div>
+                            <div className="stat-card"><div className="stat-card-value" style={{ color: '#fa8c16' }}>{stats.negTotal}</div><div className="stat-card-label">排除问总数</div></div>
+                        </div>
+                        <Tabs activeKey={activeTopTab} onChange={setActiveTopTab} type="card" size="large" items={[
+                            { key: 'intents', label: <><DatabaseOutlined /> 意图列表</>, children: (
+                                <div>
+                                    <Card style={{ marginBottom: 16 }}><Row gutter={16} align="middle"><Col span={8}><Input placeholder="搜索意图标识或中文名" value={searchText} onChange={(e) => setSearchText(e.target.value)} prefix={<SearchOutlined />} allowClear /></Col><Col span={16} style={{ textAlign: 'right' }}><Space><span style={{ color: '#8c8c8c', fontSize: 13 }}>共 {filteredIntents.length} 个意图</span><Button type="primary" icon={<PlusOutlined />} onClick={() => openConfigDrawer(null)}>新建意图</Button></Space></Col></Row></Card>
+                                    <Card><Table columns={columns} dataSource={filteredIntents} rowKey="id" pagination={{ pageSize: 20, showTotal: t => `共 ${t} 个` }} /></Card>
+                                </div>
+                            )},
+                            { key: 'slots', label: <><TagOutlined /> 词槽与实体</>, children: (
+                                <div>
+                                    <Alert message={<><strong>关系：</strong>意图引用词槽(Slot)，词槽包含多个实体值(Entity)。例: <code>device.on</code> → 词槽 <code>@sys.device</code> → 实体"烤箱""微波炉"</>} type="info" showIcon style={{ marginBottom: 16 }} />
+                                    <Card title={<><AppstoreOutlined /> 系统词槽 <Tag color="blue">{systemSlots.length}</Tag></>} size="small" style={{ marginBottom: 16 }} extra={<Tag>只读</Tag>}>{renderSlotSection(systemSlots, true)}</Card>
+                                    <Card title={<><ToolOutlined /> 自定义词槽 <Tag color="orange">{customSlots.length}</Tag></>} size="small" extra={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => openSlotDrawer(null)}>新建自定义词槽</Button>}>{customSlots.length === 0 ? <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : renderSlotSection(customSlots, false)}</Card>
+                                </div>
+                            )}
+                        ]} />
+                    </Content>
+
+                    {/* ===== 意图配置抽屉 (含命中/未命中话术) ===== */}
+                    <Drawer title={configIntent ? `编辑意图: ${configIntent.intent_key}` : '新建意图'} width={660} open={configDrawerVisible} onClose={() => setConfigDrawerVisible(false)} extra={<Button type="primary" icon={<SaveOutlined />} onClick={saveConfig}>保存</Button>}>
+                        <Form layout="vertical">
+                            <Row gutter={16}>
+                                <Col span={12}><Form.Item label={<>英文标识 <Tooltip title="全局唯一，创建后不可修改"><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></>} required><Input value={configForm.intent_key} onChange={e => setConfigForm(p => ({ ...p, intent_key: e.target.value }))} placeholder="device.on" disabled={!!configIntent} style={{ fontFamily: 'monospace' }} /></Form.Item></Col>
+                                <Col span={12}><Form.Item label="中文名" required><Input value={configForm.name_zh} onChange={e => setConfigForm(p => ({ ...p, name_zh: e.target.value }))} placeholder="打开设备" /></Form.Item></Col>
+                            </Row>
+                            <Form.Item label="描述"><TextArea value={configForm.description} onChange={e => setConfigForm(p => ({ ...p, description: e.target.value }))} rows={2} /></Form.Item>
+
+                            <Divider orientation="left">引用词槽</Divider>
+                            {configForm.slots.map((slot, idx) => (
+                                <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, padding: 8, background: '#fafafa', borderRadius: 6 }}>
+                                    <Select value={slot.slot_key} onChange={v => { const ss = [...configForm.slots]; ss[idx] = { ...ss[idx], slot_key: v }; setConfigForm(p => ({ ...p, slots: ss })); }} style={{ flex: 1 }} placeholder="选择词槽" showSearch optionFilterProp="children">
+                                        {allSlots.map(s => <Option key={s.key} value={s.key}><span style={{ fontFamily: 'monospace' }}>@{s.key}</span> ({s.name_zh}) <Tag color={s.category === 'system' ? 'blue' : 'orange'} style={{ fontSize: 10 }}>{s.category === 'system' ? '系统' : '自定义'}</Tag></Option>)}
+                                    </Select>
+                                    <span style={{ fontSize: 12, color: '#8c8c8c' }}>必填:</span>
+                                    <Switch checked={slot.required} onChange={v => { const ss = [...configForm.slots]; ss[idx] = { ...ss[idx], required: v }; setConfigForm(p => ({ ...p, slots: ss })); }} size="small" />
+                                    <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => setConfigForm(p => ({ ...p, slots: p.slots.filter((_, i) => i !== idx) }))} />
+                                </div>
+                            ))}
+                            <Button type="dashed" block icon={<PlusOutlined />} onClick={() => setConfigForm(p => ({ ...p, slots: [...p.slots, { slot_key: '', required: false }] }))} style={{ marginBottom: 16 }}>添加词槽引用</Button>
+
+                            <Divider orientation="left">追问配置</Divider>
+                            <Row gutter={16} align="middle">
+                                <Col span={6}><Form.Item label="是否追问" style={{ marginBottom: 0 }}><Switch checked={configForm.has_followup} onChange={v => setConfigForm(p => ({ ...p, has_followup: v }))} /></Form.Item></Col>
+                                {configForm.has_followup && <Col span={18}><Form.Item label="追问话术" style={{ marginBottom: 0 }}><Input value={configForm.followup_prompt} onChange={e => setConfigForm(p => ({ ...p, followup_prompt: e.target.value }))} placeholder="请问您要打开哪个设备？" /></Form.Item></Col>}
+                            </Row>
+
+                            <Divider orientation="left">命中话术 / 未命中话术</Divider>
+                            <Alert message="命中话术：意图匹配成功后返回给用户的回复。未命中话术：意图未匹配时的兜底回复。支持 {slot_key} 变量替换。" type="info" showIcon style={{ marginBottom: 12 }} />
+                            <Form.Item label={<>命中话术 <Tooltip title="意图被命中后，系统返回给用户的回复。可用 {词槽Key} 做变量替换"><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></>}>
+                                <TextArea value={configForm.hit_response} onChange={e => setConfigForm(p => ({ ...p, hit_response: e.target.value }))} placeholder={'好的，正在为您打开{device}'} rows={2} />
+                            </Form.Item>
+                            <Form.Item label={<>未命中话术 <Tooltip title="意图未被命中时（置信度不足），系统的兜底回复"><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></>}>
+                                <TextArea value={configForm.miss_response} onChange={e => setConfigForm(p => ({ ...p, miss_response: e.target.value }))} placeholder="抱歉，我不太确定您要操作什么设备" rows={2} />
+                            </Form.Item>
+                        </Form>
+                    </Drawer>
+
+                    {/* ===== 相似问管理抽屉 ===== */}
+                    <Drawer title={currentSimIntent ? `相似问管理: ${currentSimIntent.intent_key} (${currentSimIntent.name_zh})` : '相似问管理'} width={720} open={simDrawerVisible} onClose={() => setSimDrawerVisible(false)}>
+                        {currentSimIntent && <Tabs defaultActiveKey="sim" items={[
+                            { key: 'sim', label: <><CheckCircleOutlined style={{ color: '#52c41a' }} /> 相似问 ({currentSimIntent.similar_questions.length})</>, children: (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <span style={{ color: '#8c8c8c', fontSize: 13 }}>用户说这些话时，<strong>应该</strong>匹配到此意图（正样本/训练数据）</span>
+                                        <Button type="primary" size="small" ghost icon={<PlusOutlined />} onClick={() => openAddQ('similar')}>添加相似问</Button>
+                                    </div>
+                                    {currentSimIntent.similar_questions.length === 0 ? <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> :
+                                    <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                                        {currentSimIntent.similar_questions.map(q => (
+                                            <div key={q.id} className="q-item">
+                                                <CheckCircleOutlined style={{ color: '#52c41a', flexShrink: 0 }} />
+                                                <span className="q-text">{q.text}</span>
+                                                <Tag color={q.source === 'llm' ? 'purple' : 'default'} style={{ margin: 0, fontSize: 11 }}>{q.source}</Tag>
+                                                <Tag style={{ margin: 0, fontSize: 11 }}>{q.language}</Tag>
+                                                <div className="q-actions"><Popconfirm title="删除？" onConfirm={() => deleteQ(q.id, 'similar')} okType="danger"><Button type="text" size="small" danger icon={<DeleteOutlined />} /></Popconfirm></div>
+                                            </div>
+                                        ))}
+                                    </div>}
+                                </div>
+                            )},
+                            { key: 'neg', label: <><CloseCircleOutlined style={{ color: '#ff4d4f' }} /> 排除问 ({currentSimIntent.negative_examples.length})</>, children: (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <span style={{ color: '#8c8c8c', fontSize: 13 }}>用户说这些话时，<strong>不应该</strong>匹配到此意图（负样本/反例）</span>
+                                        <Button size="small" ghost danger icon={<PlusOutlined />} onClick={() => openAddQ('negative')}>添加排除问</Button>
+                                    </div>
+                                    {currentSimIntent.negative_examples.length === 0 ? <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> :
+                                    <div style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                                        {currentSimIntent.negative_examples.map(q => (
+                                            <div key={q.id} className="q-item" style={{ borderLeft: '3px solid #ff4d4f' }}>
+                                                <CloseCircleOutlined style={{ color: '#ff4d4f', flexShrink: 0 }} />
+                                                <span className="q-text">{q.text}</span>
+                                                <Tag color={q.source === 'llm' ? 'purple' : 'default'} style={{ margin: 0, fontSize: 11 }}>{q.source}</Tag>
+                                                <Tag style={{ margin: 0, fontSize: 11 }}>{q.language}</Tag>
+                                                <div className="q-actions"><Popconfirm title="删除？" onConfirm={() => deleteQ(q.id, 'negative')} okType="danger"><Button type="text" size="small" danger icon={<DeleteOutlined />} /></Popconfirm></div>
+                                            </div>
+                                        ))}
+                                    </div>}
+                                </div>
+                            )}
+                        ]} />}
+                    </Drawer>
+
+                    {/* ===== 添加相似问/排除问弹窗 ===== */}
+                    <Modal title={addQType === 'similar' ? '添加相似问' : '添加排除问'} open={addQVisible} onOk={handleAddQ} onCancel={() => setAddQVisible(false)} width={600} okText="添加">
+                        <Form layout="vertical" style={{ marginTop: 8 }}>
+                            <Form.Item><Switch checked={addQBatch} onChange={setAddQBatch} /> <span style={{ marginLeft: 8, color: '#8c8c8c' }}>批量添加（一行一条）</span></Form.Item>
+                            {addQBatch ? <Form.Item label="内容（一行一条）" required><TextArea value={addQBatchText} onChange={e => setAddQBatchText(e.target.value)} placeholder={'帮我打开烤箱\n把微波炉开一下'} rows={6} /></Form.Item>
+                            : <Form.Item label="内容" required><Input value={addQText} onChange={e => setAddQText(e.target.value)} placeholder="帮我打开烤箱" /></Form.Item>}
+                            <Row gutter={16}>
+                                <Col span={12}><Form.Item label="语言"><Select value={addQLang} onChange={setAddQLang}><Option value="zh">中文</Option><Option value="en">英文</Option></Select></Form.Item></Col>
+                                <Col span={12}><Form.Item label="来源"><Select value={addQSource} onChange={setAddQSource}><Option value="manual">人工标注</Option><Option value="llm">LLM 合成</Option></Select></Form.Item></Col>
+                            </Row>
+                        </Form>
+                    </Modal>
+
+                    {/* ===== 词槽编辑抽屉 ===== */}
+                    <Drawer title={editingSlot ? `编辑词槽: @${editingSlot.key}` : '新建自定义词槽'} width={640} open={slotDrawerVisible} onClose={() => setSlotDrawerVisible(false)} extra={<Button type="primary" icon={<SaveOutlined />} onClick={saveSlot}>保存</Button>}>
+                        <Form layout="vertical">
+                            <Row gutter={16}>
+                                <Col span={12}><Form.Item label="词槽Key" required><Input value={slotForm.key} onChange={e => setSlotForm(p => ({ ...p, key: e.target.value }))} placeholder="dish" disabled={!!editingSlot} style={{ fontFamily: 'monospace' }} /></Form.Item></Col>
+                                <Col span={12}><Form.Item label="中文名" required><Input value={slotForm.name_zh} onChange={e => setSlotForm(p => ({ ...p, name_zh: e.target.value }))} placeholder="菜品" /></Form.Item></Col>
+                            </Row>
+                            <Row gutter={16}>
+                                <Col span={8}><Form.Item label="值类型"><Select value={slotForm.value_type} onChange={v => setSlotForm(p => ({ ...p, value_type: v }))}><Option value="text">text</Option><Option value="enum">enum</Option><Option value="number">number</Option></Select></Form.Item></Col>
+                                <Col span={16}><Form.Item label="描述"><Input value={slotForm.description} onChange={e => setSlotForm(p => ({ ...p, description: e.target.value }))} /></Form.Item></Col>
+                            </Row>
+                        </Form>
+
+                        <Divider orientation="left">实体值列表 ({slotForm.entities.length})</Divider>
+                        <Alert message="实体是词槽的具体取值。同义词帮助 NLU 识别不同表达形式。" type="info" showIcon style={{ marginBottom: 12 }} />
+
+                        <Space style={{ marginBottom: 12 }}>
+                            <Button icon={<PlusOutlined />} onClick={() => { setNewEntityValue(''); setNewEntitySynonyms(''); setAddEntityVisible(true); }}>单个添加</Button>
+                            <Button icon={<UploadOutlined />} onClick={() => setImportEntityVisible(true)}>批量导入</Button>
+                            <Button icon={<DownloadOutlined />} onClick={() => message.success('Excel 模板已下载')}>下载模板</Button>
+                        </Space>
+
+                        {slotForm.entities.length === 0 ? <Empty description="暂无实体值，请手动添加或批量导入" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
+                            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                                <div style={{ marginBottom: 8, color: '#8c8c8c', fontSize: 12 }}>共 {slotForm.entities.length} 个实体值{slotForm.entities.length > 50 && '（滚动查看更多）'}</div>
+                                {slotForm.entities.map(entity => (
+                                    <div key={entity.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: '#fafafa', borderRadius: 4, marginBottom: 4 }}>
+                                        <strong style={{ minWidth: 80 }}>{entity.value}</strong>
+                                        {entity.synonyms.length > 0 && <span style={{ color: '#8c8c8c', fontSize: 12, flex: 1 }}>同义词: {entity.synonyms.join(', ')}</span>}
+                                        {entity.synonyms.length === 0 && <span style={{ flex: 1 }} />}
+                                        <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeEntityFromSlot(entity.id)} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Drawer>
+
+                    {/* ===== 添加实体弹窗 ===== */}
+                    <Modal title="添加实体值" open={addEntityVisible} onOk={addEntityToSlot} onCancel={() => setAddEntityVisible(false)} width={500} okText="添加">
+                        <Form layout="vertical" style={{ marginTop: 8 }}>
+                            <Form.Item label="实体值" required><Input value={newEntityValue} onChange={e => setNewEntityValue(e.target.value)} placeholder="烤箱" /></Form.Item>
+                            <Form.Item label={<>同义词 <span style={{ color: '#8c8c8c', fontWeight: 'normal' }}>（逗号分隔，可选）</span></>}><Input value={newEntitySynonyms} onChange={e => setNewEntitySynonyms(e.target.value)} placeholder="烤炉, oven" /></Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* ===== 批量导入实体弹窗 ===== */}
+                    <Modal title={<><UploadOutlined /> 批量导入实体值</>} open={importEntityVisible} onOk={handleImportEntities} onCancel={() => setImportEntityVisible(false)} width={680} okText="确认导入">
+                        <Alert message="支持 Excel (.xlsx) 或 文本文件 (.txt, .csv) 导入" type="info" showIcon style={{ marginBottom: 16 }} />
+
+                        <Tabs items={[
+                            { key: 'excel', label: <><FileExcelOutlined /> Excel 导入</>, children: (
+                                <div>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <div style={{ fontWeight: 500, marginBottom: 8 }}>Excel 模板格式：</div>
+                                        <Table size="small" pagination={false} bordered style={{ marginBottom: 12 }}
+                                            columns={[
+                                                { title: 'entity_value (必填)', dataIndex: 'value', width: 180 },
+                                                { title: 'synonyms (选填，逗号分隔)', dataIndex: 'synonyms' }
+                                            ]}
+                                            dataSource={[
+                                                { value: '红烧肉', synonyms: '红烧五花, 红烧五花肉' },
+                                                { value: '宫保鸡丁', synonyms: '宫爆鸡丁' },
+                                                { value: '麻婆豆腐', synonyms: '' },
+                                            ]}
+                                        />
+                                        <Button icon={<DownloadOutlined />} size="small" onClick={() => message.success('Excel 模板已下载')}>下载 Excel 模板</Button>
+                                    </div>
+                                    <Dragger beforeUpload={() => false} accept=".xlsx,.xls" style={{ padding: 16 }}>
+                                        <p><InboxOutlined style={{ fontSize: 36, color: '#1890ff' }} /></p>
+                                        <p>点击或拖拽 Excel 文件到此处</p>
+                                        <p style={{ fontSize: 12, color: '#8c8c8c' }}>支持 .xlsx, .xls 格式</p>
+                                    </Dragger>
+                                </div>
+                            )},
+                            { key: 'text', label: <><FileTextOutlined /> 文本导入</>, children: (
+                                <div>
+                                    <div style={{ fontWeight: 500, marginBottom: 8 }}>文本格式（一行一个实体，同义词用逗号分隔）：</div>
+                                    <pre style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, marginBottom: 12, fontSize: 13, lineHeight: 1.6 }}>
+{`红烧肉,红烧五花,红烧五花肉
+宫保鸡丁,宫爆鸡丁
+麻婆豆腐
+糖醋排骨,糖醋小排`}
+                                    </pre>
+                                    <Dragger beforeUpload={() => false} accept=".txt,.csv" style={{ padding: 16 }}>
+                                        <p><InboxOutlined style={{ fontSize: 36, color: '#1890ff' }} /></p>
+                                        <p>点击或拖拽文本文件到此处</p>
+                                        <p style={{ fontSize: 12, color: '#8c8c8c' }}>支持 .txt, .csv 格式，一行一个实体</p>
+                                    </Dragger>
+                                    <Divider>或直接粘贴</Divider>
+                                    <TextArea rows={6} placeholder={'红烧肉,红烧五花\n宫保鸡丁,宫爆鸡丁\n麻婆豆腐'} />
+                                </div>
+                            )}
+                        ]} />
+                    </Modal>
+
+                    {/* ===== 说明抽屉 ===== */}
+                    <Drawer title={<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>页面逻辑说明</span><Tooltip title={helpDrawerWidth === 1200 ? '窄' : '宽'}><Button type="text" icon={<ColumnWidthOutlined />} onClick={toggleHelpWidth} size="small">{helpDrawerWidth === 1200 ? '800px' : '1200px'}</Button></Tooltip></div>} width={helpDrawerWidth} open={helpDrawerVisible} onClose={() => setHelpDrawerVisible(false)}>
+                        <Tabs items={[
+                            { key: 'model', label: '数据模型', children: (
+                                <div className="drawer-section">
+                                    <div className="drawer-section-title">核心概念与术语</div>
+                                    <Table size="small" pagination={false} columns={[{ title: '概念', dataIndex: 'concept', width: 80 }, { title: '英文', dataIndex: 'en', width: 70 }, { title: '说明', dataIndex: 'desc' }, { title: '示例', dataIndex: 'example', width: 200 }]} dataSource={[
+                                        { concept: '意图', en: 'Intent', desc: '用户的目标动作', example: 'device.on、timer.set' },
+                                        { concept: '词槽', en: 'Slot', desc: '意图需要提取的参数类别', example: '@sys.device、@dish' },
+                                        { concept: '实体', en: 'Entity', desc: '词槽的具体取值+同义词', example: '烤箱(烤炉,oven)' },
+                                        { concept: '相似问', en: 'Similar Q', desc: '用户说这些话应匹配此意图（正样本）', example: '"帮我打开烤箱"' },
+                                        { concept: '排除问', en: 'Negative', desc: '用户说这些话不应匹配此意图（反例）', example: '"烤箱温度多少了"' },
+                                        { concept: '命中话术', en: 'Hit Response', desc: '意图命中后系统返回的回复', example: '"好的，正在为您打开{device}"' },
+                                        { concept: '未命中话术', en: 'Miss Response', desc: '意图未命中时的兜底回复', example: '"抱歉，请具体说明"' },
+                                    ]} />
+                                    <Divider />
+                                    <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`意图 (Intent)  ──引用──→  词槽 (Slot)  ──包含──→  实体 (Entity)
+      │                                             
+      ├─ 命中话术 (返回给用户的回复)                      
+      ├─ 未命中话术 (兜底回复)                           
+      ├─ 相似问 (用户表达，正样本)                       
+      └─ 排除问 (用户表达，负样本)`}
+                                    </pre>
+                                </div>
+                            )},
+                            { key: 'import', label: '批量导入', children: (
+                                <div>
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">实体批量导入说明</div>
+                                        <Alert message="当实体值数量达到成百上千时，手动逐条添加不现实，支持以下批量导入方式" type="info" showIcon style={{ marginBottom: 12 }} />
+                                        <Table size="small" pagination={false} columns={[{ title: '方式', dataIndex: 'method', width: 120 }, { title: '格式', dataIndex: 'format' }, { title: '说明', dataIndex: 'desc' }]} dataSource={[
+                                            { method: 'Excel 导入', format: '.xlsx / .xls', desc: '两列: entity_value(必填) + synonyms(选填，逗号分隔)' },
+                                            { method: '文本文件导入', format: '.txt / .csv', desc: '一行一个实体，第一个值为实体值，后续为同义词，逗号分隔' },
+                                            { method: '直接粘贴', format: '文本', desc: '在文本导入 Tab 中直接粘贴，格式同文本文件' },
+                                        ]} />
+                                    </div>
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">Excel 模板下载</div>
+                                        <p>模板包含两列：<code>entity_value</code>(实体值) 和 <code>synonyms</code>(同义词)。下载后填写数据，上传即可。</p>
+                                    </div>
+                                </div>
+                            )},
+                            { key: 'tips', label: '易错点', children: (
+                                <div>
+                                    <Alert message='⚠️ "话术" ≠ "相似问"' description="命中/未命中话术是系统返回给用户的回复（在意图配置中设置）；相似问是用户可能说的表达（训练数据，在相似问管理中设置）。" type="error" style={{ marginBottom: 12 }} />
+                                    <Alert message="⚠️ 词槽 ≠ 实体" description="词槽是参数类别（如@device），实体是具体值（如烤箱）。意图引用词槽，不直接引用实体。" type="warning" style={{ marginBottom: 12 }} />
+                                    <Alert message="⚠️ 大量实体用批量导入" description="实体数量超过50时建议使用 Excel/文本 批量导入，避免手动逐条添加。" type="info" style={{ marginBottom: 12 }} />
+                                    <Alert message="⚠️ 同义词对识别至关重要" description="同义词越丰富，NLU对用户不同表达方式的识别越准确。" type="info" />
+                                </div>
+                            )}
+                        ]} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

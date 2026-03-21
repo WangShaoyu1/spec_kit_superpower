@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型测试 | SmartChef PD</title>
+    <!-- React 18 - unpkg CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Icons - unpkg -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        /* ===== Chat styles ===== */
+        .chat-container { display: flex; height: calc(100vh - 230px); min-height: 500px; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #f0f0f0; }
+        
+        .session-panel { width: 240px; border-right: 1px solid #f0f0f0; display: flex; flex-direction: column; background: #fafafa; }
+        .session-header { padding: 16px; border-bottom: 1px solid #f0f0f0; }
+        .session-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .session-item { padding: 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; transition: all .2s; position: relative; }
+        .session-item:hover { background: #e6f7ff; }
+        .session-item.active { background: #e6f7ff; border-left: 3px solid #1890ff; }
+        .session-item-title { font-weight: 500; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .session-item-meta { font-size: 11px; color: #8c8c8c; display: flex; justify-content: space-between; }
+        .session-item .delete-btn { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity .2s; }
+        .session-item:hover .delete-btn { opacity: 1; }
+        .session-footer { padding: 12px; border-top: 1px solid #f0f0f0; }
+        
+        .chat-main { flex: 1; display: flex; flex-direction: column; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px 24px; background: #f9f9f9; }
+        .chat-input-area { padding: 16px 24px; border-top: 1px solid #f0f0f0; background: #fff; }
+        
+        .msg-row { display: flex; margin-bottom: 20px; }
+        .msg-row.user { justify-content: flex-end; }
+        .msg-row.system { justify-content: flex-start; }
+        .msg-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .msg-avatar.user-avatar { background: #1890ff; color: #fff; }
+        .msg-avatar.bot-avatar { background: #722ed1; color: #fff; }
+        
+        .msg-bubble { max-width: 70%; margin: 0 12px; }
+        .msg-bubble .bubble-text { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.6; word-break: break-word; }
+        .msg-row.user .bubble-text { background: #1890ff; color: #fff; border-bottom-right-radius: 2px; }
+        .msg-row.system .bubble-text { background: #fff; color: #262626; border: 1px solid #f0f0f0; border-bottom-left-radius: 2px; }
+        .msg-time { font-size: 11px; color: #bfbfbf; margin-top: 4px; }
+        .msg-row.user .msg-time { text-align: right; }
+        
+        .debug-panel { margin-top: 8px; background: #f6f6f6; border: 1px solid #e8e8e8; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+        .debug-panel .debug-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .debug-panel .debug-row:last-child { margin-bottom: 0; }
+        .debug-label { color: #8c8c8c; min-width: 56px; }
+        .debug-value { font-family: 'SF Mono', 'Menlo', monospace; color: #262626; }
+        .debug-value.high { color: #52c41a; }
+        .debug-value.medium { color: #faad14; }
+        .debug-value.low { color: #ff4d4f; }
+
+        /* ===== Batch test styles ===== */
+        .threshold-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .threshold-badge.pass { background: #f6ffed; color: #52c41a; }
+        .threshold-badge.fail { background: #fff2f0; color: #ff4d4f; }
+        .analysis-card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .analysis-title { font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .metric-box { text-align: center; padding: 16px; border-radius: 6px; }
+        .metric-value { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+        .test-result-pass { color: #52c41a; }
+        .test-result-fail { color: #ff4d4f; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useRef, useEffect, useMemo, useCallback } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const { 
+            Layout, Menu, Breadcrumb, Button, Table, Tag, Badge, Alert, Card, 
+            Space, Modal, Form, Input, Select, InputNumber, Drawer, Tabs, List, message,
+            Collapse, Statistic, Row, Col, Progress, Divider, Radio, Timeline, Tooltip,
+            Popconfirm, Empty
+        } = antd;
+        const { 
+            SettingOutlined, DatabaseOutlined, AimOutlined, ExperimentOutlined,
+            FileTextOutlined, RobotOutlined, ThunderboltOutlined, BugOutlined,
+            MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined,
+            ApartmentOutlined, ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined,
+            QuestionCircleOutlined, ThunderboltFilled, InfoCircleOutlined,
+            EyeOutlined, RadarChartOutlined, CloseOutlined, AlertOutlined,
+            ColumnWidthOutlined, SendOutlined, PlusOutlined, DeleteOutlined,
+            UserOutlined, LockOutlined, ReloadOutlined, ClearOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { TabPane } = Tabs;
+        const { Panel } = Collapse;
+
+        // =============================================
+        // Mock: 单条测试 — 会话 & 消息
+        // =============================================
+        const initialSessions = [
+            {
+                id: 'sess_001',
+                title: '烤箱操作测试',
+                createdAt: '2024-03-13 14:20',
+                messages: [
+                    { id: 'm1', role: 'user', text: '帮我打开烤箱，预热200度', time: '14:20:30' },
+                    { id: 'm2', role: 'bot', text: '好的，正在为您打开烤箱并设置预热温度为200度。', time: '14:20:31', debug: { intent: 'device.on', confidence: 0.96, slots: { device: '烤箱', temperature: 200 }, latency: 42 }},
+                    { id: 'm3', role: 'user', text: '10分钟后提醒我', time: '14:21:05' },
+                    { id: 'm4', role: 'bot', text: '已为您设置10分钟的定时提醒。', time: '14:21:06', debug: { intent: 'timer.set', confidence: 0.93, slots: { duration: 600 }, latency: 38 }},
+                    { id: 'm5', role: 'user', text: '现在温度多少了', time: '14:25:10' },
+                    { id: 'm6', role: 'bot', text: '当前烤箱温度为185度，距离目标200度还需约2分钟。', time: '14:25:11', debug: { intent: 'device.query', confidence: 0.91, slots: { device: '烤箱', attribute: 'temperature' }, latency: 55 }},
+                ]
+            },
+            {
+                id: 'sess_002',
+                title: '菜谱查询场景',
+                createdAt: '2024-03-12 10:15',
+                messages: [
+                    { id: 'm7', role: 'user', text: '红烧肉怎么做', time: '10:15:20' },
+                    { id: 'm8', role: 'bot', text: '为您找到红烧肉的经典做法：1. 五花肉切块焯水 2. 冰糖炒色 3. 加入调料炖煮40分钟。需要我帮您设置烹饪计时吗？', time: '10:15:22', debug: { intent: 'recipe.query', confidence: 0.97, slots: { dish: '红烧肉' }, latency: 120 }},
+                    { id: 'm9', role: 'user', text: '好的，帮我计时40分钟', time: '10:16:00' },
+                    { id: 'm10', role: 'bot', text: '已设置40分钟烹饪计时，到时会提醒您。', time: '10:16:01', debug: { intent: 'timer.set', confidence: 0.95, slots: { duration: 2400, purpose: '烹饪' }, latency: 35 }},
+                ]
+            },
+            {
+                id: 'sess_003',
+                title: '模糊指令测试',
+                createdAt: '2024-03-11 16:30',
+                messages: [
+                    { id: 'm11', role: 'user', text: '帮我处理一下', time: '16:30:10' },
+                    { id: 'm12', role: 'bot', text: '抱歉，我不太确定您需要处理什么。您可以具体说明一下吗？比如"打开烤箱"或"查询菜谱"。', time: '16:30:12', debug: { intent: 'unknown', confidence: 0.32, slots: {}, latency: 48 }},
+                ]
+            }
+        ];
+
+        // =============================================
+        // Mock: 批量测试数据（沿用原版）
+        // =============================================
+        const mockTests = [
+            { id: 'test_001', name: 'v2.2-beta 全量评估', modelVersion: 'v2.2-beta', datasetName: '评估集_通用', status: 'completed', progress: 100, f1Score: 0.938, threshold: 0.90, totalSamples: 500, correctSamples: 469, createdAt: '2024-03-12 10:30', hasAnalysis: true },
+            { id: 'test_002', name: 'v2.0 回归测试', modelVersion: 'v2.0', datasetName: '评估集_通用', status: 'completed', progress: 100, f1Score: 0.912, threshold: 0.90, totalSamples: 500, correctSamples: 456, createdAt: '2024-03-10 14:20', hasAnalysis: true },
+            { id: 'test_003', name: 'v2.3-alpha 快速测试', modelVersion: 'v2.3-alpha', datasetName: '评估集_通用', status: 'running', progress: 67, f1Score: null, threshold: 0.90, totalSamples: 500, correctSamples: null, createdAt: '2024-03-13 09:15', hasAnalysis: false }
+        ];
+
+        const mockAnalysis = {
+            summary: '整体表现良好，综合 F1-Score 93.8% 超过阈值 90%。意图识别准确率 94.2%，槽位提取准确率 91.1%。',
+            metrics: { overall: 0.938, intent: 0.942, slot: 0.911, precision: 0.945, recall: 0.932 },
+            topConfusion: [
+                { pair: 'device.on ↔ device.off', count: 23, percent: '12.5%', recommendation: '增加对立场景训练样本' },
+                { pair: 'timer.set ↔ alarm.set', count: 15, percent: '8.2%', recommendation: '区分时间类型（定时/闹钟）' },
+                { pair: 'cook.start ↔ recipe.query', count: 11, percent: '6.0%', recommendation: '增加菜谱查询明确性样本' }
+            ],
+            slotErrors: [
+                { slot: 'duration', count: 34, percent: '35.4%', example: '"帮我加热5分钟" → 槽位缺失' },
+                { slot: 'temperature', count: 22, percent: '22.9%', example: '"200度预热" → 误识别为菜谱名' }
+            ],
+            lowScoreSamples: [
+                { text: '稍微加热一下就好了', intent: 'cook.start', score: 0.62, reason: '模糊意图' },
+                { text: '帮我处理这个', intent: 'device.on', score: 0.58, reason: '槽位缺失' },
+                { text: '现在开始吧', intent: 'cook.start', score: 0.55, reason: '上下文缺失' }
+            ],
+            recommendations: [
+                '针对 device.on/device.off 对立场景增加 50+ 训练样本',
+                '优化 duration 槽位提取规则，增加"分钟/小时"单位识别',
+                '新增"模糊指令拒绝"逻辑，得分低于0.7时提示用户明确意图'
+            ]
+        };
+
+        const statusMap = {
+            running: { status: 'processing', text: '运行中' },
+            completed: { status: 'success', text: '已完成' },
+            failed: { status: 'error', text: '失败' }
+        };
+
+        // =============================================
+        // 单条测试组件 — 对话式
+        // =============================================
+        function SingleTestPanel() {
+            const [sessions, setSessions] = useState(initialSessions);
+            const [activeSessionId, setActiveSessionId] = useState('sess_001');
+            const [inputText, setInputText] = useState('');
+            const [sending, setSending] = useState(false);
+            const messagesEndRef = useRef(null);
+
+            const activeSession = useMemo(
+                () => sessions.find(s => s.id === activeSessionId),
+                [sessions, activeSessionId]
+            );
+
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [activeSession?.messages?.length]);
+
+            const createSession = () => {
+                const id = 'sess_' + Date.now();
+                const newSession = {
+                    id,
+                    title: '新会话 ' + dayjs().format('HH:mm'),
+                    createdAt: dayjs().format('YYYY-MM-DD HH:mm'),
+                    messages: []
+                };
+                setSessions(prev => [newSession, ...prev]);
+                setActiveSessionId(id);
+            };
+
+            const deleteSession = (id) => {
+                setSessions(prev => {
+                    const next = prev.filter(s => s.id !== id);
+                    if (activeSessionId === id && next.length > 0) {
+                        setActiveSessionId(next[0].id);
+                    }
+                    return next;
+                });
+                if (sessions.length <= 1) {
+                    createSession();
+                }
+            };
+
+            const clearAllSessions = () => {
+                Modal.confirm({
+                    title: '清空全部会话',
+                    content: '确认删除所有聊天记录？此操作不可恢复。',
+                    okType: 'danger',
+                    onOk: () => {
+                        const id = 'sess_' + Date.now();
+                        const fresh = { id, title: '新会话', createdAt: dayjs().format('YYYY-MM-DD HH:mm'), messages: [] };
+                        setSessions([fresh]);
+                        setActiveSessionId(id);
+                        message.success('已清空全部会话');
+                    }
+                });
+            };
+
+            const mockBotReply = (userText) => {
+                const intents = [
+                    { pattern: /打开|开启|启动/, intent: 'device.on', reply: (t) => `好的，正在为您${t}。` },
+                    { pattern: /关闭|关掉|停止/, intent: 'device.off', reply: (t) => `已为您关闭相关设备。` },
+                    { pattern: /温度|多少度|几度/, intent: 'device.query', reply: () => '当前烤箱温度为185度。' },
+                    { pattern: /计时|提醒|定时|分钟/, intent: 'timer.set', reply: () => '已为您设置定时提醒。' },
+                    { pattern: /怎么做|做法|菜谱|食谱/, intent: 'recipe.query', reply: () => '为您找到相关菜谱，请查看详情。' },
+                    { pattern: /预热/, intent: 'device.on', reply: () => '好的，正在预热烤箱。' },
+                ];
+                const matched = intents.find(i => i.pattern.test(userText));
+                if (matched) {
+                    const confidence = 0.85 + Math.random() * 0.13;
+                    return {
+                        text: matched.reply(userText),
+                        debug: {
+                            intent: matched.intent,
+                            confidence: parseFloat(confidence.toFixed(2)),
+                            slots: userText.match(/(\d+)/) ? { value: userText.match(/(\d+)/)[1] } : {},
+                            latency: Math.floor(30 + Math.random() * 80)
+                        }
+                    };
+                }
+                return {
+                    text: '抱歉，我不太确定您的意图，请尝试更具体的描述。',
+                    debug: { intent: 'unknown', confidence: parseFloat((0.2 + Math.random() * 0.3).toFixed(2)), slots: {}, latency: Math.floor(40 + Math.random() * 60) }
+                };
+            };
+
+            const handleSend = () => {
+                if (!inputText.trim() || sending) return;
+                const userMsg = { id: 'u_' + Date.now(), role: 'user', text: inputText.trim(), time: dayjs().format('HH:mm:ss') };
+                
+                setSessions(prev => prev.map(s => s.id === activeSessionId 
+                    ? { ...s, messages: [...s.messages, userMsg], title: s.messages.length === 0 ? inputText.trim().slice(0, 12) : s.title } 
+                    : s
+                ));
+                setInputText('');
+                setSending(true);
+
+                setTimeout(() => {
+                    const reply = mockBotReply(userMsg.text);
+                    const botMsg = { id: 'b_' + Date.now(), role: 'bot', text: reply.text, time: dayjs().format('HH:mm:ss'), debug: reply.debug };
+                    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, botMsg] } : s));
+                    setSending(false);
+                }, 500 + Math.random() * 800);
+            };
+
+            const deleteMessage = (msgId) => {
+                setSessions(prev => prev.map(s => s.id === activeSessionId 
+                    ? { ...s, messages: s.messages.filter(m => m.id !== msgId) } 
+                    : s
+                ));
+            };
+
+            const getConfidenceClass = (c) => c >= 0.85 ? 'high' : c >= 0.6 ? 'medium' : 'low';
+
+            return (
+                <div className="chat-container">
+                    {/* 左侧会话列表 */}
+                    <div className="session-panel">
+                        <div className="session-header">
+                            <Button type="primary" icon={<PlusOutlined />} block onClick={createSession}>
+                                新建会话
+                            </Button>
+                        </div>
+                        <div className="session-list">
+                            {sessions.map(s => (
+                                <div 
+                                    key={s.id}
+                                    className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
+                                    onClick={() => setActiveSessionId(s.id)}
+                                >
+                                    <div className="session-item-title">{s.title || '新会话'}</div>
+                                    <div className="session-item-meta">
+                                        <span>{s.messages.length} 条消息</span>
+                                        <span>{s.createdAt.split(' ')[0]}</span>
+                                    </div>
+                                    <Popconfirm 
+                                        title="删除此会话？" 
+                                        onConfirm={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                                        onCancel={(e) => e.stopPropagation()}
+                                    >
+                                        <Button 
+                                            className="delete-btn" 
+                                            type="text" 
+                                            size="small" 
+                                            danger 
+                                            icon={<DeleteOutlined />}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </Popconfirm>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="session-footer">
+                            <Button type="text" danger block icon={<ClearOutlined />} onClick={clearAllSessions}>
+                                清空全部
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* 右侧聊天区域 */}
+                    <div className="chat-main">
+                        {/* 聊天头部 - 模型信息 */}
+                        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+                            <Space>
+                                <Tag color="blue">v2.2-beta</Tag>
+                                <span style={{ fontSize: 13, color: '#8c8c8c' }}>模型状态: testable</span>
+                            </Space>
+                            <Space size={4}>
+                                <Tooltip title="调试信息：每条回复下方显示意图、槽位、置信度和响应时间">
+                                    <Tag color="purple">Debug ON</Tag>
+                                </Tooltip>
+                            </Space>
+                        </div>
+
+                        {/* 消息列表 */}
+                        <div className="chat-messages">
+                            {activeSession?.messages.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '80px 0', color: '#bfbfbf' }}>
+                                    <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+                                    <div style={{ fontSize: 16 }}>输入测试语句开始对话</div>
+                                    <div style={{ fontSize: 13, marginTop: 8 }}>示例: "帮我打开烤箱，预热200度"</div>
+                                </div>
+                            )}
+                            {activeSession?.messages.map((msg) => (
+                                <div key={msg.id} className={`msg-row ${msg.role === 'user' ? 'user' : 'system'}`}>
+                                    {msg.role === 'bot' && (
+                                        <div className="msg-avatar bot-avatar"><RobotOutlined /></div>
+                                    )}
+                                    <div className="msg-bubble">
+                                        <div className="bubble-text">{msg.text}</div>
+                                        <div className="msg-time">
+                                            {msg.time}
+                                            {msg.role === 'user' && (
+                                                <Popconfirm title="删除此消息？" onConfirm={() => deleteMessage(msg.id)} okType="danger">
+                                                    <Button type="text" size="small" style={{ marginLeft: 4, color: '#bfbfbf', fontSize: 11 }} icon={<DeleteOutlined />} />
+                                                </Popconfirm>
+                                            )}
+                                        </div>
+                                        {msg.debug && (
+                                            <div className="debug-panel">
+                                                <div className="debug-row">
+                                                    <span className="debug-label">意图</span>
+                                                    <Tag color={msg.debug.intent === 'unknown' ? 'red' : 'blue'} style={{ margin: 0 }}>{msg.debug.intent}</Tag>
+                                                </div>
+                                                <div className="debug-row">
+                                                    <span className="debug-label">置信度</span>
+                                                    <span className={`debug-value ${getConfidenceClass(msg.debug.confidence)}`}>
+                                                        {(msg.debug.confidence * 100).toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                                {Object.keys(msg.debug.slots).length > 0 && (
+                                                    <div className="debug-row">
+                                                        <span className="debug-label">槽位</span>
+                                                        <span className="debug-value">
+                                                            {Object.entries(msg.debug.slots).map(([k,v]) => (
+                                                                <Tag key={k} style={{ margin: '0 4px 0 0', fontSize: 11 }}>{k}: {v}</Tag>
+                                                            ))}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="debug-row">
+                                                    <span className="debug-label">耗时</span>
+                                                    <span className="debug-value" style={{ color: '#8c8c8c' }}>{msg.debug.latency}ms</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {msg.role === 'user' && (
+                                        <div className="msg-avatar user-avatar"><UserOutlined /></div>
+                                    )}
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* 输入区域 */}
+                        <div className="chat-input-area">
+                            <div style={{ display: 'flex', gap: 12 }}>
+                                <Input.TextArea
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    placeholder="输入测试语句，例如：帮我打开烤箱，预热200度10分钟"
+                                    autoSize={{ minRows: 1, maxRows: 3 }}
+                                    onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                                    style={{ flex: 1 }}
+                                    disabled={sending}
+                                />
+                                <Button 
+                                    type="primary" 
+                                    icon={<SendOutlined />} 
+                                    onClick={handleSend}
+                                    loading={sending}
+                                    style={{ height: 'auto', minHeight: 36 }}
+                                >
+                                    发送
+                                </Button>
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: 12, color: '#bfbfbf' }}>
+                                Enter 发送 · Shift+Enter 换行 · 每条回复显示意图识别与槽位提取结果
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // =============================================
+        // 批量测试组件（沿用原有逻辑）
+        // =============================================
+        function BatchTestPanel() {
+            const [testModalVisible, setTestModalVisible] = useState(false);
+            const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+            const [selectedTest, setSelectedTest] = useState(null);
+            const [testConfig, setTestConfig] = useState({ threshold: 0.90 });
+
+            const columns = [
+                { title: '任务名称', dataIndex: 'name', key: 'name', width: 200, render: (t, r) => <div><div style={{ fontWeight: 500 }}>{t}</div><div style={{ fontSize: 12, color: '#8c8c8c' }}>{r.id}</div></div> },
+                { title: '模型版本', dataIndex: 'modelVersion', key: 'model', width: 120, render: (t) => <Tag color="blue">{t}</Tag> },
+                { title: '评估数据集', dataIndex: 'datasetName', key: 'dataset', width: 150 },
+                { title: '状态', key: 'status', width: 100, render: (_, r) => <div>{r.status === 'running' ? <Progress percent={r.progress} size="small" /> : <Badge status={statusMap[r.status].status} text={statusMap[r.status].text} />}</div> },
+                { title: '结果对比', key: 'result', width: 180, render: (_, r) => r.status === 'completed' ? (
+                    <div className={`threshold-badge ${r.f1Score >= r.threshold ? 'pass' : 'fail'}`}>
+                        <span style={{ fontWeight: 600 }}>{(r.f1Score * 100).toFixed(1)}%</span>
+                        <span style={{ color: '#8c8c8c' }}>/ {(r.threshold * 100)}%</span>
+                        {r.f1Score >= r.threshold ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                    </div>
+                ) : '-' },
+                { title: '样本进度', key: 'progress', width: 100, render: (_, r) => r.status === 'completed' ? <span>{r.correctSamples} / {r.totalSamples}</span> : '-' },
+                { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 140 },
+                { title: '操作', key: 'action', width: 200, render: (_, r) => (
+                    <Space>
+                        <Button type="primary" size="small" icon={<ThunderboltFilled />} onClick={() => { setSelectedTest(r); setAnalysisModalVisible(true); }} disabled={!r.hasAnalysis}>智能分析</Button>
+                        <Button size="small" icon={<EyeOutlined />}>查看</Button>
+                    </Space>
+                ) }
+            ];
+
+            return (
+                <div>
+                    <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Alert
+                            message="批量测试使用独立的评估集（非训练集）对模型进行全量评估，计算 F1-Score，生成智能分析报告"
+                            type="info"
+                            showIcon
+                            style={{ flex: 1, marginRight: 16 }}
+                        />
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setTestModalVisible(true)}>新建测试任务</Button>
+                    </div>
+
+                    <Table columns={columns} dataSource={mockTests} rowKey="id" pagination={{ pageSize: 10 }} />
+
+                    {/* 智能分析示例区 */}
+                    <Card title={<><RadarChartOutlined /> 智能分析示例</>} style={{ marginTop: 24 }}>
+                        <div className="analysis-card" style={{ borderLeft: '4px solid #52c41a' }}>
+                            <div className="analysis-title"><CheckCircleOutlined style={{ color: '#52c41a' }} /> 整体结论</div>
+                            <p>{mockAnalysis.summary}</p>
+                        </div>
+                        
+                        <Row gutter={16} style={{ marginBottom: 16 }}>
+                            <Col span={5}><div className="metric-box" style={{ background: '#f6ffed' }}><div className="metric-value" style={{ color: '#52c41a' }}>{(mockAnalysis.metrics.overall * 100).toFixed(1)}%</div><div>Overall F1</div></div></Col>
+                            <Col span={5}><div className="metric-box" style={{ background: '#e6f7ff' }}><div className="metric-value" style={{ color: '#1890ff' }}>{(mockAnalysis.metrics.intent * 100).toFixed(1)}%</div><div>Intent F1</div></div></Col>
+                            <Col span={5}><div className="metric-box" style={{ background: '#f9f0ff' }}><div className="metric-value" style={{ color: '#722ed1' }}>{(mockAnalysis.metrics.slot * 100).toFixed(1)}%</div><div>Slot F1</div></div></Col>
+                            <Col span={5}><div className="metric-box" style={{ background: '#fff7e6' }}><div className="metric-value" style={{ color: '#fa8c16' }}>{(mockAnalysis.metrics.precision * 100).toFixed(1)}%</div><div>Precision</div></div></Col>
+                            <Col span={4}><div className="metric-box" style={{ background: '#fff2f0' }}><div className="metric-value" style={{ color: '#ff4d4f' }}>{(mockAnalysis.metrics.recall * 100).toFixed(1)}%</div><div>Recall</div></div></Col>
+                        </Row>
+
+                        <Collapse defaultActiveKey={['confusion']}>
+                            <Panel header={<><AlertOutlined /> TopN 意图混淆</>} key="confusion">
+                                <Table size="small" pagination={false} columns={[{ title: '混淆对', dataIndex: 'pair', width: 200 }, { title: '数量', dataIndex: 'count', width: 80 }, { title: '占比', dataIndex: 'percent', width: 80 }, { title: '改进建议', dataIndex: 'recommendation' }]} dataSource={mockAnalysis.topConfusion} />
+                            </Panel>
+                            <Panel header={<><AlertOutlined /> 槽位错误分布</>} key="slots">
+                                <Table size="small" pagination={false} columns={[{ title: '槽位', dataIndex: 'slot', width: 120 }, { title: '错误数', dataIndex: 'count', width: 80 }, { title: '占比', dataIndex: 'percent', width: 80 }, { title: '示例', dataIndex: 'example' }]} dataSource={mockAnalysis.slotErrors} />
+                            </Panel>
+                            <Panel header={<><CloseCircleOutlined /> 低分样本</>} key="low">
+                                <Table size="small" pagination={false} columns={[{ title: '语句', dataIndex: 'text' }, { title: '预测意图', dataIndex: 'intent', width: 120 }, { title: '得分', dataIndex: 'score', width: 80, render: (v) => <span className="test-result-fail">{v}</span> }, { title: '原因', dataIndex: 'reason', width: 150 }]} dataSource={mockAnalysis.lowScoreSamples} />
+                            </Panel>
+                            <Panel header={<><CheckCircleOutlined /> 改进建议</>} key="recommend">
+                                <List size="small" bordered dataSource={mockAnalysis.recommendations} renderItem={item => <List.Item>{item}</List.Item>} />
+                            </Panel>
+                        </Collapse>
+                    </Card>
+
+                    {/* 新建测试弹窗 */}
+                    <Modal title="新建批量测试任务" open={testModalVisible} onOk={() => { message.success('测试任务已创建'); setTestModalVisible(false); }} onCancel={() => setTestModalVisible(false)} width={700}>
+                        <Alert message="测试流程" description="选择模型和评估集 → 配置质量阈值 → 启动测试 → 等待完成 → 查看结果/智能分析" type="info" showIcon style={{ marginBottom: 16 }} />
+                        <Form layout="vertical">
+                            <Form.Item label="任务名称" required><Input placeholder="例如：v2.2-beta 全量评估" /></Form.Item>
+                            <Form.Item label="选择模型版本" required><Select placeholder="选择要测试的模型"><Option value="v2.2">v2.2-beta (testable)</Option><Option value="v2.0">v2.0 (published)</Option></Select></Form.Item>
+                            <Form.Item label="选择评估数据集" required><Select placeholder="选择评估集"><Option value="eval1">评估集_通用 (500条)</Option></Select></Form.Item>
+                            <Form.Item label={<>质量阈值 (F1-Score) <Tooltip title="低于此阈值的测试结果视为未通过"><QuestionCircleOutlined /></Tooltip></>} required>
+                                <InputNumber min={0.5} max={1} step={0.01} value={0.90} style={{ width: 150 }} />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* 分析报告弹窗 */}
+                    <Modal title={<><ThunderboltFilled style={{ color: '#722ed1' }} /> 智能分析报告</>} open={analysisModalVisible} onOk={() => setAnalysisModalVisible(false)} onCancel={() => setAnalysisModalVisible(false)} width={900} footer={[<Button key="ok" type="primary" onClick={() => setAnalysisModalVisible(false)}>关闭</Button>]}>
+                        {selectedTest && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: 12, background: '#f6ffed', borderRadius: 6 }}>
+                                    <div><strong>测试任务:</strong> {selectedTest.name}</div>
+                                    <div><strong>模型:</strong> <Tag color="blue">{selectedTest.modelVersion}</Tag></div>
+                                    <div className={`threshold-badge ${selectedTest.f1Score >= selectedTest.threshold ? 'pass' : 'fail'}`}>{selectedTest.f1Score >= selectedTest.threshold ? '通过' : '未通过'}: {(selectedTest.f1Score * 100).toFixed(1)}% / {(selectedTest.threshold * 100)}%</div>
+                                </div>
+                                <Collapse defaultActiveKey={['metrics', 'confusion']}>
+                                    <Panel header={<><BarChartOutlined /> F1 指标详情</>} key="metrics">
+                                        <Row gutter={16}>
+                                            {Object.entries(mockAnalysis.metrics).map(([k, v]) => (
+                                                <Col span={6} key={k}><div style={{ textAlign: 'center', padding: 12, borderRadius: 6, background: '#f5f5f5' }}><div style={{ fontSize: 24, fontWeight: 700, color: '#1890ff' }}>{(v * 100).toFixed(1)}%</div><div style={{ color: '#8c8c8c', textTransform: 'uppercase' }}>{k}</div></div></Col>
+                                            ))}
+                                        </Row>
+                                    </Panel>
+                                    <Panel header={<><AlertOutlined /> TopN 意图混淆</>} key="confusion">
+                                        <Table size="small" pagination={false} columns={[{ title: '混淆对', dataIndex: 'pair' }, { title: '次数', dataIndex: 'count', width: 80 }, { title: '占比', dataIndex: 'percent', width: 80 }, { title: '建议', dataIndex: 'recommendation' }]} dataSource={mockAnalysis.topConfusion} />
+                                    </Panel>
+                                </Collapse>
+                            </div>
+                        )}
+                    </Modal>
+                </div>
+            );
+        }
+
+        // =============================================
+        // 主页面
+        // =============================================
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [activeTab, setActiveTab] = useState('single');
+            const [selectedKeys, setSelectedKeys] = useState(['libraries']);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+
+            const goTo = (page) => {
+                if (page === 'index') window.location.href = 'index.html';
+                else if (page === 'detail') window.location.href = 'detail.html';
+                else if (page === 'datasets') window.location.href = 'datasets.html';
+            };
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const menuItems = [
+                { key: 'config', icon: <SettingOutlined />, label: '配置管理', children: [{ key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('index') }, { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') }, { key: 'profiles', icon: <ApartmentOutlined />, label: '对话方案' }] },
+                { key: 'deploy', icon: <RocketOutlined />, label: '部署与监控', children: [{ key: 'versions', icon: <CloudUploadOutlined />, label: '版本发布' }, { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }] },
+                { key: 'system', icon: <SettingOutlined />, label: '系统管理', children: [{ key: 'users', icon: <DatabaseOutlined />, label: '用户管理' }] }
+            ];
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef 平台</div>
+                            <div className="sidebar-subtitle">D016 模型测试</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        <div className="page-header">
+                            <Breadcrumb style={{ marginBottom: 16 }}>
+                                <Breadcrumb.Item onClick={() => goTo('index')} style={{ cursor: 'pointer' }}>首页</Breadcrumb.Item>
+                                <Breadcrumb.Item onClick={() => goTo('detail')} style={{ cursor: 'pointer' }}>指令库详情</Breadcrumb.Item>
+                                <Breadcrumb.Item>模型测试</Breadcrumb.Item>
+                            </Breadcrumb>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                    <Button icon={<ArrowLeftOutlined />} onClick={() => goTo('detail')} style={{ marginTop: 4 }}>返回</Button>
+                                    <div>
+                                        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>模型测试</h1>
+                                        <p style={{ color: '#8c8c8c', fontSize: 14 }}>单条对话测试和批量评估，验证模型的意图识别与槽位提取能力</p>
+                                    </div>
+                                </div>
+                                <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                            </div>
+                        </div>
+
+                        {/* 核心 Tabs: 单条测试 / 批量测试 */}
+                        <Tabs 
+                            activeKey={activeTab} 
+                            onChange={setActiveTab}
+                            type="card"
+                            size="large"
+                            items={[
+                                {
+                                    key: 'single',
+                                    label: <><MessageOutlined /> 单条测试</>,
+                                    children: <SingleTestPanel />
+                                },
+                                {
+                                    key: 'batch',
+                                    label: <><BarChartOutlined /> 批量测试</>,
+                                    children: <BatchTestPanel />
+                                }
+                            ]}
+                        />
+                    </Content>
+
+                    {/* 说明抽屉 */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button type="text" icon={<ColumnWidthOutlined />} onClick={toggleDrawerWidth} size="small">
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            {
+                                key: 'flow',
+                                label: '数据流向',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">单条测试数据流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.6 }}>
+{`[用户输入语句] → [NLU Pipeline]
+                    ├─ 意图识别 → intent + confidence
+                    ├─ 槽位提取 → slots {}
+                    └─ 响应生成 → reply text
+
+[Debug 面板展示]
+    ├─ 意图 (intent tag)
+    ├─ 置信度 (颜色编码: ≥85%绿 / ≥60%黄 / <60%红)
+    ├─ 槽位 (key:value tags)
+    └─ 耗时 (ms)
+
+[会话管理]
+    ├─ 多会话隔离（上下文独立）
+    ├─ 会话历史持久化
+    └─ 支持删除单条消息 / 整个会话`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">批量测试数据流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.6 }}>
+{`[评估集] --选择模型+数据集--> [创建测试任务]
+                                ↓
+                        [批量推理] --遍历样本--
+                                ↓
+                    ┌─── 计算 F1 ──────┬─── 对比阈值 ───┬─── 生成报告
+                    ↓                  ↓                ↓
+              [通过/未通过]    [智能分析]      [改进建议]`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'fields',
+                                label: '字段说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">单条测试 - Debug 面板字段</div>
+                                            <Table size="small" pagination={false} columns={[{ title: '字段', dataIndex: 'field', width: 100 }, { title: '类型', dataIndex: 'type', width: 100 }, { title: '说明', dataIndex: 'desc' }]} dataSource={[
+                                                { field: 'intent', type: 'string', desc: 'NLU 识别出的意图标识，如 device.on、timer.set' },
+                                                { field: 'confidence', type: 'float', desc: '意图置信度 0~1，≥0.85 高(绿) / ≥0.60 中(黄) / <0.60 低(红)' },
+                                                { field: 'slots', type: 'object', desc: '提取出的槽位键值对，如 {device: "烤箱", temperature: 200}' },
+                                                { field: 'latency', type: 'int (ms)', desc: '模型推理耗时，单位毫秒' },
+                                            ]} />
+                                        </div>
+                                        <Divider />
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">批量测试 - F1 指标</div>
+                                            <Table size="small" pagination={false} columns={[{ title: '指标', dataIndex: 'metric', width: 120 }, { title: '公式', dataIndex: 'formula' }, { title: '说明', dataIndex: 'desc' }]} dataSource={[
+                                                { metric: 'Precision', formula: 'TP / (TP + FP)', desc: '正确识别的意图数 / 总预测意图数' },
+                                                { metric: 'Recall', formula: 'TP / (TP + FN)', desc: '正确识别的意图数 / 总真实意图数' },
+                                                { metric: 'F1-Score', formula: '2PR / (P + R)', desc: 'Precision 和 Recall 的调和平均' },
+                                            ]} />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'operations',
+                                label: '操作说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">单条测试操作流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"新建会话"]
+    ↓
+[输入测试语句] → Enter发送 / Shift+Enter换行
+    ↓
+[等待模型响应] → 显示 loading 状态
+    ↓
+[展示回复] → 文本 + Debug面板(意图/置信度/槽位/耗时)
+    ↓
+[继续对话] → 上下文保持，支持多轮
+    ↓
+[管理操作]
+    ├─ 删除单条消息 → hover消息时间戳旁出现删除按钮
+    ├─ 删除单个会话 → hover会话项出现删除按钮
+    └─ 清空全部会话 → 底部"清空全部"按钮，二次确认`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">批量测试操作流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"新建测试任务"]
+    ↓
+[填写任务名称] → 必填校验
+    ↓
+[选择模型版本] → 仅 testable/published 可选
+    ↓
+[选择评估数据集] → 评估集(1:N可复用)
+    ↓
+[配置质量阈值] → 继承库级默认值，可覆盖
+    ↓
+[提交] → 创建任务 → 后台异步执行
+    ↓
+[任务完成] → 查看F1指标 / 点击"智能分析"查看报告`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'state',
+                                label: '状态说明',
+                                children: (
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">页面状态说明</div>
+                                        <Table size="small" pagination={false} columns={[{ title: '状态/场景', dataIndex: 'state', width: 160 }, { title: '说明', dataIndex: 'desc' }]} dataSource={[
+                                            { state: '单条测试 - 空会话', desc: '显示空状态引导，提示用户输入测试语句和示例' },
+                                            { state: '单条测试 - 发送中', desc: '输入框禁用，发送按钮显示 loading，等待模型响应' },
+                                            { state: '单条测试 - 低置信度', desc: '置信度 <60% 时 debug 面板标红，intent 标签变红' },
+                                            { state: '批量测试 - 运行中', desc: '显示进度条，操作按钮仅"查看"可用' },
+                                            { state: '批量测试 - 已完成', desc: '显示 F1 结果对比（通过/未通过），"智能分析"按钮可用' },
+                                            { state: '批量测试 - 未达标', desc: 'F1 < 阈值时红色标记，引导用户查看智能分析报告优化模型' },
+                                        ]} />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'tips',
+                                label: '易错点',
+                                children: (
+                                    <div>
+                                        <Alert message="⚠️ 单条测试会话隔离" description="不同会话之间上下文完全隔离，切换会话不影响其他会话的对话历史。" type="info" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ 单条测试不替代批量评估" description="单条测试用于快速验证和调试，无法替代批量评估的统计结论。发布前必须通过批量评估。" type="warning" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ 评估集与训练集分离" description="批量测试的评估集必须独立于训练集，否则测试结果失真。" type="error" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ 阈值配置影响发布门禁" description="F1-Score 未达标时系统会提示测试结果未通过，需先优化再发布。" type="warning" />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

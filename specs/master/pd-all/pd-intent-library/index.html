@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指令库管理 | SmartChef PD</title>
+    <!-- React 18 - 使用 unpkg -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - 使用 unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        // 初始化 Mermaid
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const { 
+            Layout, Menu, Breadcrumb, Button, Table, Tag, Progress, Alert, Card, 
+            Input, Select, Space, Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip,
+            Badge, Result, Modal, Spin
+        } = antd;
+        const { 
+            SettingOutlined, DatabaseOutlined, AimOutlined, ExperimentOutlined,
+            FileTextOutlined, RobotOutlined, ThunderboltOutlined, BugOutlined,
+            MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined,
+            ApartmentOutlined, SearchOutlined, PlusOutlined, UploadOutlined,
+            ExclamationCircleOutlined, InfoCircleOutlined,
+            QuestionCircleOutlined, ArrowRightOutlined, CheckCircleOutlined,
+            ColumnWidthOutlined, LockOutlined, UserOutlined, WifiOutlined,
+            ReloadOutlined, SaveOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+
+        // Mock 数据
+        const mockLibraries = [
+            { id: 'lib_001', name: '中文指令库', key: 'zh_intents_v1', language: 'zh', modelCount: 4, modelLimit: 5, intentCount: 39, status: 'published', updatedAt: '2024-03-13 14:32:00' },
+            { id: 'lib_002', name: '英文指令库', key: 'en_intents_v1', language: 'en', modelCount: 2, modelLimit: 5, intentCount: 12, status: 'draft', updatedAt: '2024-03-10 09:15:00' },
+            { id: 'lib_003', name: '菜谱控制库', key: 'recipe_control', language: 'zh', modelCount: 1, modelLimit: 5, intentCount: 8, status: 'draft', updatedAt: '2024-03-08 16:45:00' },
+            { id: 'lib_004', name: '系统控制库', key: 'system_control', language: 'zh', modelCount: 3, modelLimit: 5, intentCount: 19, status: 'published', updatedAt: '2024-03-12 11:20:00' }
+        ];
+
+        // 权限管理
+        const PERMISSIONS = {
+            ADMIN: { role: 'admin', name: '系统管理员', canCreate: true, canEditAll: true, canDelete: true },
+            PM: { role: 'pm', name: '产品经理', canCreate: true, canEditAll: false, canDelete: false },
+            TESTER: { role: 'tester', name: '测试人员', canCreate: false, canEditAll: false, canDelete: false }
+        };
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(['libraries']);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [filters, setFilters] = useState({ name: '', language: undefined, status: undefined });
+            const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 4 });
+            
+            // 权限管理状态
+            const [currentUser, setCurrentUser] = useState(PERMISSIONS.PM);
+            const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+            
+            // 网络状态检测
+            const [isOnline, setIsOnline] = useState(true);
+            const [showNetworkAlert, setShowNetworkAlert] = useState(false);
+            
+            // 异常处理状态
+            const [editModalVisible, setEditModalVisible] = useState(false);
+            const [editingLibrary, setEditingLibrary] = useState(null);
+            const [saveStatus, setSaveStatus] = useState('idle'); // idle | loading | error | success
+            const [editForm, setEditForm] = useState({ name: '', description: '' });
+
+            const filteredData = useMemo(() => {
+                return mockLibraries.filter(lib => {
+                    if (filters.name && !lib.name.includes(filters.name) && !lib.key.includes(filters.name)) return false;
+                    if (filters.language && lib.language !== filters.language) return false;
+                    if (filters.status && lib.status !== filters.status) return false;
+                    return true;
+                });
+            }, [filters]);
+
+            const goTo = (page) => {
+                if (page === 'index') window.location.href = 'index.html';
+                else if (page === 'detail') window.location.href = 'detail.html';
+                else if (page === 'datasets') window.location.href = 'datasets.html';
+            };
+
+            // 修复菜单展开
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            // 切换抽屉宽度
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            // 网络状态检测
+            useEffect(() => {
+                const handleOnline = () => {
+                    setIsOnline(true);
+                    setShowNetworkAlert(false);
+                    message.success('网络已恢复');
+                };
+                const handleOffline = () => {
+                    setIsOnline(false);
+                    setShowNetworkAlert(true);
+                    message.error('网络连接中断');
+                };
+                
+                window.addEventListener('online', handleOnline);
+                window.addEventListener('offline', handleOffline);
+                
+                return () => {
+                    window.removeEventListener('online', handleOnline);
+                    window.removeEventListener('offline', handleOffline);
+                };
+            }, []);
+
+            // 权限检查函数
+            const canEdit = (library) => {
+                if (currentUser.canEditAll) return true;
+                // 简化：假设是自己的资源
+                return true;
+            };
+            
+            const canDelete = (library) => {
+                if (!currentUser.canDelete) return false;
+                // 已发布的不能删除
+                return library.status !== 'published';
+            };
+
+            // 编辑操作
+            const openEditModal = (library) => {
+                if (!canEdit(library)) {
+                    message.error('您没有编辑该指令库的权限');
+                    return;
+                }
+                setEditingLibrary(library);
+                setEditForm({ name: library.name, description: '' });
+                setSaveStatus('idle');
+                setEditModalVisible(true);
+            };
+
+            // 保存编辑（带异常模拟）
+            const handleSave = async () => {
+                if (!isOnline) {
+                    Modal.confirm({
+                        title: '网络异常',
+                        content: '当前网络不可用，是否重试？',
+                        icon: <ExclamationCircleOutlined />,
+                        onOk: () => {
+                            setIsOnline(true);
+                            handleSave();
+                        }
+                    });
+                    return;
+                }
+                
+                setSaveStatus('loading');
+                
+                // 模拟保存延迟和随机失败
+                setTimeout(() => {
+                    const random = Math.random();
+                    if (random > 0.8) {
+                        // 模拟网络错误
+                        setSaveStatus('error');
+                        Modal.confirm({
+                            title: '保存失败',
+                            content: '网络超时，是否重试？',
+                            icon: <WifiOutlined style={{ color: '#ff4d4f' }} />,
+                            okText: '重试',
+                            onOk: handleSave,
+                            cancelText: '取消'
+                        });
+                    } else {
+                        setSaveStatus('success');
+                        message.success('保存成功');
+                        setEditModalVisible(false);
+                    }
+                }, 1500);
+            };
+
+            // 渲染 Mermaid 图表
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            const columns = [
+                {
+                    title: '名称 / ID',
+                    key: 'name',
+                    width: 220,
+                    render: (_, record) => (
+                        <div>
+                            <a onClick={() => goTo('detail')} style={{ fontWeight: 500, cursor: 'pointer' }}>{record.name}</a>
+                            <div style={{ fontSize: 12, color: '#8c8c8c', fontFamily: 'monospace' }}>{record.id}</div>
+                        </div>
+                    )
+                },
+                { title: 'Library Key', dataIndex: 'key', key: 'key', width: 150, render: (text) => <Tag color="blue">{text}</Tag> },
+                { title: '语种', dataIndex: 'language', key: 'language', width: 80, render: (text) => text === 'zh' ? '中文' : '英文' },
+                {
+                    title: '模型数量',
+                    key: 'models',
+                    width: 120,
+                    render: (_, record) => (
+                        <Progress 
+                            percent={(record.modelCount / record.modelLimit) * 100} 
+                            format={() => `${record.modelCount}/${record.modelLimit}`}
+                            status={record.modelCount >= 4 ? 'exception' : 'normal'}
+                            size="small"
+                        />
+                    )
+                },
+                { title: '意图数', dataIndex: 'intentCount', key: 'intentCount', width: 80 },
+                {
+                    title: '状态',
+                    key: 'status',
+                    width: 100,
+                    render: (_, record) => {
+                        const config = {
+                            published: { color: 'success', text: '已发布', icon: <CheckCircleOutlined /> },
+                            draft: { color: 'default', text: '草稿', icon: <InfoCircleOutlined /> }
+                        };
+                        const cfg = config[record.status];
+                        return <Tag color={cfg.color} icon={cfg.icon}>{cfg.text}</Tag>;
+                    }
+                },
+                { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 160 },
+                {
+                    title: '操作',
+                    key: 'action',
+                    width: 150,
+                    render: (_, record) => (
+                        <Space>
+                            <Button type="link" size="small" onClick={() => goTo('detail')}>查看</Button>
+                            <Tooltip title={!canEdit(record) ? '您没有编辑权限' : ''}>
+                                <Button type="link" size="small" disabled={!canEdit(record)} onClick={() => openEditModal(record)}>编辑</Button>
+                            </Tooltip>
+                            <Tooltip title={!canDelete(record) ? (record.status === 'published' ? '已发布的库不可删除' : '您没有删除权限') : ''}>
+                                <Button type="link" size="small" danger disabled={!canDelete(record)} onClick={() => {
+                                    Modal.confirm({ title: '删除确认', content: `确定删除指令库「${record.name}」？删除后不可恢复。`, okType: 'danger', onOk: () => message.success('删除成功') });
+                                }}>删除</Button>
+                            </Tooltip>
+                        </Space>
+                    )
+                }
+            ];
+
+            const menuItems = [
+                {
+                    key: 'config',
+                    icon: <SettingOutlined />,
+                    label: '配置管理',
+                    children: [
+                        { key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('index') },
+                        { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') },
+                        { key: 'profiles', icon: <ApartmentOutlined />, label: '对话方案' }
+                    ]
+                },
+                {
+                    key: 'deploy',
+                    icon: <RocketOutlined />,
+                    label: '部署与监控',
+                    children: [
+                        { key: 'versions', icon: <CloudUploadOutlined />, label: '版本发布' },
+                        { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }
+                    ]
+                },
+                {
+                    key: 'system',
+                    icon: <UserOutlined />,
+                    label: '系统管理',
+                    children: [
+                        { key: 'users', icon: <LockOutlined />, label: '用户管理' }
+                    ]
+                }
+            ];
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef 平台</div>
+                            <div className="sidebar-subtitle">D016 指令库管理</div>
+                        </div>
+                        <Menu
+                            theme="dark"
+                            mode="inline"
+                            selectedKeys={selectedKeys}
+                            openKeys={openKeys}
+                            onOpenChange={handleOpenChange}
+                            onSelect={({ key }) => setSelectedKeys([key])}
+                            items={menuItems}
+                        />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        <div className="page-header">
+                            <Breadcrumb style={{ marginBottom: 16 }}>
+                                <Breadcrumb.Item>首页</Breadcrumb.Item>
+                                <Breadcrumb.Item>配置管理</Breadcrumb.Item>
+                                <Breadcrumb.Item>指令库列表</Breadcrumb.Item>
+                            </Breadcrumb>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>指令库列表</h1>
+                                    <p style={{ color: '#8c8c8c', fontSize: 14 }}>管理所有指令库及其模型版本，共 {mockLibraries.length} 个指令库</p>
+                                </div>
+                                <Space>
+                                    <Tooltip title="查看数据流向、状态流转规则、字段说明和业务约束">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button icon={<UploadOutlined />}>导入</Button>
+                                    <Button type="primary" icon={<PlusOutlined />}>新建指令库</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* 统计卡片 */}
+                        <Row gutter={24} style={{ marginBottom: 24 }}>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="总库数量" value={4} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="已发布" value={2} valueStyle={{ color: '#52c41a' }} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="训练中" value={1} valueStyle={{ color: '#1890ff' }} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="即将满额" value={1} valueStyle={{ color: '#faad14' }} />
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        {/* 筛选栏 */}
+                        <Card style={{ marginBottom: 24 }}>
+                            <Row gutter={16}>
+                                <Col span={6}>
+                                    <Input
+                                        placeholder="搜索名称或Key"
+                                        value={filters.name}
+                                        onChange={(e) => setFilters({...filters, name: e.target.value})}
+                                        prefix={<SearchOutlined />}
+                                        allowClear
+                                    />
+                                </Col>
+                                <Col span={4}>
+                                    <Select
+                                        placeholder="语种"
+                                        value={filters.language}
+                                        onChange={(val) => setFilters({...filters, language: val})}
+                                        style={{ width: '100%' }}
+                                        allowClear
+                                    >
+                                        <Option value="zh">中文</Option>
+                                        <Option value="en">英文</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={4}>
+                                    <Select
+                                        placeholder="状态"
+                                        value={filters.status}
+                                        onChange={(val) => setFilters({...filters, status: val})}
+                                        style={{ width: '100%' }}
+                                        allowClear
+                                    >
+                                        <Option value="published">已发布</Option>
+                                        <Option value="draft">草稿</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={6}>
+                                    <Space>
+                                        <Button type="primary" onClick={() => message.success('查询条件已应用')}>查询</Button>
+                                        <Button onClick={() => setFilters({ name: '', language: undefined, status: undefined })}>重置</Button>
+                                    </Space>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        {/* 数据表格 */}
+                        <Card>
+                            <Table
+                                columns={columns}
+                                dataSource={filteredData}
+                                pagination={{
+                                    ...pagination,
+                                    showSizeChanger: true,
+                                    showQuickJumper: true,
+                                    showTotal: (total) => `共 ${total} 条`
+                                }}
+                                rowKey="id"
+                                onChange={(pag) => setPagination({...pagination, current: pag.current, pageSize: pag.pageSize})}
+                            />
+                        </Card>
+
+                    </Content>
+
+                    {/* 逻辑说明抽屉 - 带宽度切换 */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button 
+                                        type="text" 
+                                        icon={<ColumnWidthOutlined />} 
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            {
+                                key: 'flow',
+                                label: '数据流向',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">指令库全链路数据流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto' }}>
+{`[创建指令库] 
+    ↓ 定义基础信息（名称、Key、语种）
+[导入数据]
+    ├─ 训练集（1:1绑定模型）
+    └─ 评估集（可复用）
+    ↓ 
+[创建训练任务]
+    ↓ 选择训练集，配置参数
+[模型训练]
+    ↓ 生成模型版本
+[评估验证]
+    ├─ 单条测试（快速验证）
+    └─ 批量评估（质量门禁）
+    ↓
+[发布上线]
+    ├─ testable → published（手动）
+    └─ 设备自动切换新版本`}
+                                            </pre>
+                                        </div>
+                                        <Alert
+                                            message="关键数据关系"
+                                            description="训练集:模型 = 1:1（一个训练集只能用于训练一个模型）；评估集:模型 = 1:N（一个评估集可用于评估多个模型）"
+                                            type="info"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'state',
+                                label: '状态流转',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">模型生命周期状态机</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto' }}>
+{`draft → training → trained → evaluating → testable → published → archived
+  ↑                                                      ↓
+  └──────────────── 可恢复 ────────────────────────────────┘`}
+                                            </pre>
+                                            <List
+                                                size="small"
+                                                bordered
+                                                dataSource={[
+                                                    { state: 'draft', desc: '草稿状态，可编辑配置' },
+                                                    { state: 'training', desc: '训练中，实时显示进度' },
+                                                    { state: 'trained', desc: '训练完成，等待评估' },
+                                                    { state: 'evaluating', desc: '评估中，验证模型质量' },
+                                                    { state: 'testable', desc: '可测试，每个库唯一，切换时自动取消旧的' },
+                                                    { state: 'published', desc: '已发布，生产中生效，每个库唯一' },
+                                                    { state: 'archived', desc: '已归档，可恢复为draft' }
+                                                ]}
+                                                renderItem={item => (
+                                                    <List.Item>
+                                                        <Tag>{item.state}</Tag> - {item.desc}
+                                                    </List.Item>
+                                                )}
+                                            />
+                                        </div>
+                                        <Alert
+                                            message="唯一性约束"
+                                            description="testable 和 published 每个库只能各有一个。切换 testable 时自动取消旧的 testable 状态。允许同时持有 testable 和 published（用于灰度验证）。"
+                                            type="warning"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'fields',
+                                label: '字段说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">列表页字段详解</div>
+                                            <Table
+                                                size="small"
+                                                pagination={false}
+                                                columns={[
+                                                    { title: '字段', dataIndex: 'field', width: 120 },
+                                                    { title: '类型', dataIndex: 'type', width: 100 },
+                                                    { title: '说明', dataIndex: 'desc' },
+                                                    { title: '约束', dataIndex: 'constraint', width: 200 }
+                                                ]}
+                                                dataSource={[
+                                                    { field: 'ID', type: 'string', desc: '系统生成的唯一标识', constraint: '只读，不可修改' },
+                                                    { field: 'Library Key', type: 'string', desc: '代码中引用的唯一key', constraint: '创建后不可修改' },
+                                                    { field: '语种', type: 'enum', desc: '指令库语言（zh/en）', constraint: '创建时选定，不可改' },
+                                                    { field: '模型数量', type: 'progress', desc: '当前版本数/上限', constraint: '单库最多5个' },
+                                                    { field: '意图数', type: 'number', desc: '库内意图总数', constraint: '动态变化' },
+                                                    { field: '状态', type: 'badge', desc: '库的发布状态', constraint: 'published/draft' }
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'operations',
+                                label: '操作说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">查看操作</div>
+                                            <Alert
+                                                message="点击查看详情"
+                                                description={
+                                                    <div>
+                                                        <p><strong>操作入口：</strong>点击列表中的"名称"链接或"查看"按钮</p>
+                                                        <p><strong>交互效果：</strong>跳转到指令库详情页（下级页面）</p>
+                                                        <p><strong>详情页内容：</strong>G6状态机、模型版本列表、关联数据集、训练/发布操作</p>
+                                                    </div>
+                                                }
+                                                type="info"
+                                                showIcon
+                                                style={{ marginBottom: 16 }}
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">编辑操作</div>
+                                            <Alert
+                                                message="编辑指令库"
+                                                description={
+                                                    <div>
+                                                        <p><strong>操作入口：</strong>点击每行数据右侧的"编辑"按钮</p>
+                                                        <p><strong>弹窗标题：</strong>编辑指令库 - [库名称]</p>
+                                                        <p><strong>可编辑字段：</strong></p>
+                                                        <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                                                            <li>名称（必填）：指令库显示名称</li>
+                                                            <li>描述（可选）：指令库功能说明</li>
+                                                        </ul>
+                                                        <p><strong>不可编辑字段：</strong>Library Key、语种（创建后锁定）</p>
+                                                        <p><strong>保存逻辑：</strong>校验 → 保存 → 刷新列表 → 提示成功</p>
+                                                    </div>
+                                                }
+                                                type="warning"
+                                                showIcon
+                                                style={{ marginBottom: 16 }}
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">删除操作</div>
+                                            <Alert
+                                                message="删除指令库（危险操作）"
+                                                description={
+                                                    <div>
+                                                        <p><strong>操作入口：</strong>点击每行数据右侧的"删除"按钮（红色）</p>
+                                                        <p><strong>二次确认：</strong>弹窗确认"确定删除指令库 [库名称]？"</p>
+                                                        <p><strong>删除约束：</strong></p>
+                                                        <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                                                            <li>若库内存在已发布的模型版本，禁止删除</li>
+                                                            <li>若库内存在 testable 模型，提示先取消 testable 状态</li>
+                                                            <li>删除后关联的意图数据同步清理</li>
+                                                        </ul>
+                                                        <p><strong>删除影响：</strong>不可恢复，已删除库的 Library Key 可重新使用</p>
+                                                    </div>
+                                                }
+                                                type="error"
+                                                showIcon
+                                                style={{ marginBottom: 16 }}
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">新建操作</div>
+                                            <Alert
+                                                message="新建指令库"
+                                                description={
+                                                    <div>
+                                                        <p><strong>操作入口：</strong>页面右上角"新建指令库"按钮（蓝色主按钮）</p>
+                                                        <p><strong>弹窗字段：</strong></p>
+                                                        <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                                                            <li>名称（必填）：指令库显示名称</li>
+                                                            <li>Library Key（必填）：唯一标识，创建后不可修改，格式如 zh_intents_v1</li>
+                                                            <li>语种（必选）：中文/英文，创建后不可修改</li>
+                                                            <li>描述（可选）：功能说明</li>
+                                                        </ul>
+                                                        <p><strong>校验规则：</strong>Library Key 全局唯一、只能包含字母数字下划线</p>
+                                                    </div>
+                                                }
+                                                type="info"
+                                                showIcon
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">编辑操作流程图</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击编辑按钮]
+    ↓
+[检查权限] → 无权限 → [提示: 无编辑权限]
+    ↓ 有权限
+[打开编辑弹窗]
+    ↓
+[显示表单] → 可编辑: 名称、描述
+            → 不可编辑: Library Key（置灰提示"创建后锁定"）
+    ↓
+[用户填写] → [字段校验]
+    ↓ 名称为空 → [提示: 请输入名称]
+    ↓ 名称重复 → [提示: 名称已存在]
+    ↓ 校验通过
+[保存数据] → [关闭弹窗] → [刷新列表] → [提示: 保存成功]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">删除操作流程图</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击删除按钮]
+    ↓
+[检查权限] → 无权限 → [按钮禁用 + Tooltip 提示]
+    ↓ 有权限
+[检查库状态] → published → [禁止删除, 提示"已发布的库不可删除"]
+    ↓ 非 published
+[检查 testable] → 有 testable 模型 → [提示"请先取消 testable 状态"]
+    ↓ 无 testable
+[弹出二次确认] → "确定删除指令库 [库名称]？"
+    ↓ 确认
+[删除数据 + 清理关联意图] → [刷新列表] → [提示: 删除成功]`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'logic',
+                                label: '业务逻辑',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">模型版本超限处理</div>
+                                            <div style={{ lineHeight: 1.8 }}>
+                                                当单库模型数量达到5个时：
+                                                <ol>
+                                                    <li>禁止创建新的训练任务</li>
+                                                    <li>提示"请先归档/删除历史模型"</li>
+                                                    <li>提供快捷入口跳转到模型详情页进行归档</li>
+                                                </ol>
+                                            </div>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">testable 切换逻辑</div>
+                                            <div style={{ lineHeight: 1.8 }}>
+                                                当将模型 A 设为 testable 时：
+                                                <ol>
+                                                    <li>检查当前库是否已有 testable 模型 B</li>
+                                                    <li>如有，自动取消 B 的 testable 状态</li>
+                                                    <li>将 A 设为 testable，记录切换日志</li>
+                                                    <li>提示用户"testable 已切换为 A，B 已自动取消"</li>
+                                                </ol>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'tips',
+                                label: '易错点',
+                                children: (
+                                    <div>
+                                        <Alert
+                                            message="⚠️ 已绑定的训练集不可删除"
+                                            description="训练集一旦绑定模型，就不能删除。如需清理，需先归档或删除关联的模型版本。"
+                                            type="error"
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="⚠️ testable 切换自动生效"
+                                            description="切换 testable 模型时会立即取消旧的 testable 状态，无需手动操作，但会有确认提示。"
+                                            type="warning"
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="⚠️ published 模型直接影响生产"
+                                            description="发布后所有在线设备会立即切换到新版本，旧会话上下文重置。发布前务必经过充分测试。"
+                                            type="error"
+                                        />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

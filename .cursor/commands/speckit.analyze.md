@@ -1,5 +1,5 @@
 ---
-description: 在任务生成后, 对 spec.md、plan.md 和 tasks.md 执行非破坏性的跨制品一致性和质量分析.
+description: 在任务生成后, 对 spec.md、plan.md 和 tasks/ 执行非破坏性的跨制品一致性和质量分析.
 ---
 
 ## 用户输入
@@ -12,7 +12,7 @@ $ARGUMENTS
 
 ## 目标
 
-在实施之前, 识别三个核心制品(`spec.md`、`plan.md`、`tasks.md`)之间的不一致、重复、模糊和规范不足的项目. 此命令**必须**在 `/speckit.tasks` 成功生成完整的 `tasks.md` 后运行.
+在实施之前, 识别核心制品(`spec.md`、`plan.md`、`tasks/`)之间的不一致、重复、模糊和规范不足的项目. 此命令**必须**在 `/speckit.tasks` 成功生成完整的 `tasks/` 目录后运行.
 
 ## 操作约束
 
@@ -28,7 +28,7 @@ $ARGUMENTS
 
 - SPEC = FEATURE_DIR/spec.md
 - PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
+- TASKS_DIR = FEATURE_DIR/tasks/ (优先) 或 FEATURE_DIR/tasks.md (兼容旧格式)
 
 如果任何必需文件缺失, 则以错误消息中止(指示用户运行缺失的先决条件命令).
 对于参数中的单引号, 如 "I'm Groot", 使用转义语法: 例如 'I'\''m Groot'(或尽可能使用双引号: "I'm Groot").
@@ -52,13 +52,11 @@ $ARGUMENTS
 - 阶段
 - 技术约束
 
-**从 tasks.md: **
+**从 tasks/ 目录(或 tasks.md): **
 
-- 任务 ID
-- 描述
-- 阶段分组
-- 并行标记 [P]
-- 引用的文件路径
+- 读取 tasks/README.md 获取模块列表和全局统计
+- 各模块任务文件中的: 任务 ID、描述、类型标签、并行标记 [P]
+- 引用的文件路径和设计文档引用
 
 **从章程: **
 
@@ -156,7 +154,7 @@ $ARGUMENTS
 
 - 如果存在严重问题: 建议在 `/speckit.implement` 之前解决
 - 如果只有低/中问题: 用户可以继续, 但提供改进建议
-- 提供明确的命令建议: 例如, "运行 /speckit.specify 进行细化"、"运行 /speckit.plan 调整架构"、"手动编辑 tasks.md 为 'performance-metrics' 添加覆盖"
+- 提供明确的命令建议: 例如, "运行 /speckit.specify 进行细化"、"运行 /speckit.plan 调整架构"、"手动编辑 tasks/ 中对应模块文件为 'performance-metrics' 添加覆盖"
 
 ### 8. 提供修复
 

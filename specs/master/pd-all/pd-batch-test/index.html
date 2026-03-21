@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量测试 | SmartChef PD</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: "default",
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" }
+        });
+
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Alert, Card, Input, Select, Space,
+            Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip, Badge, Modal,
+            Form, InputNumber, Radio, Upload, Steps, Spin
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            MessageOutlined, ExperimentOutlined, RocketOutlined, UserOutlined,
+            BarChartOutlined, SearchOutlined, PlusOutlined, QuestionCircleOutlined,
+            ColumnWidthOutlined, CheckCircleOutlined, CloseCircleOutlined,
+            SyncOutlined, DeleteOutlined, EyeOutlined, ReloadOutlined,
+            InboxOutlined, DownloadOutlined, LoadingOutlined,
+            ExclamationCircleOutlined, ClockCircleOutlined, ThunderboltOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { Dragger } = Upload;
+
+        // ── Mock Data ──
+
+        const mockProfiles = [
+            { id: "prof_001", name: "生产方案-中英双语" },
+            { id: "prof_002", name: "测试方案-千问" },
+            { id: "prof_003", name: "实验方案-知识优先" }
+        ];
+
+        const mockIntents = [
+            { key: "set_timer", label: "设置定时器" },
+            { key: "adjust_temp", label: "调节温度" },
+            { key: "start_recipe", label: "启动菜谱" },
+            { key: "stop_cooking", label: "停止烹饪" },
+            { key: "query_status", label: "查询状态" },
+            { key: "set_mode", label: "设置模式" }
+        ];
+
+        const mockBatches = [
+            { id: "batch_001", name: "指令全量回归 v2.1", profile: "生产方案-中英双语", caseCount: 200, status: "completed", passed: true, accuracy: 96.2, avgLatency: 145, createdAt: "2026-03-17 14:00" },
+            { id: "batch_002", name: "新增意图验证", profile: "测试方案-千问", caseCount: 50, status: "completed", passed: false, accuracy: 88.0, avgLatency: 168, createdAt: "2026-03-16 10:00" },
+            { id: "batch_003", name: "英文指令回归", profile: "生产方案-中英双语", caseCount: 80, status: "completed", passed: true, accuracy: 95.0, avgLatency: 132, createdAt: "2026-03-15 09:00" },
+            { id: "batch_004", name: "知识库菜谱测试", profile: "实验方案-知识优先", caseCount: 100, status: "running", passed: null, accuracy: null, avgLatency: null, createdAt: "2026-03-18 08:30" },
+            { id: "batch_005", name: "闲聊质量测试", profile: "生产方案-中英双语", caseCount: 30, status: "completed", passed: false, accuracy: 80.0, avgLatency: 2450, createdAt: "2026-03-14 15:00" },
+            { id: "batch_006", name: "槽位填充验证", profile: "测试方案-千问", caseCount: 60, status: "completed", passed: true, accuracy: 97.5, avgLatency: 120, createdAt: "2026-03-13 16:00" },
+            { id: "batch_007", name: "多轮对话回归", profile: "生产方案-中英双语", caseCount: 45, status: "completed", passed: true, accuracy: 94.0, avgLatency: 198, createdAt: "2026-03-12 11:00" },
+            { id: "batch_008", name: "边界用例测试", profile: "实验方案-知识优先", caseCount: 25, status: "pending", passed: null, accuracy: null, avgLatency: null, createdAt: "2026-03-18 09:00" }
+        ];
+
+        const STATUS_MAP = {
+            pending:   { color: "default", text: "待执行", icon: null },
+            running:   { color: "processing", text: "执行中", icon: React.createElement(SyncOutlined, { spin: true }) },
+            completed: { color: "success", text: "已完成", icon: null },
+            failed:    { color: "error", text: "失败", icon: null }
+        };
+
+        // ── App ──
+
+        function App() {
+            const inIframe = typeof window !== "undefined" && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(["batch-test"]);
+            const [openKeys, setOpenKeys] = useState(["testing"]);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [filters, setFilters] = useState({ name: "", profile: undefined, status: undefined, passStatus: undefined });
+            const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: mockBatches.length });
+
+            const [modalVisible, setModalVisible] = useState(false);
+            const [currentStep, setCurrentStep] = useState(0);
+            const [form] = Form.useForm();
+            const [caseSource, setCaseSource] = useState("auto");
+
+            // ── Derived ──
+
+            const filteredData = useMemo(() => {
+                return mockBatches.filter(b => {
+                    if (filters.name && !b.name.includes(filters.name) && !b.id.includes(filters.name)) return false;
+                    if (filters.profile && b.profile !== filters.profile) return false;
+                    if (filters.status && b.status !== filters.status) return false;
+                    if (filters.passStatus === "passed" && b.passed !== true) return false;
+                    if (filters.passStatus === "failed" && b.passed !== false) return false;
+                    return true;
+                });
+            }, [filters]);
+
+            const stats = useMemo(() => ({
+                total: mockBatches.length,
+                completed: mockBatches.filter(b => b.status === "completed").length,
+                running: mockBatches.filter(b => b.status === "running").length,
+                belowThreshold: mockBatches.filter(b => b.passed === false).length
+            }), []);
+
+            // ── Navigation ──
+
+            const goTo = (page) => {
+                const map = {
+                    "libraries": "../pd-intent-library/index.html",
+                    "datasets": "../pd-intent-library/datasets.html",
+                    "profiles": "../pd-dialog-profile/index.html",
+                    "manual-test": "../pd-dialog-profile/test-chat.html",
+                    "batch-test": "index.html",
+                    "monitoring": "../pd-monitoring/index.html",
+                    "knowledge": "../pd-knowledge-base/index.html"
+                };
+                if (map[page]) window.location.href = map[page];
+            };
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            // ── Mermaid rendering ──
+
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            // ── Modal helpers ──
+
+            const openCreateModal = () => {
+                form.resetFields();
+                form.setFieldsValue({ accuracyThreshold: 95, latencyThreshold: 200 });
+                setCurrentStep(0);
+                setCaseSource("auto");
+                setModalVisible(true);
+            };
+
+            const handleModalOk = () => {
+                if (currentStep === 0) {
+                    form.validateFields(["name", "profile", "accuracyThreshold", "latencyThreshold"]).then(() => {
+                        setCurrentStep(1);
+                    }).catch(() => {});
+                    return;
+                }
+                message.success("测试批次创建成功");
+                setModalVisible(false);
+                form.resetFields();
+                setCurrentStep(0);
+            };
+
+            const handleModalBack = () => {
+                if (currentStep === 1) setCurrentStep(0);
+            };
+
+            const handleDelete = (record) => {
+                Modal.confirm({
+                    title: "删除确认",
+                    icon: React.createElement(ExclamationCircleOutlined),
+                    content: React.createElement("span", null, "确定删除批次 ", React.createElement("strong", null, record.name), "？此操作不可恢复。"),
+                    okText: "确认删除",
+                    okType: "danger",
+                    cancelText: "取消",
+                    maskClosable: false,
+                    onOk: () => message.success("批次已删除：" + record.name)
+                });
+            };
+
+            const handleRerun = (record) => {
+                Modal.confirm({
+                    title: "重新执行",
+                    icon: React.createElement(ReloadOutlined),
+                    content: React.createElement("span", null, "确定重新执行批次 ", React.createElement("strong", null, record.name), "？历史结果将被覆盖。"),
+                    okText: "确认执行",
+                    cancelText: "取消",
+                    onOk: () => message.success("批次已提交重新执行：" + record.name)
+                });
+            };
+
+            // ── Columns ──
+
+            const columns = [
+                {
+                    title: "批次名称",
+                    key: "name",
+                    width: 200,
+                    render: (_, record) => (
+                        React.createElement("div", null,
+                            React.createElement("a", { href: "detail.html?id=" + record.id, style: { fontWeight: 500 } }, record.name),
+                            React.createElement("div", { style: { fontSize: 12, color: "#8c8c8c", fontFamily: "monospace" } }, record.id)
+                        )
+                    )
+                },
+                {
+                    title: "关联方案",
+                    dataIndex: "profile",
+                    key: "profile",
+                    width: 160
+                },
+                {
+                    title: "用例数",
+                    dataIndex: "caseCount",
+                    key: "caseCount",
+                    width: 80,
+                    align: "center"
+                },
+                {
+                    title: "执行状态",
+                    key: "status",
+                    width: 100,
+                    render: (_, record) => {
+                        const cfg = STATUS_MAP[record.status];
+                        return React.createElement(Tag, { color: cfg.color, icon: cfg.icon }, cfg.text);
+                    }
+                },
+                {
+                    title: "达标",
+                    key: "passed",
+                    width: 90,
+                    align: "center",
+                    render: (_, record) => {
+                        if (record.passed === true) return React.createElement(Tag, { color: "success" }, "达标");
+                        if (record.passed === false) return React.createElement(Tag, { color: "error" }, "未达标");
+                        return React.createElement(Tag, { color: "default" }, "待执行");
+                    }
+                },
+                {
+                    title: "准确率",
+                    key: "accuracy",
+                    width: 90,
+                    align: "center",
+                    render: (_, record) => {
+                        if (record.accuracy === null) return React.createElement("span", { style: { color: "#bfbfbf" } }, "-");
+                        const color = record.accuracy >= 95 ? "#52c41a" : record.accuracy >= 90 ? "#faad14" : "#ff4d4f";
+                        return React.createElement("span", { style: { color: color, fontWeight: 600, fontFamily: "monospace" } }, record.accuracy.toFixed(1) + "%");
+                    }
+                },
+                {
+                    title: "平均耗时",
+                    key: "avgLatency",
+                    width: 100,
+                    align: "center",
+                    render: (_, record) => {
+                        if (record.avgLatency === null) return React.createElement("span", { style: { color: "#bfbfbf" } }, "-");
+                        const color = record.avgLatency <= 200 ? "#52c41a" : record.avgLatency <= 500 ? "#faad14" : "#ff4d4f";
+                        return React.createElement("span", { style: { color: color, fontFamily: "monospace" } }, record.avgLatency + "ms");
+                    }
+                },
+                {
+                    title: "创建时间",
+                    dataIndex: "createdAt",
+                    key: "createdAt",
+                    width: 160
+                },
+                {
+                    title: "操作",
+                    key: "action",
+                    width: 220,
+                    fixed: "right",
+                    render: (_, record) => (
+                        React.createElement(Space, null,
+                            React.createElement(Button, { type: "link", size: "small", icon: React.createElement(EyeOutlined), onClick: () => { window.location.href = "detail.html?id=" + record.id; } }, "查看详情"),
+                            React.createElement(Tooltip, { title: record.status === "running" ? "执行中不可重新执行" : "" },
+                                React.createElement(Button, { type: "link", size: "small", icon: React.createElement(ReloadOutlined), disabled: record.status === "running", onClick: () => handleRerun(record) }, "重新执行")
+                            ),
+                            React.createElement(Tooltip, { title: record.status === "running" ? "执行中不可删除" : "" },
+                                React.createElement(Button, { type: "link", size: "small", danger: true, icon: React.createElement(DeleteOutlined), disabled: record.status === "running", onClick: () => handleDelete(record) }, "删除")
+                            )
+                        )
+                    )
+                }
+            ];
+
+            // ── Menu ──
+
+            const menuItems = [
+                {
+                    key: "config",
+                    icon: React.createElement(SettingOutlined),
+                    label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: React.createElement(DatabaseOutlined), label: "指令库管理", onClick: () => goTo("libraries") },
+                        { key: "datasets", icon: React.createElement(FileTextOutlined), label: "数据集管理", onClick: () => goTo("datasets") },
+                        { key: "profiles", icon: React.createElement(RobotOutlined), label: "对话方案", onClick: () => goTo("profiles") }
+                    ]
+                },
+                {
+                    key: "testing",
+                    icon: React.createElement(ExperimentOutlined),
+                    label: "测试验证",
+                    children: [
+                        { key: "manual-test", icon: React.createElement(MessageOutlined), label: "手动测试", onClick: () => goTo("manual-test") },
+                        { key: "batch-test", icon: React.createElement(ThunderboltOutlined), label: "批量测试" }
+                    ]
+                },
+                {
+                    key: "system",
+                    icon: React.createElement(UserOutlined),
+                    label: "系统管理",
+                    children: [
+                        { key: "versions", icon: React.createElement(RocketOutlined), label: "版本管理" },
+                        { key: "users", icon: React.createElement(UserOutlined), label: "用户管理" },
+                        { key: "monitoring", icon: React.createElement(BarChartOutlined), label: "监控仪表盘", onClick: () => goTo("monitoring") }
+                    ]
+                }
+            ];
+
+            // ── Case source panel ──
+
+            const renderCaseSource = () => {
+                if (caseSource === "auto") {
+                    return React.createElement("div", { style: { marginTop: 16 } },
+                        React.createElement(Form.Item, { label: "覆盖意图", name: "coverIntents" },
+                            React.createElement(Select, { mode: "multiple", placeholder: "选择需要覆盖的意图（留空则覆盖全部）", allowClear: true },
+                                mockIntents.map(i => React.createElement(Option, { key: i.key, value: i.key }, i.label))
+                            )
+                        ),
+                        React.createElement(Form.Item, { label: "每意图用例数", name: "casesPerIntent", initialValue: 10 },
+                            React.createElement(InputNumber, { min: 1, max: 50, style: { width: "100%" } })
+                        ),
+                        React.createElement(Button, { type: "primary", icon: React.createElement(ThunderboltOutlined), onClick: () => message.success("已基于当前配置生成测试用例") }, "生成")
+                    );
+                }
+                if (caseSource === "upload") {
+                    return React.createElement("div", { style: { marginTop: 16 } },
+                        React.createElement(Dragger, {
+                            accept: ".xlsx,.csv",
+                            maxCount: 1,
+                            beforeUpload: () => { message.success("文件已上传"); return false; }
+                        },
+                            React.createElement("p", { className: "ant-upload-drag-icon" }, React.createElement(InboxOutlined)),
+                            React.createElement("p", { className: "ant-upload-text" }, "点击或拖拽文件到此区域上传"),
+                            React.createElement("p", { className: "ant-upload-hint" }, "支持 .xlsx 和 .csv 格式，单次限一个文件")
+                        ),
+                        React.createElement("a", { style: { display: "inline-block", marginTop: 8 }, onClick: () => message.info("模板下载中...") },
+                            React.createElement(DownloadOutlined), " 下载用例模板"
+                        )
+                    );
+                }
+                return React.createElement(Alert, {
+                    message: "稍后在详情页添加",
+                    description: "批次创建后，您可以在批次详情页中手动逐条添加测试用例。",
+                    type: "info",
+                    showIcon: true,
+                    style: { marginTop: 16 }
+                });
+            };
+
+            // ── Drawer tabs ──
+
+            const drawerTabs = [
+                {
+                    key: "flow",
+                    label: "数据流向",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "批量测试全链路数据流向"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 } },
+                                "[创建批次]  配置基础信息与性能指标\n" +
+                                "    ├─ 批次名称、关联方案\n" +
+                                "    ├─ 准确率阈值、延迟阈值\n" +
+                                "    └─ 用例来源选择\n" +
+                                "           ↓\n" +
+                                "[生成/上传用例]  测试数据准备\n" +
+                                "    ├─ 自动生成: 基于方案绑定的意图自动产出用例\n" +
+                                "    ├─ 上传 Excel: 按模板格式导入\n" +
+                                "    └─ 手动添加: 在详情页逐条编辑\n" +
+                                "           ↓\n" +
+                                "[执行测试]  NLU Pipeline 逐条跑测\n" +
+                                "    ├─ 每条用例: utterance → 路由 → 意图 → 槽位\n" +
+                                "    ├─ 记录: 实际路由/意图/槽位/耗时\n" +
+                                "    └─ 逐条判定: pass / fail\n" +
+                                "           ↓\n" +
+                                "[收集结果]  汇总统计\n" +
+                                "    ├─ 准确率 = 通过数 / 总数\n" +
+                                "    ├─ 平均耗时 = sum(latency) / 总数\n" +
+                                "    └─ 达标判定: 准确率 >= 阈值\n" +
+                                "           ↓\n" +
+                                "[生成报告]  结果可视化\n" +
+                                "           ↓\n" +
+                                "[智能分析]  FR-014 低于阈值时自动分析"
+                            )
+                        ),
+                        React.createElement(Alert, {
+                            message: "关键数据关系",
+                            description: "批次:方案 = N:1（多个批次可关联同一方案）；批次:用例 = 1:N（一个批次包含多条用例）；执行时使用方案的当前配置快照。",
+                            type: "info",
+                            showIcon: true
+                        })
+                    )
+                },
+                {
+                    key: "state",
+                    label: "状态流转",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "批次生命周期状态机"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 } },
+                                "pending ──→ running ──→ completed\n" +
+                                "              │              │\n" +
+                                "              └──→ failed     └── 可重新执行 → running\n" +
+                                "\n" +
+                                "批次状态说明:\n" +
+                                "  pending   : 已创建，待执行\n" +
+                                "  running   : 正在逐条执行测试用例\n" +
+                                "  completed : 全部用例执行完成\n" +
+                                "  failed    : 执行过程异常中断\n" +
+                                "\n" +
+                                "用例级别状态:\n" +
+                                "  pending → passed   (实际结果与期望匹配)\n" +
+                                "  pending → failed   (实际结果与期望不匹配)"
+                            ),
+                            React.createElement(List, {
+                                size: "small",
+                                bordered: true,
+                                style: { marginTop: 16 },
+                                dataSource: [
+                                    { rule: "重新执行", desc: "已完成或失败的批次可重新执行，历史结果将被覆盖" },
+                                    { rule: "并发限制", desc: "同时只允许 1 个批次处于 running 状态" },
+                                    { rule: "达标判定", desc: "准确率 >= 批次设定的阈值时判定为达标" },
+                                    { rule: "智能分析", desc: "未达标时自动触发智能分析报告（FR-014）" }
+                                ],
+                                renderItem: (item) => React.createElement(List.Item, null,
+                                    React.createElement(Tag, { color: "blue" }, item.rule), " ", item.desc
+                                )
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "fields",
+                    label: "字段说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "批次字段详解"),
+                            React.createElement(Table, {
+                                size: "small",
+                                pagination: false,
+                                rowKey: "field",
+                                columns: [
+                                    { title: "字段", dataIndex: "field", width: 140 },
+                                    { title: "类型", dataIndex: "type", width: 80 },
+                                    { title: "说明", dataIndex: "desc" },
+                                    { title: "约束 / 默认值", dataIndex: "constraint", width: 220 }
+                                ],
+                                dataSource: [
+                                    { field: "id", type: "string", desc: "系统自动生成的批次唯一标识", constraint: "只读，格式 batch_XXX" },
+                                    { field: "name", type: "string", desc: "批次显示名称", constraint: "必填，最长 100 字符" },
+                                    { field: "profile", type: "string", desc: "关联的对话方案名称", constraint: "必选" },
+                                    { field: "caseCount", type: "int", desc: "包含的测试用例总数", constraint: "只读，系统统计" },
+                                    { field: "status", type: "enum", desc: "批次执行状态", constraint: "pending | running | completed | failed" },
+                                    { field: "passed", type: "bool", desc: "是否达标", constraint: "null(未执行) | true | false" },
+                                    { field: "accuracy", type: "float", desc: "指令准确率百分比", constraint: "0~100，执行后自动计算" },
+                                    { field: "avgLatency", type: "int", desc: "平均响应延迟(ms)", constraint: "执行后自动计算" },
+                                    { field: "accuracyThreshold", type: "float", desc: "准确率达标阈值", constraint: "默认 95%" },
+                                    { field: "latencyThreshold", type: "int", desc: "延迟达标阈值(ms)", constraint: "默认 200ms" },
+                                    { field: "createdAt", type: "datetime", desc: "创建时间", constraint: "只读" }
+                                ]
+                            })
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "用例模板字段（FR-013）"),
+                            React.createElement(Table, {
+                                size: "small",
+                                pagination: false,
+                                rowKey: "field",
+                                columns: [
+                                    { title: "字段", dataIndex: "field", width: 160 },
+                                    { title: "类型", dataIndex: "type", width: 80 },
+                                    { title: "说明", dataIndex: "desc" },
+                                    { title: "示例", dataIndex: "example", width: 200 }
+                                ],
+                                dataSource: [
+                                    { field: "case_id", type: "string", desc: "用例唯一标识", example: "case_001" },
+                                    { field: "utterance", type: "string", desc: "用户输入语句", example: "帮我设个5分钟的定时器" },
+                                    { field: "expected_route", type: "enum", desc: "期望路由", example: "command" },
+                                    { field: "expected_intent", type: "string", desc: "期望意图", example: "set_timer" },
+                                    { field: "expected_slots", type: "json", desc: "期望槽位键值对", example: "{\"duration\": \"5min\"}" },
+                                    { field: "actual_route", type: "enum", desc: "实际路由（执行后填充）", example: "command" },
+                                    { field: "actual_intent", type: "string", desc: "实际意图（执行后填充）", example: "set_timer" },
+                                    { field: "actual_slots", type: "json", desc: "实际槽位（执行后填充）", example: "{\"duration\": \"5min\"}" },
+                                    { field: "score", type: "float", desc: "置信度得分", example: "0.96" },
+                                    { field: "latency", type: "int", desc: "响应延迟(ms)", example: "132" },
+                                    { field: "result", type: "enum", desc: "通过/失败", example: "passed / failed" }
+                                ]
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "operations",
+                    label: "操作说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "新建批次流程"),
+                            React.createElement("div", { className: "mermaid", key: "op-create" },
+                                "flowchart TD\n" +
+                                "    A[点击新建测试批次] --> B[填写基本信息]\n" +
+                                "    B --> C[设置性能阈值]\n" +
+                                "    C --> D{选择用例来源}\n" +
+                                "    D -->|自动生成| E[选择意图 + 数量]\n" +
+                                "    D -->|上传Excel| F[上传文件]\n" +
+                                "    D -->|手动添加| G[稍后详情页添加]\n" +
+                                "    E --> H[创建批次]\n" +
+                                "    F --> H\n" +
+                                "    G --> H\n" +
+                                "    H --> I[状态 = pending]"
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "执行测试流程"),
+                            React.createElement("div", { className: "mermaid", key: "op-execute" },
+                                "flowchart TD\n" +
+                                "    A[点击执行/重新执行] --> B{检查并发}\n" +
+                                "    B -->|有正在执行的批次| C[提示等待]\n" +
+                                "    B -->|无冲突| D[状态 → running]\n" +
+                                "    D --> E[逐条执行用例]\n" +
+                                "    E --> F[记录实际结果和耗时]\n" +
+                                "    F --> G{全部完成?}\n" +
+                                "    G -->|否| E\n" +
+                                "    G -->|是| H[计算准确率和平均耗时]\n" +
+                                "    H --> I{达标判定}\n" +
+                                "    I -->|达标| J[passed = true]\n" +
+                                "    I -->|未达标| K[passed = false]\n" +
+                                "    K --> L[触发智能分析 FR-014]"
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "删除批次流程"),
+                            React.createElement("div", { className: "mermaid", key: "op-delete" },
+                                "flowchart TD\n" +
+                                "    A[点击删除] --> B{检查状态}\n" +
+                                "    B -->|running| C[按钮禁用]\n" +
+                                "    B -->|其他| D[二次确认弹窗]\n" +
+                                "    D --> E{用户确认?}\n" +
+                                "    E -->|取消| F[关闭弹窗]\n" +
+                                "    E -->|确认| G[删除批次及用例]\n" +
+                                "    G --> H[刷新列表 + 提示成功]"
+                            )
+                        )
+                    )
+                },
+                {
+                    key: "logic",
+                    label: "业务逻辑",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "自动生成策略（FR-012）"),
+                            React.createElement("div", { style: { lineHeight: 1.8, marginBottom: 16 } },
+                                React.createElement("ol", null,
+                                    React.createElement("li", null, "读取关联方案绑定的所有指令库中的意图列表"),
+                                    React.createElement("li", null, "为每个意图生成正例（标准表述、口语化表述、方言变体）"),
+                                    React.createElement("li", null, "为每个意图生成负例（相似但不同意图的表述）"),
+                                    React.createElement("li", null, "PM 可在生成后手动修改任何用例字段"),
+                                    React.createElement("li", null, "自动填充 expected_route、expected_intent、expected_slots")
+                                )
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "准确率计算"),
+                            React.createElement("div", { style: { lineHeight: 1.8, marginBottom: 16 } },
+                                React.createElement("ul", { style: { paddingLeft: 20 } },
+                                    React.createElement("li", null, React.createElement("strong", null, "准确率"), " = 通过用例数 / 总用例数 x 100%"),
+                                    React.createElement("li", null, React.createElement("strong", null, "通过条件"), "：actual_route == expected_route AND actual_intent == expected_intent AND actual_slots 包含 expected_slots"),
+                                    React.createElement("li", null, React.createElement("strong", null, "平均耗时"), " = sum(每条用例 latency) / 总用例数")
+                                )
+                            ),
+                            React.createElement(Alert, {
+                                message: "达标判定",
+                                description: "准确率 >= 批次设定的 accuracyThreshold 时判定为达标。默认阈值 95%，创建批次时可自定义。",
+                                type: "info",
+                                showIcon: true
+                            })
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "智能分析报告（FR-014）"),
+                            React.createElement("div", { style: { lineHeight: 1.8 } },
+                                React.createElement("p", null, "低于阈值时自动触发智能分析，报告内容包括："),
+                                React.createElement("ol", null,
+                                    React.createElement("li", null, "失败用例分类统计（按意图分组）"),
+                                    React.createElement("li", null, "高频失败模式识别（相似 utterance 聚类）"),
+                                    React.createElement("li", null, "根因分析建议（阈值过高 / 训练数据不足 / 意图混淆）"),
+                                    React.createElement("li", null, "改进建议（增加训练语料 / 调整阈值 / 拆分意图）")
+                                )
+                            )
+                        )
+                    )
+                },
+                {
+                    key: "tips",
+                    label: "易错点",
+                    children: React.createElement("div", null,
+                        React.createElement(Alert, {
+                            message: "Excel 模板格式",
+                            description: "上传的 Excel 必须包含必填列：utterance, expected_route, expected_intent。expected_slots 为 JSON 字符串格式。列名大小写敏感，请严格使用模板。",
+                            type: "error",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "并发执行限制",
+                            description: "系统同时只允许 1 个批次处于 running 状态。如需执行新批次，请等待当前批次完成或手动终止。",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "重新执行覆盖历史",
+                            description: "重新执行会清除该批次所有历史结果（actual_* 字段、score、latency、result），重新逐条跑测。如需保留历史对比，请克隆批次后执行。",
+                            type: "error",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "自动生成依赖方案配置",
+                            description: "自动生成用例基于关联方案绑定的指令库。若方案未绑定指令库或指令库无意图数据，自动生成将为空。请先确认方案配置完整。",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "阈值与达标状态",
+                            description: "达标判定使用批次创建时设定的阈值，修改批次阈值后不会追溯更新已完成的达标状态，需重新执行才生效。",
+                            type: "info",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "大批次执行耗时",
+                            description: "200+ 条用例的批次执行可能需要数分钟。执行期间请勿关闭页面，可通过列表页的 running 状态实时观察进度。",
+                            type: "info"
+                        })
+                    )
+                }
+            ];
+
+            // ── Render ──
+
+            return React.createElement(Layout, { className: "page-layout" },
+                inIframe ? null : React.createElement(Sider, { trigger: null, width: 260, className: "sidebar" },
+                    React.createElement("div", { className: "sidebar-header" },
+                        React.createElement("div", { className: "sidebar-logo" }, "SmartChef"),
+                        React.createElement("div", { className: "sidebar-subtitle" }, "智能对话管理平台")
+                    ),
+                    React.createElement(Menu, {
+                        theme: "dark",
+                        mode: "inline",
+                        selectedKeys: selectedKeys,
+                        openKeys: openKeys,
+                        onOpenChange: handleOpenChange,
+                        onSelect: ({ key }) => setSelectedKeys([key]),
+                        items: menuItems
+                    })
+                ),
+
+                React.createElement(Content, { className: "main-content" + (inIframe ? " main-content-no-sider" : "") },
+                    // Page Header
+                    React.createElement("div", { className: "page-header" },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                            React.createElement("div", null,
+                                React.createElement("h1", { style: { fontSize: 24, fontWeight: 600, marginBottom: 8 } }, "批量测试"),
+                                React.createElement("p", { style: { color: "#8c8c8c", fontSize: 14 } }, "管理批量测试批次，自动生成或上传测试用例，执行后查看结果与智能分析")
+                            ),
+                            React.createElement(Space, null,
+                                React.createElement(Tooltip, { title: "查看数据流向、状态流转、字段说明和业务约束" },
+                                    React.createElement(Button, { icon: React.createElement(QuestionCircleOutlined), onClick: () => setDrawerVisible(true) }, "说明")
+                                ),
+                                React.createElement(Button, { type: "primary", icon: React.createElement(PlusOutlined), onClick: openCreateModal }, "新建测试批次")
+                            )
+                        )
+                    ),
+
+                    // Statistics Cards
+                    React.createElement(Row, { gutter: 24, style: { marginBottom: 24 } },
+                        React.createElement(Col, { span: 6 },
+                            React.createElement(Card, null,
+                                React.createElement(Statistic, { title: "测试批次总数", value: stats.total })
+                            )
+                        ),
+                        React.createElement(Col, { span: 6 },
+                            React.createElement(Card, null,
+                                React.createElement(Statistic, { title: "已完成", value: stats.completed, valueStyle: { color: "#52c41a" } })
+                            )
+                        ),
+                        React.createElement(Col, { span: 6 },
+                            React.createElement(Card, null,
+                                React.createElement(Statistic, {
+                                    title: "执行中",
+                                    value: stats.running,
+                                    valueStyle: { color: "#1890ff" },
+                                    suffix: stats.running > 0 ? React.createElement(SyncOutlined, { spin: true, style: { fontSize: 14, marginLeft: 4 } }) : null
+                                })
+                            )
+                        ),
+                        React.createElement(Col, { span: 6 },
+                            React.createElement(Card, null,
+                                React.createElement(Statistic, { title: "未达标", value: stats.belowThreshold, valueStyle: { color: "#ff4d4f" } })
+                            )
+                        )
+                    ),
+
+                    // Filter Bar
+                    React.createElement(Card, { style: { marginBottom: 24 } },
+                        React.createElement(Row, { gutter: 16 },
+                            React.createElement(Col, { span: 6 },
+                                React.createElement(Input, {
+                                    placeholder: "搜索批次名称",
+                                    value: filters.name,
+                                    onChange: (e) => setFilters({ ...filters, name: e.target.value }),
+                                    prefix: React.createElement(SearchOutlined),
+                                    allowClear: true
+                                })
+                            ),
+                            React.createElement(Col, { span: 5 },
+                                React.createElement(Select, {
+                                    placeholder: "关联方案",
+                                    value: filters.profile,
+                                    onChange: (val) => setFilters({ ...filters, profile: val }),
+                                    style: { width: "100%" },
+                                    allowClear: true
+                                },
+                                    mockProfiles.map(p => React.createElement(Option, { key: p.id, value: p.name }, p.name))
+                                )
+                            ),
+                            React.createElement(Col, { span: 4 },
+                                React.createElement(Select, {
+                                    placeholder: "执行状态",
+                                    value: filters.status,
+                                    onChange: (val) => setFilters({ ...filters, status: val }),
+                                    style: { width: "100%" },
+                                    allowClear: true
+                                },
+                                    React.createElement(Option, { value: "pending" }, "待执行"),
+                                    React.createElement(Option, { value: "running" }, "执行中"),
+                                    React.createElement(Option, { value: "completed" }, "已完成"),
+                                    React.createElement(Option, { value: "failed" }, "失败")
+                                )
+                            ),
+                            React.createElement(Col, { span: 4 },
+                                React.createElement(Select, {
+                                    placeholder: "达标状态",
+                                    value: filters.passStatus,
+                                    onChange: (val) => setFilters({ ...filters, passStatus: val }),
+                                    style: { width: "100%" },
+                                    allowClear: true
+                                },
+                                    React.createElement(Option, { value: "passed" }, "达标"),
+                                    React.createElement(Option, { value: "failed" }, "未达标")
+                                )
+                            ),
+                            React.createElement(Col, { span: 5 },
+                                React.createElement(Space, null,
+                                    React.createElement(Button, { type: "primary", onClick: () => message.success("查询条件已应用") }, "查询"),
+                                    React.createElement(Button, { onClick: () => setFilters({ name: "", profile: undefined, status: undefined, passStatus: undefined }) }, "重置")
+                                )
+                            )
+                        )
+                    ),
+
+                    // Data Table
+                    React.createElement(Card, null,
+                        React.createElement(Table, {
+                            columns: columns,
+                            dataSource: filteredData,
+                            pagination: {
+                                ...pagination,
+                                showSizeChanger: true,
+                                showQuickJumper: true,
+                                showTotal: (total) => "共 " + total + " 条"
+                            },
+                            rowKey: "id",
+                            scroll: { x: 1400 },
+                            onChange: (pag) => setPagination({ ...pagination, current: pag.current, pageSize: pag.pageSize })
+                        })
+                    )
+                ),
+
+                // Create Batch Modal (Two-Step)
+                React.createElement(Modal, {
+                    title: "新建测试批次",
+                    open: modalVisible,
+                    onOk: handleModalOk,
+                    onCancel: () => { setModalVisible(false); form.resetFields(); setCurrentStep(0); },
+                    width: 640,
+                    maskClosable: false,
+                    okText: currentStep === 0 ? "下一步" : "创建",
+                    cancelText: currentStep === 1 ? "上一步" : "取消",
+                    onCancel: currentStep === 1
+                        ? () => { handleModalBack(); }
+                        : () => { setModalVisible(false); form.resetFields(); setCurrentStep(0); },
+                    footer: React.createElement(Space, null,
+                        currentStep === 1
+                            ? React.createElement(Button, { onClick: handleModalBack }, "上一步")
+                            : null,
+                        React.createElement(Button, { onClick: () => { setModalVisible(false); form.resetFields(); setCurrentStep(0); } }, "取消"),
+                        React.createElement(Button, { type: "primary", onClick: handleModalOk }, currentStep === 0 ? "下一步" : "创建")
+                    )
+                },
+                    React.createElement(Steps, {
+                        current: currentStep,
+                        size: "small",
+                        style: { marginBottom: 24 },
+                        items: [
+                            { title: "基本信息" },
+                            { title: "用例来源" }
+                        ]
+                    }),
+                    React.createElement(Form, { form: form, layout: "vertical", style: { display: currentStep === 0 ? "block" : "none" } },
+                        React.createElement(Form.Item, { name: "name", label: "批次名称", rules: [{ required: true, message: "请输入批次名称" }] },
+                            React.createElement(Input, { placeholder: "请输入批次名称", allowClear: true, maxLength: 100 })
+                        ),
+                        React.createElement(Form.Item, { name: "profile", label: "关联方案", rules: [{ required: true, message: "请选择关联方案" }] },
+                            React.createElement(Select, { placeholder: "请选择关联方案", allowClear: true },
+                                mockProfiles.map(p => React.createElement(Option, { key: p.id, value: p.name }, p.name))
+                            )
+                        ),
+                        React.createElement("div", { style: { background: "#fafafa", padding: 16, borderRadius: 8, marginBottom: 8 } },
+                            React.createElement("div", { style: { fontWeight: 600, marginBottom: 12 } }, "性能指标"),
+                            React.createElement(Row, { gutter: 16 },
+                                React.createElement(Col, { span: 12 },
+                                    React.createElement(Form.Item, { name: "accuracyThreshold", label: "指令准确率阈值", rules: [{ required: true, message: "请输入阈值" }] },
+                                        React.createElement(InputNumber, { min: 0, max: 100, style: { width: "100%" }, addonAfter: "%" })
+                                    )
+                                ),
+                                React.createElement(Col, { span: 12 },
+                                    React.createElement(Form.Item, { name: "latencyThreshold", label: "响应延迟阈值", rules: [{ required: true, message: "请输入阈值" }] },
+                                        React.createElement(InputNumber, { min: 0, max: 10000, style: { width: "100%" }, addonAfter: "ms" })
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    React.createElement("div", { style: { display: currentStep === 1 ? "block" : "none" } },
+                        React.createElement(Form.Item, { label: "用例来源" },
+                            React.createElement(Radio.Group, { value: caseSource, onChange: (e) => setCaseSource(e.target.value) },
+                                React.createElement(Radio.Button, { value: "auto" }, "自动生成"),
+                                React.createElement(Radio.Button, { value: "upload" }, "上传Excel"),
+                                React.createElement(Radio.Button, { value: "manual" }, "手动添加")
+                            )
+                        ),
+                        renderCaseSource()
+                    )
+                ),
+
+                // Help Drawer
+                React.createElement(Drawer, {
+                    title: React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("span", null, "页面逻辑说明"),
+                        React.createElement(Tooltip, { title: drawerWidth === 1200 ? "切换到窄视图" : "切换到宽视图" },
+                            React.createElement(Button, {
+                                type: "text",
+                                icon: React.createElement(ColumnWidthOutlined),
+                                onClick: toggleDrawerWidth,
+                                size: "small"
+                            }, drawerWidth === 1200 ? "800px" : "1200px")
+                        )
+                    ),
+                    width: drawerWidth,
+                    open: drawerVisible,
+                    onClose: () => setDrawerVisible(false)
+                },
+                    React.createElement(Tabs, { items: drawerTabs })
+                )
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+    </script>
+</body>
+</html>

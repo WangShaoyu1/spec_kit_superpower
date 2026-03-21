@@ -23,6 +23,7 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+.worktrees/
 *.swp
 *.swo
 
@@ -30,3 +31,6 @@ __pycache__/
 *.log
 *.sqlite
 *.db
+
+# SmartChef v2：HuggingFace 缓存放项目内 data/hf_cache，不提交
+smartchef-v2/backend/data/hf_cache/

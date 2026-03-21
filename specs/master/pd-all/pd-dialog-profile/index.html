@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话方案管理 | SmartChef PD</title>
+    <!-- React 18 - 使用 unpkg -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - 使用 unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+        });
+
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Alert, Card, Input, Select, Space,
+            Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip, Badge, Modal,
+            Form, InputNumber, Slider, Breadcrumb
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            MessageOutlined, ExperimentOutlined, RocketOutlined, UserOutlined,
+            BarChartOutlined, SearchOutlined, PlusOutlined, QuestionCircleOutlined,
+            ColumnWidthOutlined, CheckCircleOutlined, InfoCircleOutlined,
+            ClockCircleOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
+            ExclamationCircleOutlined, StopOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+
+        // ── Mock Data ──
+
+        const mockLibraries = [
+            { name: '中文指令库', key: 'zh_intents_v1', language: 'zh', hasPublished: true },
+            { name: '英文指令库', key: 'en_intents_v1', language: 'en', hasPublished: true },
+            { name: '菜谱控制库', key: 'recipe_control', language: 'zh', hasPublished: false },
+            { name: '系统控制库', key: 'system_control', language: 'zh', hasPublished: true }
+        ];
+
+        const mockPersonas = [
+            { id: 'persona_01', name: '活泼厨房助手' },
+            { id: 'persona_02', name: '专业厨房顾问' },
+            { id: 'persona_03', name: '温柔美食家' },
+            { id: 'persona_04', name: '幽默大厨' }
+        ];
+
+        const mockProfiles = [
+            { id: 'prof_001', name: '生产方案-中英双语', status: 'published', llmModel: 'GPT-4o', routingStrategy: 'command_first', personaName: '活泼厨房助手', libraries: [{ name: '中文指令库', key: 'zh_intents_v1', language: 'zh', hasPublished: true }, { name: '英文指令库', key: 'en_intents_v1', language: 'en', hasPublished: true }], commandThreshold: 0.60, sessionTimeout: 10, updatedAt: '2026-03-17 14:30:00', publishedVersion: 'v2.1' },
+            { id: 'prof_002', name: '测试方案-千问', status: 'testing', llmModel: '千问-Max', routingStrategy: 'command_first', personaName: '专业厨房顾问', libraries: [{ name: '中文指令库', key: 'zh_intents_v1', language: 'zh', hasPublished: true }], commandThreshold: 0.55, sessionTimeout: 15, updatedAt: '2026-03-16 09:20:00', publishedVersion: null },
+            { id: 'prof_003', name: '实验方案-知识优先', status: 'draft', llmModel: 'GLM-4', routingStrategy: 'knowledge_first', personaName: '温柔美食家', libraries: [{ name: '菜谱控制库', key: 'recipe_control', language: 'zh', hasPublished: false }], commandThreshold: 0.70, sessionTimeout: 10, updatedAt: '2026-03-15 16:45:00', publishedVersion: null },
+            { id: 'prof_004', name: '备用方案-均衡模式', status: 'draft', llmModel: 'GPT-4o-mini', routingStrategy: 'balanced', personaName: '活泼厨房助手', libraries: [], commandThreshold: 0.60, sessionTimeout: 5, updatedAt: '2026-03-14 11:00:00', publishedVersion: null },
+            { id: 'prof_005', name: '旧版方案-已归档', status: 'archived', llmModel: 'GPT-3.5', routingStrategy: 'command_first', personaName: '专业厨房顾问', libraries: [{ name: '中文指令库', key: 'zh_intents_v1', language: 'zh', hasPublished: true }], commandThreshold: 0.50, sessionTimeout: 10, updatedAt: '2026-02-20 08:30:00', publishedVersion: 'v1.0' }
+        ];
+
+        // ── Permissions ──
+
+        const PERMISSIONS = {
+            ADMIN: { role: 'admin', name: '系统管理员', canCreate: true, canEdit: true, canDelete: true },
+            PM:    { role: 'pm',    name: '产品经理',   canCreate: true, canEdit: true, canDelete: false },
+            TESTER:{ role: 'tester',name: '测试人员',   canCreate: false,canEdit: false,canDelete: false }
+        };
+
+        // ── Status / Strategy Renderers ──
+
+        const STATUS_MAP = {
+            draft:     { color: 'default', text: '草稿' },
+            testing:   { color: 'blue',    text: '测试中' },
+            published: { color: 'green',   text: '已发布' },
+            archived:  { color: 'red',     text: '已归档' }
+        };
+
+        const STRATEGY_MAP = {
+            command_first:   { color: 'blue',   text: '指令优先' },
+            knowledge_first: { color: 'green',  text: '知识优先' },
+            balanced:        { color: 'orange', text: '均衡' }
+        };
+
+        // ── App ──
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(['profiles']);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [filters, setFilters] = useState({ name: '', status: undefined, strategy: undefined });
+            const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: mockProfiles.length });
+
+            const [currentUser, setCurrentUser] = useState(PERMISSIONS.PM);
+
+            const [modalVisible, setModalVisible] = useState(false);
+            const [editingProfile, setEditingProfile] = useState(null);
+            const [form] = Form.useForm();
+
+            const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+            const [deletingProfile, setDeletingProfile] = useState(null);
+
+            // ── Derived ──
+
+            const filteredData = useMemo(() => {
+                return mockProfiles.filter(p => {
+                    if (filters.name && !p.name.includes(filters.name) && !p.id.includes(filters.name)) return false;
+                    if (filters.status && p.status !== filters.status) return false;
+                    if (filters.strategy && p.routingStrategy !== filters.strategy) return false;
+                    return true;
+                });
+            }, [filters]);
+
+            const stats = useMemo(() => ({
+                total: mockProfiles.length,
+                published: mockProfiles.filter(p => p.status === 'published').length,
+                draft: mockProfiles.filter(p => p.status === 'draft').length,
+                testing: mockProfiles.filter(p => p.status === 'testing').length
+            }), []);
+
+            // ── Navigation ──
+
+            const goTo = (page) => {
+                const map = {
+                    'libraries': '../pd-intent-library/index.html',
+                    'datasets': '../pd-intent-library/datasets.html',
+                    'profiles': 'index.html',
+                    'manual-test': 'test-chat.html',
+                    'detail': 'detail.html'
+                };
+                if (map[page]) window.location.href = map[page];
+            };
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            // ── Mermaid rendering ──
+
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            // ── Modal helpers ──
+
+            const openCreateModal = () => {
+                if (!currentUser.canCreate) {
+                    message.warning('您没有新建方案的权限');
+                    return;
+                }
+                setEditingProfile(null);
+                form.resetFields();
+                form.setFieldsValue({
+                    commandThreshold: 0.60,
+                    sessionTimeout: 10,
+                    routingStrategy: 'command_first'
+                });
+                setModalVisible(true);
+            };
+
+            const openEditModal = (record) => {
+                if (!currentUser.canEdit) {
+                    message.warning('您没有编辑方案的权限');
+                    return;
+                }
+                setEditingProfile(record);
+                form.setFieldsValue({
+                    name: record.name,
+                    llmModel: record.llmModel,
+                    routingStrategy: record.routingStrategy,
+                    personaName: record.personaName,
+                    sessionTimeout: record.sessionTimeout,
+                    commandThreshold: record.commandThreshold,
+                    libraries: record.libraries.map(l => l.key)
+                });
+                setModalVisible(true);
+            };
+
+            const handleModalOk = () => {
+                form.validateFields().then(values => {
+                    message.success(editingProfile ? '方案更新成功' : '方案创建成功');
+                    setModalVisible(false);
+                    form.resetFields();
+                }).catch(() => {});
+            };
+
+            const handleDelete = (record) => {
+                setDeletingProfile(record);
+                setDeleteConfirmVisible(true);
+            };
+
+            const confirmDelete = () => {
+                message.success('方案已删除：' + deletingProfile.name);
+                setDeleteConfirmVisible(false);
+                setDeletingProfile(null);
+            };
+
+            // ── Columns ──
+
+            const columns = [
+                {
+                    title: '方案名称',
+                    key: 'name',
+                    width: 200,
+                    render: (_, record) => (
+                        <div>
+                            <a onClick={() => goTo('detail')} style={{ fontWeight: 500, cursor: 'pointer' }}>{record.name}</a>
+                            <div style={{ fontSize: 12, color: '#8c8c8c', fontFamily: 'monospace' }}>{record.id}</div>
+                        </div>
+                    )
+                },
+                {
+                    title: '状态',
+                    key: 'status',
+                    width: 100,
+                    render: (_, record) => {
+                        const cfg = STATUS_MAP[record.status];
+                        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                    }
+                },
+                {
+                    title: '大模型',
+                    dataIndex: 'llmModel',
+                    key: 'llmModel',
+                    width: 120
+                },
+                {
+                    title: '路由策略',
+                    key: 'routingStrategy',
+                    width: 100,
+                    render: (_, record) => {
+                        const cfg = STRATEGY_MAP[record.routingStrategy];
+                        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                    }
+                },
+                {
+                    title: '绑定指令库',
+                    key: 'libraries',
+                    width: 110,
+                    render: (_, record) => (
+                        <Badge count={record.libraries.length} showZero style={{ backgroundColor: record.libraries.length > 0 ? '#1890ff' : '#d9d9d9' }}>
+                            <span style={{ padding: '0 8px' }}>{record.libraries.length}个指令库</span>
+                        </Badge>
+                    )
+                },
+                {
+                    title: '人设',
+                    dataIndex: 'personaName',
+                    key: 'personaName',
+                    width: 120
+                },
+                {
+                    title: '指令阈值',
+                    dataIndex: 'commandThreshold',
+                    key: 'commandThreshold',
+                    width: 90,
+                    render: (val) => <span style={{ fontFamily: 'monospace' }}>{val.toFixed(2)}</span>
+                },
+                {
+                    title: '会话超时',
+                    key: 'sessionTimeout',
+                    width: 90,
+                    render: (_, record) => <span>{record.sessionTimeout}分钟</span>
+                },
+                {
+                    title: '更新时间',
+                    dataIndex: 'updatedAt',
+                    key: 'updatedAt',
+                    width: 160
+                },
+                {
+                    title: '操作',
+                    key: 'action',
+                    width: 180,
+                    fixed: 'right',
+                    render: (_, record) => (
+                        <Space>
+                            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => goTo('detail')}>查看</Button>
+                            <Tooltip title={!currentUser.canEdit ? '您没有编辑权限' : ''}>
+                                <Button type="link" size="small" icon={<EditOutlined />} disabled={!currentUser.canEdit} onClick={() => openEditModal(record)}>编辑</Button>
+                            </Tooltip>
+                            <Tooltip title={!currentUser.canDelete ? '仅管理员可删除' : ''}>
+                                <Button type="link" size="small" danger icon={<DeleteOutlined />} disabled={!currentUser.canDelete} onClick={() => handleDelete(record)}>删除</Button>
+                            </Tooltip>
+                        </Space>
+                    )
+                }
+            ];
+
+            // ── Menu ──
+
+            const menuItems = [
+                {
+                    key: 'config',
+                    icon: <SettingOutlined />,
+                    label: '配置管理',
+                    children: [
+                        { key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('libraries') },
+                        { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') },
+                        { key: 'profiles', icon: <RobotOutlined />, label: '对话方案' }
+                    ]
+                },
+                {
+                    key: 'testing',
+                    icon: <ExperimentOutlined />,
+                    label: '测试验证',
+                    children: [
+                        { key: 'manual-test', icon: <MessageOutlined />, label: '手动测试', onClick: () => goTo('manual-test') },
+                        { key: 'batch-test', icon: <ExperimentOutlined />, label: '批量测试' }
+                    ]
+                },
+                {
+                    key: 'system',
+                    icon: <UserOutlined />,
+                    label: '系统管理',
+                    children: [
+                        { key: 'versions', icon: <RocketOutlined />, label: '版本管理' },
+                        { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+                        { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }
+                    ]
+                }
+            ];
+
+            // ── Drawer tabs content ──
+
+            const drawerTabs = [
+                {
+                    key: 'flow',
+                    label: '数据流向',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">对话方案全链路数据流向</div>
+                                <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.8 }}>
+{`[Profile Configuration]  对话方案配置层
+    ├─ 大模型选型 (LLM)
+    ├─ 路由策略 (routing_strategy)
+    ├─ 闲聊人设 (persona)
+    ├─ 指令阈值 (command_threshold)
+    ├─ 会话超时 (session_timeout)
+    └─ 绑定指令库 (1:N)
+           ↓
+[Version Bundle]  版本打包
+    ├─ 校验: 绑定的每个指令库是否有 published 模型
+    ├─ 快照: 冻结当前配置 → 生成 version_id
+    └─ 发布: 推送到设备运行时
+           ↓
+[Device Runtime]  设备运行时
+    ├─ 加载 Version Bundle
+    ├─ 用户输入 → NLU Pipeline (指令识别 / 闲聊路由)
+    └─ 响应输出 → 设备执行`}
+                                </pre>
+                            </div>
+                            <Alert
+                                message="关键数据关系"
+                                description="方案:指令库 = 1:N（一个方案可绑定多个指令库）；方案:人设 = 1:1（一个方案对应一个闲聊人设）；已发布方案全局唯一（同时只能有一个 published 方案）。"
+                                type="info"
+                                showIcon
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: 'state',
+                    label: '状态流转',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">方案生命周期状态机</div>
+                                <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.8 }}>
+{`draft ──→ testing ──→ published ──→ archived
+  ↑                       │
+  └───── 可克隆恢复 ───────┘
+
+状态说明:
+  draft     : 草稿，可自由编辑所有字段
+  testing   : 测试中，可在手动测试页验证效果
+  published : 已发布，生产环境生效，不可编辑
+  archived  : 已归档，历史版本保留`}
+                                </pre>
+                                <List
+                                    size="small"
+                                    bordered
+                                    style={{ marginTop: 16 }}
+                                    dataSource={[
+                                        { rule: '唯一性', desc: '同时只能有一个 published 方案；发布新方案时，旧 published 自动归档' },
+                                        { rule: '发布门禁', desc: '发布前校验：绑定的每个指令库必须存在 published 模型' },
+                                        { rule: '版本快照', desc: '发布时生成 Version Bundle，冻结当前配置快照' },
+                                        { rule: '不可回退', desc: 'published → archived 是单向的，归档后需克隆新方案' }
+                                    ]}
+                                    renderItem={item => (
+                                        <List.Item>
+                                            <Tag color="blue">{item.rule}</Tag> {item.desc}
+                                        </List.Item>
+                                    )}
+                                />
+                            </div>
+                            <Alert
+                                message="唯一性约束"
+                                description="系统同时只允许一个 published 方案。发布新方案时，当前 published 方案将自动归档。testing 可同时有多个（用于 A/B 测试对比）。"
+                                type="warning"
+                                showIcon
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: 'fields',
+                    label: '字段说明',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">方案字段详解</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="field"
+                                    columns={[
+                                        { title: '字段', dataIndex: 'field', width: 120 },
+                                        { title: '类型', dataIndex: 'type', width: 100 },
+                                        { title: '说明', dataIndex: 'desc' },
+                                        { title: '约束 / 默认值', dataIndex: 'constraint', width: 220 }
+                                    ]}
+                                    dataSource={[
+                                        { field: 'id', type: 'string', desc: '系统自动生成的唯一标识', constraint: '只读，格式 prof_XXX' },
+                                        { field: 'name', type: 'string', desc: '方案显示名称', constraint: '必填，最长 50 字符' },
+                                        { field: 'status', type: 'enum', desc: '方案当前状态', constraint: 'draft | testing | published | archived' },
+                                        { field: 'llmModel', type: 'string', desc: '绑定的大语言模型', constraint: '必选，如 GPT-4o、千问-Max' },
+                                        { field: 'routingStrategy', type: 'enum', desc: 'NLU 路由策略', constraint: 'command_first | knowledge_first | balanced' },
+                                        { field: 'personaName', type: 'string', desc: '闲聊人设名称', constraint: '必选，从人设列表中选择' },
+                                        { field: 'commandThreshold', type: 'float', desc: '指令识别置信度阈值', constraint: '0~1，步长 0.05，默认 0.6' },
+                                        { field: 'sessionTimeout', type: 'int', desc: '会话超时时间（分钟）', constraint: '1~60，默认 10' },
+                                        { field: 'libraries', type: 'array', desc: '绑定的指令库列表', constraint: '0~N 个，发布前至少绑定 1 个' },
+                                        { field: 'publishedVersion', type: 'string', desc: '最近发布的版本号', constraint: '只读，发布时自动生成' },
+                                        { field: 'updatedAt', type: 'datetime', desc: '最后修改时间', constraint: '只读，系统自动更新' }
+                                    ]}
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'operations',
+                    label: '操作说明',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">新建方案流程</div>
+                                <div className="mermaid" key="op-create">
+{`flowchart TD
+    A[点击新建方案] --> B{检查权限}
+    B -->|无权限| C[按钮禁用 + Tooltip]
+    B -->|有权限| D[打开新建弹窗]
+    D --> E[填写表单]
+    E --> F{字段校验}
+    F -->|失败| G[提示错误信息]
+    F -->|通过| H[保存方案]
+    H --> I[状态 = draft]
+    I --> J[刷新列表]
+    J --> K[提示创建成功]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">编辑方案流程</div>
+                                <div className="mermaid" key="op-edit">
+{`flowchart TD
+    A[点击编辑按钮] --> B{检查权限}
+    B -->|无权限| C[按钮禁用]
+    B -->|有权限| D{检查状态}
+    D -->|published/archived| E[提示不可编辑]
+    D -->|draft/testing| F[打开编辑弹窗]
+    F --> G[回填当前值]
+    G --> H[修改字段]
+    H --> I{校验通过?}
+    I -->|否| J[提示错误]
+    I -->|是| K[保存更新]
+    K --> L[刷新列表 + 提示成功]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">删除方案流程</div>
+                                <div className="mermaid" key="op-delete">
+{`flowchart TD
+    A[点击删除按钮] --> B{检查权限}
+    B -->|非管理员| C[按钮禁用 + Tooltip]
+    B -->|管理员| D{检查状态}
+    D -->|published| E[禁止删除 - 需先归档]
+    D -->|其他| F[二次确认弹窗]
+    F --> G{用户确认?}
+    G -->|取消| H[关闭弹窗]
+    G -->|确认| I[执行删除]
+    I --> J[刷新列表 + 提示成功]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">发布方案流程</div>
+                                <div className="mermaid" key="op-publish">
+{`flowchart TD
+    A[点击发布] --> B{校验指令库}
+    B -->|存在未发布模型的库| C[Alert: 门禁不通过]
+    B -->|全部通过| D{检查当前 published}
+    D -->|有| E[提示: 旧方案将自动归档]
+    D -->|无| F[发布确认]
+    E --> F
+    F --> G[生成 Version Bundle]
+    G --> H[状态 → published]
+    H --> I[设备切换新版本]`}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'logic',
+                    label: '业务逻辑',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">方案-指令库绑定规则</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <ol>
+                                        <li>一个方案可绑定 0~N 个指令库（多选）</li>
+                                        <li>同一指令库可被多个方案绑定（多对多）</li>
+                                        <li>发布前至少需绑定 1 个指令库</li>
+                                        <li>绑定的指令库需有 published 模型（发布门禁校验）</li>
+                                        <li>不同语种的指令库可同时绑定（支持多语种）</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">指令阈值逻辑</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <p>commandThreshold 决定 NLU 路由行为：</p>
+                                    <ul style={{ paddingLeft: 20 }}>
+                                        <li><strong>置信度 &ge; threshold</strong>：走指令处理流程（槽位填充 → 设备执行）</li>
+                                        <li><strong>置信度 &lt; threshold</strong>：走闲聊 / 知识检索流程</li>
+                                        <li><strong>推荐值 0.55~0.70</strong>：过低导致误触发指令，过高导致指令难以触发</li>
+                                    </ul>
+                                </div>
+                                <Alert
+                                    message="阈值调优建议"
+                                    description="新方案建议从 0.60 起步，通过手动测试页反复验证后微调。生产方案切忌盲目降低阈值。"
+                                    type="info"
+                                    showIcon
+                                />
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">发布门禁检查</div>
+                                <div style={{ lineHeight: 1.8 }}>
+                                    <p>发布前系统自动检查：</p>
+                                    <ol>
+                                        <li>方案至少绑定 1 个指令库</li>
+                                        <li>每个绑定的指令库必须存在 status=published 的模型版本</li>
+                                        <li>不满足条件时阻断发布并展示未通过项</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'tips',
+                    label: '易错点',
+                    children: (
+                        <div>
+                            <Alert
+                                message="⚠️ 忘记绑定指令库就发布"
+                                description="方案未绑定任何指令库时，发布门禁不通过。新建方案后务必先绑定至少一个指令库。"
+                                type="error"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ 指令阈值过高或过低"
+                                description="阈值过高（>0.80）：用户正常指令可能无法识别，全部走闲聊。阈值过低（<0.40）：日常闲聊可能误触发设备指令，造成安全隐患。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ 发布后无法直接编辑"
+                                description="方案一旦发布（published），配置被冻结为版本快照，不可再编辑。如需修改，请克隆为新的 draft 方案。"
+                                type="error"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ 绑定的指令库没有 published 模型"
+                                description="绑定指令库时只校验库是否存在，发布时才校验 published 模型。建议绑定前确认指令库已有 published 模型。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ 发布新方案时旧方案自动归档"
+                                description="系统同时只允许一个 published 方案。发布新方案时，当前 published 方案会自动变为 archived，请提前确认。"
+                                type="info"
+                            />
+                        </div>
+                    )
+                }
+            ];
+
+            // ── Render ──
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">智能对话管理平台</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    {/* Main Content */}
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>对话方案管理</h1>
+                                    <p style={{ color: '#8c8c8c', fontSize: 14 }}>管理对话方案配置，包括指令库绑定、人设设置、大模型选型和路由策略</p>
+                                </div>
+                                <Space>
+                                    <Select
+                                        value={currentUser.role}
+                                        onChange={(val) => setCurrentUser(PERMISSIONS[val.toUpperCase()])}
+                                        style={{ width: 130 }}
+                                        size="small"
+                                    >
+                                        <Option value="admin">管理员</Option>
+                                        <Option value="pm">产品经理</Option>
+                                        <Option value="tester">测试人员</Option>
+                                    </Select>
+                                    <Tooltip title="查看数据流向、状态流转、字段说明和业务约束">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Tooltip title={!currentUser.canCreate ? '测试人员无法新建方案' : ''}>
+                                        <Button type="primary" icon={<PlusOutlined />} disabled={!currentUser.canCreate} onClick={openCreateModal}>新建方案</Button>
+                                    </Tooltip>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* Statistics Cards */}
+                        <Row gutter={24} style={{ marginBottom: 24 }}>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="方案总数" value={stats.total} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="已发布" value={stats.published} valueStyle={{ color: '#52c41a' }} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="草稿" value={stats.draft} valueStyle={{ color: '#1890ff' }} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="测试中" value={stats.testing} valueStyle={{ color: '#faad14' }} />
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        {/* Filter Bar */}
+                        <Card style={{ marginBottom: 24 }}>
+                            <Row gutter={16}>
+                                <Col span={6}>
+                                    <Input
+                                        placeholder="搜索方案名称"
+                                        value={filters.name}
+                                        onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+                                        prefix={<SearchOutlined />}
+                                        allowClear
+                                    />
+                                </Col>
+                                <Col span={4}>
+                                    <Select
+                                        placeholder="全部状态"
+                                        value={filters.status}
+                                        onChange={(val) => setFilters({ ...filters, status: val })}
+                                        style={{ width: '100%' }}
+                                        allowClear
+                                    >
+                                        <Option value="draft">草稿</Option>
+                                        <Option value="testing">测试中</Option>
+                                        <Option value="published">已发布</Option>
+                                        <Option value="archived">已归档</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={4}>
+                                    <Select
+                                        placeholder="全部策略"
+                                        value={filters.strategy}
+                                        onChange={(val) => setFilters({ ...filters, strategy: val })}
+                                        style={{ width: '100%' }}
+                                        allowClear
+                                    >
+                                        <Option value="command_first">指令优先</Option>
+                                        <Option value="knowledge_first">知识优先</Option>
+                                        <Option value="balanced">均衡</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={6}>
+                                    <Space>
+                                        <Button type="primary" onClick={() => message.success('查询条件已应用')}>查询</Button>
+                                        <Button onClick={() => setFilters({ name: '', status: undefined, strategy: undefined })}>重置</Button>
+                                    </Space>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        {/* Data Table */}
+                        <Card>
+                            <Table
+                                columns={columns}
+                                dataSource={filteredData}
+                                pagination={{
+                                    ...pagination,
+                                    showSizeChanger: true,
+                                    showQuickJumper: true,
+                                    showTotal: (total) => '共 ' + total + ' 条'
+                                }}
+                                rowKey="id"
+                                scroll={{ x: 1400 }}
+                                onChange={(pag) => setPagination({ ...pagination, current: pag.current, pageSize: pag.pageSize })}
+                            />
+                        </Card>
+                    </Content>
+
+                    {/* Create / Edit Modal */}
+                    <Modal
+                        title={editingProfile ? '编辑方案 - ' + editingProfile.name : '新建方案'}
+                        open={modalVisible}
+                        onOk={handleModalOk}
+                        onCancel={() => { setModalVisible(false); form.resetFields(); }}
+                        width={640}
+                        maskClosable={false}
+                        okText={editingProfile ? '保存' : '创建'}
+                        cancelText="取消"
+                    >
+                        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="方案名称" rules={[{ required: true, message: '请输入方案名称' }]}>
+                                <Input placeholder="请输入方案名称" allowClear maxLength={50} />
+                            </Form.Item>
+
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item name="llmModel" label="大模型选型" rules={[{ required: true, message: '请选择大模型' }]}>
+                                        <Select placeholder="请选择大模型" allowClear>
+                                            <Option value="GPT-4o">GPT-4o</Option>
+                                            <Option value="GPT-4o-mini">GPT-4o-mini</Option>
+                                            <Option value="千问-Max">千问-Max</Option>
+                                            <Option value="千问-Plus">千问-Plus</Option>
+                                            <Option value="GLM-4">GLM-4</Option>
+                                            <Option value="GLM-4-Flash">GLM-4-Flash</Option>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item name="routingStrategy" label="路由策略" rules={[{ required: true, message: '请选择路由策略' }]}>
+                                        <Select placeholder="请选择路由策略" allowClear>
+                                            <Option value="command_first">指令优先</Option>
+                                            <Option value="knowledge_first">知识优先</Option>
+                                            <Option value="balanced">均衡</Option>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item name="personaName" label="闲聊人设" rules={[{ required: true, message: '请选择闲聊人设' }]}>
+                                        <Select placeholder="请选择人设" allowClear>
+                                            {mockPersonas.map(p => (
+                                                <Option key={p.id} value={p.name}>{p.name}</Option>
+                                            ))}
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item name="sessionTimeout" label="会话超时" rules={[{ required: true, message: '请输入会话超时' }]}>
+                                        <InputNumber min={1} max={60} style={{ width: '100%' }} addonAfter="分钟" />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Form.Item label="指令阈值" required>
+                                <Row gutter={16} align="middle">
+                                    <Col span={16}>
+                                        <Form.Item name="commandThreshold" noStyle rules={[{ required: true, message: '请设置指令阈值' }]}>
+                                            <Slider min={0} max={1} step={0.05} />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={8}>
+                                        <Form.Item name="commandThreshold" noStyle>
+                                            <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            </Form.Item>
+
+                            <Form.Item name="libraries" label="指令库绑定">
+                                <Select mode="multiple" placeholder="请选择要绑定的指令库" allowClear>
+                                    {mockLibraries.map(lib => (
+                                        <Option key={lib.key} value={lib.key}>
+                                            {lib.name} ({lib.language === 'zh' ? '中文' : '英文'}) {lib.hasPublished ? '✓ 已发布' : '⚠ 未发布'}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+
+                            <Alert
+                                message="发布校验提示"
+                                description="发布前系统将自动校验已绑定指令库是否存在 published 模型，未通过校验的方案无法发布。"
+                                type="info"
+                                showIcon
+                            />
+                        </Form>
+                    </Modal>
+
+                    {/* Delete Confirmation Modal */}
+                    <Modal
+                        title="删除确认"
+                        open={deleteConfirmVisible}
+                        onOk={confirmDelete}
+                        onCancel={() => { setDeleteConfirmVisible(false); setDeletingProfile(null); }}
+                        okText="确认删除"
+                        okType="danger"
+                        cancelText="取消"
+                        maskClosable={false}
+                    >
+                        {deletingProfile && (
+                            <div>
+                                <p>确定删除方案 <strong>{deletingProfile.name}</strong>？</p>
+                                <Alert
+                                    message="此操作不可恢复"
+                                    description="删除后方案配置将被永久清除，已发布版本不受影响。"
+                                    type="warning"
+                                    showIcon
+                                    style={{ marginTop: 12 }}
+                                />
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* Help Drawer */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button
+                                        type="text"
+                                        icon={<ColumnWidthOutlined />}
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={drawerTabs} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

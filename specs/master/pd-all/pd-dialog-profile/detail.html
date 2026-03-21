@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话方案详情 | SmartChef PD</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        .compare-card { padding: 20px; border-radius: 8px; text-align: center; }
+        .compare-card.old { background: #f5f5f5; border: 1px solid #d9d9d9; }
+        .compare-card.new { background: #f6ffed; border: 2px solid #52c41a; }
+        .compare-value { font-size: 36px; font-weight: 600; }
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+        .persona-card { padding: 20px; border-radius: 8px; border: 1px solid #d9d9d9; background: #fff; position: relative; }
+        .persona-card.active { border: 2px solid #1890ff; background: #e6f7ff; }
+        .persona-card .persona-badge { position: absolute; top: -1px; right: -1px; background: #1890ff; color: #fff; padding: 2px 10px; border-radius: 0 8px 0 8px; font-size: 12px; }
+        .checklist-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 14px; }
+        .checklist-item.pass { color: #52c41a; }
+        .checklist-item.fail { color: #ff4d4f; }
+        .impact-stat { text-align: center; padding: 16px; background: #fff7e6; border: 1px solid #ffd591; border-radius: 8px; }
+        .impact-stat .value { font-size: 28px; font-weight: 600; color: #fa8c16; }
+        .impact-stat .label { font-size: 13px; color: #8c8c8c; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback, useEffect, useRef } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Badge, Alert, Card, Space,
+            Modal, Form, Input, Select, InputNumber, Slider, Drawer, Tabs,
+            Descriptions, Timeline, Checkbox, Tooltip, Row, Col, Divider,
+            message, List, Typography
+        } = antd;
+        const {
+            ArrowLeftOutlined, QuestionCircleOutlined, MessageOutlined,
+            RocketOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            ExperimentOutlined, UserOutlined, BarChartOutlined, ColumnWidthOutlined,
+            EditOutlined, PlusOutlined, LinkOutlined, DisconnectOutlined,
+            CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined,
+            InfoCircleOutlined, SwapOutlined, SettingOutlined, SafetyCertificateOutlined,
+            ClockCircleOutlined, ThunderboltOutlined, SmileOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { Text } = Typography;
+
+        // ─── Mock Data ─────────────────────────────────────────────────
+        const profileData = {
+            name: '生产方案-中英双语',
+            status: 'published',
+            llmModel: 'GPT-4o',
+            routeStrategy: 'intent_first',
+            sessionTimeout: 10,
+            intentThreshold: 0.60,
+            currentVersion: 'v2.1',
+            createdAt: '2026-02-15 10:00:00',
+            updatedAt: '2026-03-17 14:30:00'
+        };
+
+        const boundLibraries = [
+            { id: 'lib_001', name: '中文指令库', key: 'zh_intents_v1', language: 'zh', intentCount: 39, hasPublished: true, publishedVersion: 'v2.0' },
+            { id: 'lib_002', name: '英文指令库', key: 'en_intents_v1', language: 'en', intentCount: 12, hasPublished: true, publishedVersion: 'v1.1' }
+        ];
+
+        const availableLibraries = [
+            ...boundLibraries,
+            { id: 'lib_003', name: '日语指令库', key: 'ja_intents_v1', language: 'ja', intentCount: 8, hasPublished: false, publishedVersion: null },
+            { id: 'lib_004', name: '测试指令库', key: 'test_intents_v1', language: 'zh', intentCount: 5, hasPublished: false, publishedVersion: null }
+        ];
+
+        const mockPersonas = [
+            { id: 'persona_001', name: '活泼厨房助手', personality: '热情友好、幽默风趣、乐于助人', toneStyle: '亲切随和，偶尔使用emoji，称呼用户为小主', isActive: true },
+            { id: 'persona_002', name: '专业厨房顾问', personality: '严谨专业、知识渊博、一丝不苟', toneStyle: '正式礼貌，使用专业术语，数据驱动建议', isActive: false },
+            { id: 'persona_003', name: '温柔美食家', personality: '温暖体贴、感性浪漫、注重美感', toneStyle: '温柔细腻，善用比喻，关注食材故事', isActive: false }
+        ];
+
+        const publishHistory = [
+            { version: 'v2.1', time: '2026-03-17 14:30', desc: '更新人设+英文库', isCurrent: true },
+            { version: 'v2.0', time: '2026-03-10 09:00', desc: '初次绑定英文库', isCurrent: false },
+            { version: 'v1.0', time: '2026-02-15 10:00', desc: '首次发布', isCurrent: false }
+        ];
+
+        // ─── App ────────────────────────────────────────────────────────
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+
+            const [editModalVisible, setEditModalVisible] = useState(false);
+            const [bindModalVisible, setBindModalVisible] = useState(false);
+            const [publishModalVisible, setPublishModalVisible] = useState(false);
+            const [personaModalVisible, setPersonaModalVisible] = useState(false);
+            const [personaEditModalVisible, setPersonaEditModalVisible] = useState(false);
+            const [personaNewModalVisible, setPersonaNewModalVisible] = useState(false);
+
+            const [publishConfirm, setPublishConfirm] = useState(false);
+            const [countdown, setCountdown] = useState(0);
+
+            const [editForm] = Form.useForm();
+            const [personaEditForm] = Form.useForm();
+            const [personaNewForm] = Form.useForm();
+
+            const [selectedBoundKeys, setSelectedBoundKeys] = useState(
+                boundLibraries.map(l => l.id)
+            );
+
+            const [personas, setPersonas] = useState(mockPersonas);
+            const [editingPersona, setEditingPersona] = useState(null);
+
+            const activePersona = useMemo(() => personas.find(p => p.isActive), [personas]);
+
+            const hasPermission = true;
+
+            const allLibsHavePublished = useMemo(
+                () => boundLibraries.every(l => l.hasPublished),
+                []
+            );
+
+            const validationChecks = useMemo(() => [
+                { pass: boundLibraries.length > 0, label: `已绑定 ${boundLibraries.length} 个指令库` },
+                ...boundLibraries.map(lib => ({
+                    pass: lib.hasPublished,
+                    label: lib.hasPublished
+                        ? `${lib.name} (${lib.key}) 存在 published 模型 ${lib.publishedVersion}`
+                        : `${lib.name} (${lib.key}) 尚无已发布模型`
+                })),
+                { pass: !!activePersona, label: '已配置闲聊人设' },
+                { pass: !!profileData.llmModel, label: '已配置大模型' }
+            ], [activePersona]);
+
+            const canPublish = useMemo(
+                () => validationChecks.every(c => c.pass),
+                [validationChecks]
+            );
+
+            // countdown timer
+            useEffect(() => {
+                if (countdown <= 0) return;
+                const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+                return () => clearTimeout(timer);
+            }, [countdown]);
+
+            // mermaid init
+            useEffect(() => {
+                if (window.mermaid) {
+                    window.mermaid.initialize({ startOnLoad: false, theme: 'default' });
+                }
+            }, []);
+
+            useEffect(() => {
+                if (!drawerVisible || !window.mermaid) return;
+                const timer = setTimeout(() => {
+                    document.querySelectorAll('.mermaid-pending').forEach(el => {
+                        const id = 'mermaid-' + Math.random().toString(36).slice(2, 9);
+                        window.mermaid.render(id, el.textContent).then(({ svg }) => {
+                            el.innerHTML = svg;
+                            el.classList.remove('mermaid-pending');
+                        }).catch(() => {});
+                    });
+                }, 400);
+                return () => clearTimeout(timer);
+            }, [drawerVisible]);
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const goTo = (page) => {
+                if (page === 'index') window.location.href = 'index.html';
+                else if (page === 'test-chat') window.location.href = 'test-chat.html';
+            };
+
+            const openPublishModal = () => {
+                setPublishModalVisible(true);
+                setPublishConfirm(false);
+                setCountdown(5);
+            };
+
+            const openEditModal = () => {
+                editForm.setFieldsValue({
+                    name: profileData.name,
+                    llmModel: profileData.llmModel,
+                    routeStrategy: profileData.routeStrategy,
+                    intentThreshold: profileData.intentThreshold,
+                    sessionTimeout: profileData.sessionTimeout
+                });
+                setEditModalVisible(true);
+            };
+
+            const openPersonaEdit = (persona) => {
+                setEditingPersona(persona);
+                personaEditForm.setFieldsValue({
+                    name: persona.name,
+                    personality: persona.personality,
+                    toneStyle: persona.toneStyle
+                });
+                setPersonaEditModalVisible(true);
+            };
+
+            const switchPersona = (persona) => {
+                setPersonas(prev => prev.map(p => ({ ...p, isActive: p.id === persona.id })));
+                setPersonaModalVisible(false);
+                message.success(`已切换人设为"${persona.name}"`);
+            };
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const menuItems = [
+                {
+                    key: 'config', icon: <SettingOutlined />, label: '配置管理',
+                    children: [
+                        { key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理' },
+                        { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理' },
+                        { key: 'profiles', icon: <RobotOutlined />, label: '对话方案' }
+                    ]
+                },
+                {
+                    key: 'testing', icon: <ExperimentOutlined />, label: '测试验证',
+                    children: [
+                        { key: 'manual-test', icon: <MessageOutlined />, label: '手动测试' },
+                        { key: 'batch-test', icon: <ExperimentOutlined />, label: '批量测试' }
+                    ]
+                },
+                {
+                    key: 'system', icon: <UserOutlined />, label: '系统管理',
+                    children: [
+                        { key: 'versions', icon: <RocketOutlined />, label: '版本管理' },
+                        { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+                        { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }
+                    ]
+                }
+            ];
+
+            const libraryColumns = [
+                {
+                    title: '指令库名称', dataIndex: 'name', key: 'name',
+                    render: (text) => (
+                        <a onClick={() => window.location.href = '../pd-intent-library/detail.html'} style={{ fontWeight: 500 }}>{text}</a>
+                    )
+                },
+                {
+                    title: 'library_key', dataIndex: 'key', key: 'key',
+                    render: (text) => <Text code>{text}</Text>
+                },
+                {
+                    title: '语种', dataIndex: 'language', key: 'language',
+                    render: (lang) => (
+                        <Tag color={lang === 'zh' ? 'blue' : lang === 'en' ? 'green' : 'orange'}>
+                            {lang === 'zh' ? '中文' : lang === 'en' ? 'English' : lang.toUpperCase()}
+                        </Tag>
+                    )
+                },
+                { title: '意图数', dataIndex: 'intentCount', key: 'intentCount', width: 80 },
+                {
+                    title: 'Published 模型', key: 'published',
+                    render: (_, record) => record.hasPublished
+                        ? <span style={{ color: '#52c41a' }}><CheckCircleOutlined /> 有 ({record.publishedVersion})</span>
+                        : <span style={{ color: '#ff4d4f' }}><CloseCircleOutlined /> 无</span>
+                },
+                {
+                    title: '操作', key: 'action', width: 100,
+                    render: (_, record) => (
+                        <Button
+                            type="link"
+                            danger
+                            size="small"
+                            icon={<DisconnectOutlined />}
+                            onClick={() => Modal.confirm({
+                                title: '确认解绑',
+                                content: `确定要解绑指令库"${record.name}"吗？解绑后该方案将不再使用此指令库进行意图识别。`,
+                                okType: 'danger',
+                                maskClosable: false,
+                                onOk: () => message.success(`已解绑"${record.name}"`)
+                            })}
+                        >
+                            解绑
+                        </Button>
+                    )
+                }
+            ];
+
+            const bindLibraryColumns = [
+                { title: '指令库名称', dataIndex: 'name', key: 'name' },
+                { title: 'library_key', dataIndex: 'key', key: 'key', render: (t) => <Text code>{t}</Text> },
+                {
+                    title: '语种', dataIndex: 'language', key: 'language',
+                    render: (lang) => (
+                        <Tag color={lang === 'zh' ? 'blue' : lang === 'en' ? 'green' : 'orange'}>
+                            {lang === 'zh' ? '中文' : lang === 'en' ? 'English' : lang.toUpperCase()}
+                        </Tag>
+                    )
+                },
+                { title: '意图数', dataIndex: 'intentCount', key: 'intentCount', width: 80 },
+                {
+                    title: 'Published 模型', key: 'published',
+                    render: (_, record) => record.hasPublished
+                        ? <Tag color="success">有 ({record.publishedVersion})</Tag>
+                        : <Tag color="error">无</Tag>
+                }
+            ];
+
+            // ─── Render ─────────────────────────────────────────────────
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">智能对话管理平台</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={['profiles']} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => { if (key === 'profiles') goTo('index'); }} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    {/* Main Content */}
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                    <Button icon={<ArrowLeftOutlined />} onClick={() => goTo('index')}>返回</Button>
+                                    <div>
+                                        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            方案详情: {profileData.name}
+                                            <Tag color="green" style={{ fontSize: 13 }}>已发布</Tag>
+                                        </h1>
+                                    </div>
+                                </div>
+                                <Space>
+                                    <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    <Button icon={<MessageOutlined />} onClick={() => goTo('test-chat')}>手动测试</Button>
+                                    <Tooltip title={!hasPermission ? '您没有 profile_publish 权限，请联系管理员' : ''}>
+                                        <Button
+                                            type="primary"
+                                            danger={profileData.status === 'published'}
+                                            icon={<RocketOutlined />}
+                                            disabled={!hasPermission}
+                                            onClick={openPublishModal}
+                                        >
+                                            发布
+                                        </Button>
+                                    </Tooltip>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* Section 1: 基本信息 */}
+                        <Card
+                            title="基本信息"
+                            style={{ marginBottom: 24 }}
+                            extra={<Button icon={<EditOutlined />} onClick={openEditModal}>编辑基本信息</Button>}
+                        >
+                            <Descriptions column={3} bordered size="small">
+                                <Descriptions.Item label="方案名称">{profileData.name}</Descriptions.Item>
+                                <Descriptions.Item label="状态"><Tag color="green">已发布</Tag></Descriptions.Item>
+                                <Descriptions.Item label="大模型">{profileData.llmModel}</Descriptions.Item>
+                                <Descriptions.Item label="路由策略"><Tag color="blue">指令优先</Tag></Descriptions.Item>
+                                <Descriptions.Item label="会话超时">{profileData.sessionTimeout} 分钟</Descriptions.Item>
+                                <Descriptions.Item label="指令阈值">{profileData.intentThreshold.toFixed(2)}</Descriptions.Item>
+                                <Descriptions.Item label="当前发布版本"><Tag color="purple">{profileData.currentVersion}</Tag></Descriptions.Item>
+                                <Descriptions.Item label="创建时间">{profileData.createdAt}</Descriptions.Item>
+                                <Descriptions.Item label="更新时间">{profileData.updatedAt}</Descriptions.Item>
+                            </Descriptions>
+                        </Card>
+
+                        {/* Section 2: 指令库绑定 */}
+                        <Card
+                            title={
+                                <Space>
+                                    <span>已绑定指令库</span>
+                                    <Badge count={boundLibraries.length} style={{ backgroundColor: '#1890ff' }} />
+                                </Space>
+                            }
+                            style={{ marginBottom: 24 }}
+                            extra={<Button type="primary" icon={<LinkOutlined />} onClick={() => setBindModalVisible(true)}>绑定指令库</Button>}
+                        >
+                            <Alert
+                                message="方案可并行绑定多个指令库（典型为中文库+英文库），运行时按语言检测自动路由到对应库"
+                                type="info"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                            />
+                            <Table
+                                columns={libraryColumns}
+                                dataSource={boundLibraries}
+                                rowKey="id"
+                                pagination={false}
+                                size="middle"
+                            />
+                        </Card>
+
+                        {/* Section 3: 闲聊人设配置 */}
+                        <Card
+                            title="闲聊人设配置"
+                            style={{ marginBottom: 24 }}
+                            extra={
+                                <Space>
+                                    <Button icon={<SwapOutlined />} onClick={() => setPersonaModalVisible(true)}>切换人设</Button>
+                                    <Button icon={<EditOutlined />} onClick={() => activePersona && openPersonaEdit(activePersona)}>编辑人设</Button>
+                                    <Button type="dashed" icon={<PlusOutlined />} onClick={() => { personaNewForm.resetFields(); setPersonaNewModalVisible(true); }}>新建人设</Button>
+                                </Space>
+                            }
+                        >
+                            {activePersona && (
+                                <div className="persona-card active">
+                                    <div className="persona-badge">当前使用</div>
+                                    <Descriptions column={1} size="small">
+                                        <Descriptions.Item label={<span><SmileOutlined /> 助手名称</span>}>
+                                            <Text strong>{activePersona.name}</Text>
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="性格特征">{activePersona.personality}</Descriptions.Item>
+                                        <Descriptions.Item label="语气风格">{activePersona.toneStyle}</Descriptions.Item>
+                                    </Descriptions>
+                                </div>
+                            )}
+                        </Card>
+
+                        {/* Section 4: 版本发布历史 */}
+                        <Card title="版本发布历史" style={{ marginBottom: 24 }}>
+                            <Timeline
+                                items={publishHistory.map(item => ({
+                                    color: item.isCurrent ? 'green' : 'gray',
+                                    children: (
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <Text strong>{item.version}</Text>
+                                                {item.isCurrent && <Tag color="green">当前生效</Tag>}
+                                            </div>
+                                            <div style={{ color: '#8c8c8c', fontSize: 13 }}>
+                                                <ClockCircleOutlined style={{ marginRight: 4 }} />{item.time}
+                                            </div>
+                                            <div style={{ marginTop: 4 }}>{item.desc}</div>
+                                        </div>
+                                    )
+                                }))}
+                            />
+                        </Card>
+                    </Content>
+
+                    {/* ─── Edit Basic Info Modal ──────────────────────────── */}
+                    <Modal
+                        title="编辑基本信息"
+                        open={editModalVisible}
+                        maskClosable={false}
+                        width={600}
+                        onOk={() => {
+                            editForm.validateFields().then(() => {
+                                message.success('基本信息已更新');
+                                setEditModalVisible(false);
+                            });
+                        }}
+                        onCancel={() => setEditModalVisible(false)}
+                    >
+                        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="方案名称" rules={[{ required: true, message: '请输入方案名称' }]}>
+                                <Input placeholder="请输入方案名称" allowClear />
+                            </Form.Item>
+                            <Form.Item name="llmModel" label="大模型选型" rules={[{ required: true, message: '请选择大模型' }]}>
+                                <Select placeholder="请选择大模型">
+                                    <Option value="GPT-4o">GPT-4o</Option>
+                                    <Option value="GPT-4o-mini">GPT-4o-mini</Option>
+                                    <Option value="Claude-3.5-Sonnet">Claude-3.5-Sonnet</Option>
+                                    <Option value="Qwen-Max">Qwen-Max</Option>
+                                    <Option value="DeepSeek-V3">DeepSeek-V3</Option>
+                                </Select>
+                            </Form.Item>
+                            <Form.Item name="routeStrategy" label="路由策略" rules={[{ required: true, message: '请选择路由策略' }]}>
+                                <Select placeholder="请选择路由策略">
+                                    <Option value="intent_first">指令优先</Option>
+                                    <Option value="llm_first">LLM 优先</Option>
+                                    <Option value="hybrid">混合策略</Option>
+                                </Select>
+                            </Form.Item>
+                            <Form.Item label="指令阈值" required>
+                                <Row gutter={16}>
+                                    <Col span={16}>
+                                        <Form.Item name="intentThreshold" noStyle>
+                                            <Slider min={0} max={1} step={0.05} tooltip={{ formatter: v => `${(v * 100).toFixed(0)}%` }} />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={8}>
+                                        <Form.Item name="intentThreshold" noStyle>
+                                            <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            </Form.Item>
+                            <Form.Item name="sessionTimeout" label="会话超时（分钟）" rules={[{ required: true, message: '请输入超时时间' }]}>
+                                <InputNumber min={1} max={60} style={{ width: '100%' }} placeholder="1~60 分钟" />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* ─── Bind Library Modal ─────────────────────────────── */}
+                    <Modal
+                        title="绑定指令库"
+                        open={bindModalVisible}
+                        maskClosable={false}
+                        width={800}
+                        onOk={() => {
+                            message.success(`已更新绑定，当前绑定 ${selectedBoundKeys.length} 个指令库`);
+                            setBindModalVisible(false);
+                        }}
+                        onCancel={() => setBindModalVisible(false)}
+                    >
+                        <Alert
+                            message="选择需要绑定到此方案的指令库，支持多选。运行时将按语言检测自动路由。"
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                        />
+                        <Table
+                            columns={bindLibraryColumns}
+                            dataSource={availableLibraries}
+                            rowKey="id"
+                            pagination={false}
+                            size="small"
+                            rowSelection={{
+                                selectedRowKeys: selectedBoundKeys,
+                                onChange: (keys) => setSelectedBoundKeys(keys)
+                            }}
+                        />
+                    </Modal>
+
+                    {/* ─── Publish Confirmation Modal ─────────────────────── */}
+                    <Modal
+                        title={<span><ExclamationCircleOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />确认发布方案</span>}
+                        open={publishModalVisible}
+                        maskClosable={false}
+                        width={700}
+                        onCancel={() => setPublishModalVisible(false)}
+                        footer={[
+                            <Button key="cancel" onClick={() => setPublishModalVisible(false)}>取消</Button>,
+                            <Button
+                                key="publish"
+                                type="primary"
+                                danger
+                                disabled={!publishConfirm || countdown > 0 || !canPublish}
+                                onClick={() => { message.success('发布成功，新版本 v2.2 已生效'); setPublishModalVisible(false); }}
+                            >
+                                {countdown > 0 ? `确认发布 (${countdown}s)` : '确认发布'}
+                            </Button>
+                        ]}
+                    >
+                        {/* Warning */}
+                        <Alert
+                            message="发布将立即影响所有在线设备"
+                            description="发布后所有在线设备将自动切换到新版本，进行中的会话上下文将被重置。请确保已充分测试。"
+                            type="error"
+                            showIcon
+                            style={{ marginBottom: 20 }}
+                        />
+
+                        {/* Validation Checklist */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>发布前校验清单</div>
+                            <div style={{ background: '#fafafa', padding: 12, borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                                {validationChecks.map((check, idx) => (
+                                    <div key={idx} className={`checklist-item ${check.pass ? 'pass' : 'fail'}`}>
+                                        {check.pass
+                                            ? <CheckCircleOutlined />
+                                            : <CloseCircleOutlined />
+                                        }
+                                        <span>{check.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            {!canPublish && (
+                                <Alert
+                                    message="存在未通过的校验项"
+                                    description={
+                                        <span>
+                                            请先修复上述标红项。若指令库尚无已发布模型，请前往
+                                            <a onClick={() => window.location.href = '../pd-intent-library/detail.html'} style={{ marginLeft: 4 }}>指令库管理</a>
+                                            发布模型。
+                                        </span>
+                                    }
+                                    type="error"
+                                    showIcon
+                                    style={{ marginTop: 12 }}
+                                />
+                            )}
+                        </div>
+
+                        {/* Version Comparison */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>版本对比</div>
+                            <Row gutter={24}>
+                                <Col span={12}>
+                                    <div className="compare-card old">
+                                        <div className="compare-value" style={{ color: '#8c8c8c' }}>v2.1</div>
+                                        <div style={{ color: '#8c8c8c', marginTop: 4 }}>当前版本</div>
+                                        <div style={{ fontSize: 12, color: '#bfbfbf', marginTop: 4 }}>发布于 2026-03-17</div>
+                                    </div>
+                                </Col>
+                                <Col span={12}>
+                                    <div className="compare-card new">
+                                        <div className="compare-value" style={{ color: '#52c41a' }}>v2.2</div>
+                                        <div style={{ color: '#52c41a', marginTop: 4 }}>即将发布</div>
+                                        <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>新版本</div>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </div>
+
+                        {/* Impact Statistics */}
+                        <div style={{ marginBottom: 20 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>影响范围</div>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <div className="impact-stat">
+                                        <div className="value">15</div>
+                                        <div className="label">影响设备数</div>
+                                    </div>
+                                </Col>
+                                <Col span={12}>
+                                    <div className="impact-stat">
+                                        <div className="value">8</div>
+                                        <div className="label">活跃会话数（会话将被重置）</div>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </div>
+
+                        {/* Confirm Checkbox */}
+                        <Checkbox
+                            checked={publishConfirm}
+                            onChange={(e) => setPublishConfirm(e.target.checked)}
+                        >
+                            我已确认以上变更，理解发布后所有设备会话将被重置
+                        </Checkbox>
+                        {countdown > 0 && (
+                            <div style={{ marginTop: 12, color: '#ff4d4f', fontWeight: 500 }}>
+                                <SafetyCertificateOutlined style={{ marginRight: 4 }} />
+                                安全倒计时 {countdown} 秒，请仔细确认以上信息
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* ─── Persona Selection Modal ────────────────────────── */}
+                    <Modal
+                        title="切换闲聊人设"
+                        open={personaModalVisible}
+                        maskClosable={false}
+                        width={700}
+                        footer={null}
+                        onCancel={() => setPersonaModalVisible(false)}
+                    >
+                        <Row gutter={[16, 16]}>
+                            {personas.map(persona => (
+                                <Col span={8} key={persona.id}>
+                                    <div
+                                        className={`persona-card ${persona.isActive ? 'active' : ''}`}
+                                        style={{ cursor: 'pointer', height: '100%' }}
+                                        onClick={() => !persona.isActive && switchPersona(persona)}
+                                    >
+                                        {persona.isActive && <div className="persona-badge">当前</div>}
+                                        <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>{persona.name}</div>
+                                        <div style={{ fontSize: 13, color: '#595959', marginBottom: 6 }}>
+                                            <span style={{ fontWeight: 500 }}>性格：</span>{persona.personality}
+                                        </div>
+                                        <div style={{ fontSize: 13, color: '#8c8c8c' }}>
+                                            <span style={{ fontWeight: 500 }}>语气：</span>{persona.toneStyle}
+                                        </div>
+                                        {!persona.isActive && (
+                                            <Button type="primary" size="small" block style={{ marginTop: 12 }} onClick={(e) => { e.stopPropagation(); switchPersona(persona); }}>
+                                                选择此人设
+                                            </Button>
+                                        )}
+                                    </div>
+                                </Col>
+                            ))}
+                        </Row>
+                    </Modal>
+
+                    {/* ─── Persona Edit Modal ─────────────────────────────── */}
+                    <Modal
+                        title={`编辑人设: ${editingPersona?.name || ''}`}
+                        open={personaEditModalVisible}
+                        maskClosable={false}
+                        width={600}
+                        onOk={() => {
+                            personaEditForm.validateFields().then(values => {
+                                setPersonas(prev => prev.map(p =>
+                                    p.id === editingPersona.id ? { ...p, ...values } : p
+                                ));
+                                message.success('人设已更新');
+                                setPersonaEditModalVisible(false);
+                            });
+                        }}
+                        onCancel={() => setPersonaEditModalVisible(false)}
+                    >
+                        <Form form={personaEditForm} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="助手名称" rules={[{ required: true, message: '请输入助手名称' }]}>
+                                <Input placeholder="请输入助手名称" allowClear />
+                            </Form.Item>
+                            <Form.Item name="personality" label="性格特征" rules={[{ required: true, message: '请输入性格特征' }]}>
+                                <Input.TextArea rows={3} placeholder="如：热情友好、幽默风趣、乐于助人" allowClear />
+                            </Form.Item>
+                            <Form.Item name="toneStyle" label="语气风格" rules={[{ required: true, message: '请输入语气风格' }]}>
+                                <Input.TextArea rows={3} placeholder="如：亲切随和，偶尔使用emoji，称呼用户为小主" allowClear />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* ─── Persona New Modal ──────────────────────────────── */}
+                    <Modal
+                        title="新建闲聊人设"
+                        open={personaNewModalVisible}
+                        maskClosable={false}
+                        width={600}
+                        onOk={() => {
+                            personaNewForm.validateFields().then(values => {
+                                const newPersona = {
+                                    id: 'persona_' + Date.now(),
+                                    ...values,
+                                    isActive: false
+                                };
+                                setPersonas(prev => [...prev, newPersona]);
+                                message.success('人设已创建');
+                                setPersonaNewModalVisible(false);
+                            });
+                        }}
+                        onCancel={() => setPersonaNewModalVisible(false)}
+                    >
+                        <Form form={personaNewForm} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="助手名称" rules={[{ required: true, message: '请输入助手名称' }]}>
+                                <Input placeholder="请输入助手名称" allowClear />
+                            </Form.Item>
+                            <Form.Item name="personality" label="性格特征" rules={[{ required: true, message: '请输入性格特征' }]}>
+                                <Input.TextArea rows={3} placeholder="如：热情友好、幽默风趣、乐于助人" allowClear />
+                            </Form.Item>
+                            <Form.Item name="toneStyle" label="语气风格" rules={[{ required: true, message: '请输入语气风格' }]}>
+                                <Input.TextArea rows={3} placeholder="如：亲切随和，偶尔使用emoji，称呼用户为小主" allowClear />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* ─── Help Drawer (6 Tabs) ──────────────────────────── */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button
+                                        type="text"
+                                        icon={<ColumnWidthOutlined />}
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            /* Tab 1: 数据流向 */
+                            {
+                                key: 'flow',
+                                label: '数据流向',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">对话方案全链路数据流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, overflow: 'auto', lineHeight: 1.8, fontSize: 13 }}>
+{`[对话方案配置] ──→ [版本打包] ──→ [运行时加载] ──→ [设备会话]
+      ↓                ↓               ↓              ↓
+ LLM+人设+库       快照冻结        热加载切换       会话重置
+
+详细流程：
+┌─────────────────┐
+│  对话方案配置     │ ← 选择 LLM、配置人设、绑定指令库、设置阈值
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  版本打包        │ ← 快照当前配置（LLM+人设+库版本+阈值）→ 生成不可变版本号
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  运行时加载      │ ← API 拉取最新 published 版本 → 热加载到网关
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  设备会话        │ ← 设备检测到新版本 → 重置进行中的会话 → 使用新配置
+└─────────────────┘`}
+                                            </pre>
+                                        </div>
+                                        <Alert
+                                            message="关键数据关系"
+                                            description={
+                                                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                    <li>方案 : 指令库 = 1 : N（一个方案可绑定多个指令库）</li>
+                                                    <li>方案 : 人设 = 1 : 1（一个方案同时只有一个激活人设）</li>
+                                                    <li>方案 : 版本 = 1 : N（发布后创建不可变版本快照）</li>
+                                                    <li>指令库语种互斥：运行时按语言检测路由，同语种库不建议重复绑定</li>
+                                                </ul>
+                                            }
+                                            type="info"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            },
+                            /* Tab 2: 状态流转 */
+                            {
+                                key: 'state',
+                                label: '状态流转',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">对话方案状态流转</div>
+                                            <div style={{ padding: 16, background: '#f6ffed', borderRadius: 8, border: '1px solid #b7eb8f', marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                                                <Tag color="default">draft (草稿)</Tag>
+                                                <span>→</span>
+                                                <Tag color="blue">testing (测试中)</Tag>
+                                                <span>→</span>
+                                                <Tag color="green">published (已发布)</Tag>
+                                                <span>→</span>
+                                                <Tag color="red">archived (已归档)</Tag>
+                                            </div>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">状态规则</div>
+                                            <Alert
+                                                message="发布创建不可变版本快照"
+                                                description={
+                                                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                        <li><strong>draft</strong>：可自由编辑所有配置（LLM、人设、指令库绑定、阈值）</li>
+                                                        <li><strong>testing</strong>：配置冻结，仅可进行手动测试和批量测试</li>
+                                                        <li><strong>published</strong>：生产生效，发布时创建不可变版本快照，包含完整配置副本</li>
+                                                        <li><strong>archived</strong>：归档后不可恢复发布，但历史版本仍可查看</li>
+                                                        <li>每次发布都会生成递增版本号（v1.0 → v2.0 → v2.1 ...）</li>
+                                                    </ul>
+                                                }
+                                                type="info"
+                                                showIcon
+                                            />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Tab 3: 字段说明 */
+                            {
+                                key: 'fields',
+                                label: '字段说明',
+                                children: (
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">对话方案字段详解</div>
+                                        <Table
+                                            size="small"
+                                            pagination={false}
+                                            columns={[
+                                                { title: '字段', dataIndex: 'field', width: 140 },
+                                                { title: '类型', dataIndex: 'type', width: 100 },
+                                                { title: '约束', dataIndex: 'constraint', width: 180 },
+                                                { title: '默认值', dataIndex: 'defaultVal', width: 100 },
+                                                { title: '说明', dataIndex: 'desc' }
+                                            ]}
+                                            dataSource={[
+                                                { key: '1', field: 'name', type: 'string', constraint: '必填, 1~100字符, 唯一', defaultVal: '-', desc: '方案名称，用于后台管理区分' },
+                                                { key: '2', field: 'llm_model', type: 'enum', constraint: '必填', defaultVal: 'GPT-4o', desc: '大模型选型，决定闲聊和兜底回复质量' },
+                                                { key: '3', field: 'route_strategy', type: 'enum', constraint: 'intent_first | llm_first | hybrid', defaultVal: 'intent_first', desc: '路由策略：指令优先先走NLU，LLM优先先走大模型' },
+                                                { key: '4', field: 'intent_threshold', type: 'float', constraint: '0~1, step 0.05', defaultVal: '0.60', desc: '指令识别阈值，低于此值回退到闲聊/大模型' },
+                                                { key: '5', field: 'session_timeout', type: 'int', constraint: '1~60 分钟', defaultVal: '10', desc: '会话超时时间，超时后会话上下文自动清除' },
+                                                { key: '6', field: 'persona_id', type: 'FK', constraint: '必填, 引用 persona 表', defaultVal: '-', desc: '当前激活的闲聊人设ID' },
+                                                { key: '7', field: 'bound_libraries', type: 'array[FK]', constraint: '至少绑定1个', defaultVal: '[]', desc: '绑定的指令库ID列表，支持多个' },
+                                                { key: '8', field: 'status', type: 'enum', constraint: 'draft|testing|published|archived', defaultVal: 'draft', desc: '方案状态，控制可执行操作' },
+                                                { key: '9', field: 'current_version', type: 'string', constraint: '格式 vX.Y', defaultVal: '-', desc: '当前发布的版本号' }
+                                            ]}
+                                        />
+                                    </div>
+                                )
+                            },
+                            /* Tab 4: 操作说明 */
+                            {
+                                key: 'operations',
+                                label: '操作说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">编辑基本信息流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"编辑基本信息"按钮]
+    ↓
+[弹出编辑弹窗，回填当前值]
+    ├─ 方案名称 (Input, required)
+    ├─ 大模型选型 (Select)
+    ├─ 路由策略 (Select)
+    ├─ 指令阈值 (Slider 0~1 + InputNumber)
+    └─ 会话超时 (InputNumber 1~60)
+    ↓
+[校验通过] → [保存] → [刷新页面显示]
+    ↓ 校验失败
+[表单提示错误，阻止提交]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">绑定指令库流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"绑定指令库"按钮]
+    ↓
+[弹出库选择弹窗，已绑定库预选中]
+    ├─ 展示所有可用指令库
+    ├─ 勾选/取消勾选
+    └─ 显示每个库的语种、published 状态
+    ↓
+[确认] → [更新绑定关系] → [刷新表格]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">发布流程（危险操作）</div>
+                                            <pre style={{ background: '#fff1f0', padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6, border: '1px solid #ffa39e' }}>
+{`[点击"发布"按钮]
+    ↓
+[检查权限 profile_publish] → 无权限 → [按钮禁用 + Tooltip 提示]
+    ↓ 有权限
+[弹出发布确认弹窗]
+    ├─ ⚠️ 警告: 发布将立即影响所有在线设备
+    ├─ 校验清单:
+    │   ├─ 是否绑定指令库
+    │   ├─ 每个绑定库是否存在 published 模型
+    │   ├─ 是否配置人设
+    │   └─ 是否配置大模型
+    ├─ 版本对比 (旧 v2.1 vs 新 v2.2)
+    ├─ 影响统计 (设备数 + 会话数)
+    ├─ 勾选确认
+    └─ 5 秒倒计时
+    ↓ 校验全通过 + 已勾选 + 倒计时完成
+[执行发布] → [创建版本快照] → [设备切换] → [成功提示]
+    ↓ 校验不通过
+[发布按钮禁用，提示修复]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">切换人设流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"切换人设"按钮]
+    ↓
+[弹出人设选择弹窗]
+    ├─ 展示所有可用人设卡片
+    ├─ 当前激活人设标记"当前"
+    └─ 点击其他人设卡片
+    ↓
+[切换人设] → [更新方案配置] → [刷新显示]`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Tab 5: 业务逻辑 */
+                            {
+                                key: 'logic',
+                                label: '业务逻辑',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">发布门禁校验逻辑 (FR-047)</div>
+                                            <ol style={{ lineHeight: 2.0, paddingLeft: 20 }}>
+                                                <li>用户点击"发布"按钮</li>
+                                                <li>系统检查用户是否拥有 <Text code>profile_publish</Text> 权限</li>
+                                                <li>弹出确认弹窗，执行以下校验：
+                                                    <ul style={{ paddingLeft: 16 }}>
+                                                        <li>检查方案是否绑定了至少 1 个指令库</li>
+                                                        <li>遍历每个绑定库，检查是否存在 <Text code>published</Text> 状态的模型</li>
+                                                        <li>检查是否配置了闲聊人设</li>
+                                                        <li>检查是否选择了大模型</li>
+                                                    </ul>
+                                                </li>
+                                                <li>全部通过 → 展示版本对比和影响范围</li>
+                                                <li>用户勾选确认 + 5 秒安全倒计时</li>
+                                                <li>执行发布：创建不可变版本快照</li>
+                                                <li>通知所有在线设备切换到新版本</li>
+                                                <li>进行中的会话上下文被重置</li>
+                                            </ol>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">指令库绑定规则 (FR-040)</div>
+                                            <ol style={{ lineHeight: 2.0, paddingLeft: 20 }}>
+                                                <li>方案可并行绑定多个指令库（1:N 关系）</li>
+                                                <li>典型场景：中文库 + 英文库，运行时按语言检测路由</li>
+                                                <li>同语种的多个库不建议重复绑定（可能产生冲突）</li>
+                                                <li>解绑后对应语种的意图识别将失效</li>
+                                                <li>绑定库必须存在 published 模型，否则发布门禁不通过</li>
+                                            </ol>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">指令阈值语义</div>
+                                            <Alert
+                                                message="intent_threshold 决定 NLU 路由策略的分界线"
+                                                description={
+                                                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                        <li><strong>score &ge; threshold</strong>：识别为指令意图，执行对应槽位填充和指令响应</li>
+                                                        <li><strong>score &lt; threshold</strong>：回退到闲聊/大模型路径</li>
+                                                        <li><strong>建议值 0.55~0.70</strong>：过高导致漏识别，过低导致误触发</li>
+                                                        <li>阈值可在发布后通过新版本调整，需要重新发布</li>
+                                                    </ul>
+                                                }
+                                                type="warning"
+                                                showIcon
+                                            />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Tab 6: 易错点 */
+                            {
+                                key: 'tips',
+                                label: '易错点',
+                                children: (
+                                    <div>
+                                        <Alert
+                                            message="发布后会话立即重置"
+                                            description="发布新版本后，所有在线设备的进行中会话上下文将被清空。建议在低峰期发布，并提前通知相关人员。"
+                                            type="error"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="绑定库无 published 模型将阻断发布"
+                                            description="如果绑定的指令库中有任何一个没有 published 状态的模型，发布门禁将不通过。请先在指令库管理中完成模型训练和发布。"
+                                            type="error"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="人设切换不影响已有会话"
+                                            description="切换人设只在下次发布后对新会话生效。当前已建立的会话仍使用旧人设配置。"
+                                            type="warning"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="指令阈值修改需要重新发布"
+                                            description="修改 intent_threshold 只更新草稿配置，需要重新发布才能在生产环境生效。切勿认为修改后立即生效。"
+                                            type="warning"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="同语种重复绑定可能冲突"
+                                            description="如果绑定了两个中文指令库，运行时可能产生路由冲突。建议每种语言只绑定一个指令库。"
+                                            type="info"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="版本快照不可编辑"
+                                            description="发布后创建的版本快照是不可变的（immutable），包含发布时的完整配置副本。如需修改，必须创建新版本重新发布。"
+                                            type="info"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

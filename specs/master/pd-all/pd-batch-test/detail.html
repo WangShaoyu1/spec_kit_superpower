@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批次详情 | SmartChef PD</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+        .stat-card { text-align: center; padding: 16px 12px; }
+        .stat-card .value { font-size: 28px; font-weight: 600; line-height: 1.3; }
+        .stat-card .label { font-size: 13px; color: #8c8c8c; margin-top: 4px; }
+        .slot-json { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; max-width: 280px; word-break: break-all; }
+        .confusion-cell { text-align: center; min-width: 60px; }
+        .confusion-cell.highlight { background: #fff1f0; font-weight: 600; color: #ff4d4f; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback, useEffect, useRef } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Badge, Alert, Card, Space,
+            Modal, Drawer, Tabs, Descriptions, Tooltip, Row, Col, Divider,
+            Progress, Select, message, Typography, Statistic, Steps
+        } = antd;
+        const {
+            ArrowLeftOutlined, QuestionCircleOutlined, ReloadOutlined,
+            DownloadOutlined, ExperimentOutlined, MessageOutlined,
+            RocketOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            UserOutlined, BarChartOutlined, ColumnWidthOutlined,
+            CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined,
+            InfoCircleOutlined, SettingOutlined, WarningOutlined,
+            BulbOutlined, AimOutlined, FundOutlined, TableOutlined,
+            BugOutlined, ThunderboltOutlined, FilterOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { Text } = Typography;
+
+        // ─── Mock Data ─────────────────────────────────────────────────
+        const batchInfo = {
+            name: "新增意图验证",
+            status: "completed",
+            profileName: "生产方案-中英双语",
+            totalCases: 50,
+            passedCases: 44,
+            failedCases: 6,
+            accuracy: 88.0,
+            targetAccuracy: 95,
+            avgLatency: 168,
+            targetLatency: 200,
+            executedAt: "2026-03-17 15:30:00",
+            finishedAt: "2026-03-17 15:32:18",
+            passed: false
+        };
+
+        const mockCases = [
+            { id: "TC-001", utterance: "设置温度180度", expectedRoute: "command", actualRoute: "command", expectedIntent: "set_cooking_temp", actualIntent: "set_cooking_temp", expectedSlots: [{name:"number",value:"180"}], actualSlots: [{name:"number",value:"180"}], score: 0.96, latency: 128, passed: true, source: "auto" },
+            { id: "TC-002", utterance: "把火关了", expectedRoute: "command", actualRoute: "command", expectedIntent: "voice_cmd_stop_cooking", actualIntent: "voice_cmd_stop_cooking", expectedSlots: [], actualSlots: [], score: 0.94, latency: 112, passed: true, source: "auto" },
+            { id: "TC-003", utterance: "帮我调低一点", expectedRoute: "command", actualRoute: "command", expectedIntent: "decrease_temp", actualIntent: "set_cooking_temp", expectedSlots: [], actualSlots: [{name:"number",value:"null"}], score: 0.42, latency: 155, passed: false, source: "auto" },
+            { id: "TC-004", utterance: "红烧肉怎么做", expectedRoute: "knowledge", actualRoute: "command", expectedIntent: null, actualIntent: "search_recipe_by_cuisine_type", expectedSlots: [], actualSlots: [{name:"cuisine",value:"红烧肉"}], score: 0.58, latency: 145, passed: false, source: "manual" },
+            { id: "TC-005", utterance: "收藏这个菜谱", expectedRoute: "command", actualRoute: "command", expectedIntent: "collect_recipe", actualIntent: "collect_recipe", expectedSlots: [{name:"recipe_ref",value:"context"}], actualSlots: [{name:"recipe_ref",value:"null"}], score: 0.65, latency: 160, passed: false, source: "auto" },
+            { id: "TC-006", utterance: "Start cooking", expectedRoute: "command", actualRoute: "command", expectedIntent: "voice_cmd_start_cooking", actualIntent: "voice_cmd_start_cooking", expectedSlots: [], actualSlots: [], score: 0.91, latency: 135, passed: true, source: "auto" },
+            { id: "TC-007", utterance: "今天天气怎么样", expectedRoute: "chitchat", actualRoute: "chitchat", expectedIntent: null, actualIntent: null, expectedSlots: [], actualSlots: [], score: 0.88, latency: 2100, passed: true, source: "auto" },
+            { id: "TC-008", utterance: "解冻一下", expectedRoute: "command", actualRoute: "command", expectedIntent: "defrost_food", actualIntent: "set_cooking_time", expectedSlots: [], actualSlots: [{name:"duration",value:"null"}], score: 0.38, latency: 148, passed: false, source: "auto" }
+        ];
+
+        const intentRankings = [
+            { intent: "voice_cmd_start_cooking", total: 5, passed: 5, accuracy: 100, trend: "good" },
+            { intent: "voice_cmd_stop_cooking", total: 4, passed: 4, accuracy: 100, trend: "good" },
+            { intent: "set_cooking_temp", total: 8, passed: 7, accuracy: 87.5, trend: "warn" },
+            { intent: "collect_recipe", total: 4, passed: 2, accuracy: 50, trend: "bad" },
+            { intent: "defrost_food", total: 3, passed: 1, accuracy: 33.3, trend: "bad" },
+            { intent: "decrease_temp", total: 3, passed: 0, accuracy: 0, trend: "bad" }
+        ];
+
+        const confusionPairs = [
+            { from: "decrease_temp", to: "set_cooking_temp", count: 3 },
+            { from: "defrost_food", to: "set_cooking_time", count: 2 },
+            { from: "search_recipe", to: "collect_recipe", count: 1 }
+        ];
+
+        const failureCategories = [
+            {
+                category: "表达覆盖不足",
+                count: 3,
+                cases: ["帮我调低一点", "解冻一下"],
+                reason: "训练数据未覆盖口语化表达"
+            },
+            {
+                category: "路由错误",
+                count: 1,
+                cases: ["红烧肉怎么做"],
+                reason: "指令优先策略将知识问答误分为指令"
+            },
+            {
+                category: "槽位提取失败",
+                count: 2,
+                cases: ["收藏这个菜谱"],
+                reason: "指代消解在批量测试上下文中不可用"
+            }
+        ];
+
+        const suggestions = [
+            "为 decrease_temp 意图补充口语化训练数据（\"调低一点\"、\"小点火\"等）",
+            "为 defrost_food 意图补充简短表达（\"解冻一下\"、\"化冻\"等）",
+            "考虑调整 \"红烧肉怎么做\" 的路由策略或添加知识域优先规则",
+            "批量测试环境增加模拟上下文支持（解决指代消解问题）",
+            "建议在指令库中补充同义词和变体表达后重新训练"
+        ];
+
+        // ─── Helpers ───────────────────────────────────────────────────
+        function renderSlotJson(slots) {
+            if (!slots || slots.length === 0) return <Text type="secondary">-</Text>;
+            const text = JSON.stringify(slots);
+            return (
+                <Tooltip title={<pre style={{ margin: 0, fontSize: 12, whiteSpace: "pre-wrap" }}>{JSON.stringify(slots, null, 2)}</pre>}>
+                    <span className="slot-json">{text.length > 30 ? text.slice(0, 30) + "..." : text}</span>
+                </Tooltip>
+            );
+        }
+
+        function slotsMatch(expected, actual) {
+            return JSON.stringify(expected) === JSON.stringify(actual);
+        }
+
+        // ─── App ────────────────────────────────────────────────────────
+        function App() {
+            const inIframe = typeof window !== "undefined" && window.self !== window.top;
+            const [openKeys, setOpenKeys] = useState(["testing"]);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [filterPassed, setFilterPassed] = useState(null);
+            const [filterRoute, setFilterRoute] = useState(null);
+            const [filterIntent, setFilterIntent] = useState(null);
+            const [analysisTab, setAnalysisTab] = useState("summary");
+
+            useEffect(() => {
+                if (window.mermaid) {
+                    window.mermaid.initialize({ startOnLoad: false, theme: "default" });
+                }
+            }, []);
+
+            useEffect(() => {
+                if (!drawerVisible || !window.mermaid) return;
+                const timer = setTimeout(() => {
+                    document.querySelectorAll(".mermaid-pending").forEach(el => {
+                        const id = "mermaid-" + Math.random().toString(36).slice(2, 9);
+                        window.mermaid.render(id, el.textContent).then(({ svg }) => {
+                            el.innerHTML = svg;
+                            el.classList.remove("mermaid-pending");
+                        }).catch(() => {});
+                    });
+                }, 400);
+                return () => clearTimeout(timer);
+            }, [drawerVisible]);
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const filteredCases = useMemo(() => {
+                return mockCases.filter(c => {
+                    if (filterPassed !== null && c.passed !== filterPassed) return false;
+                    if (filterRoute && c.expectedRoute !== filterRoute) return false;
+                    if (filterIntent && c.expectedIntent !== filterIntent && c.actualIntent !== filterIntent) return false;
+                    return true;
+                });
+            }, [filterPassed, filterRoute, filterIntent]);
+
+            const allIntents = useMemo(() => {
+                const set = new Set();
+                mockCases.forEach(c => {
+                    if (c.expectedIntent) set.add(c.expectedIntent);
+                    if (c.actualIntent) set.add(c.actualIntent);
+                });
+                return Array.from(set).sort();
+            }, []);
+
+            const confusionMatrix = useMemo(() => {
+                const intents = ["set_cooking_temp", "voice_cmd_stop_cooking", "decrease_temp", "set_cooking_time", "defrost_food", "collect_recipe", "search_recipe_by_cuisine_type"];
+                const matrix = {};
+                intents.forEach(from => {
+                    matrix[from] = {};
+                    intents.forEach(to => { matrix[from][to] = 0; });
+                });
+                confusionPairs.forEach(p => {
+                    if (matrix[p.from] && matrix[p.from][p.to] !== undefined) {
+                        matrix[p.from][p.to] = p.count;
+                    }
+                });
+                return { intents, matrix };
+            }, []);
+
+            const caseColumns = [
+                {
+                    title: "用例编号", dataIndex: "id", key: "id", width: 100, fixed: "left",
+                    render: (text) => <Text code style={{ fontFamily: "SFMono-Regular, Consolas, monospace" }}>{text}</Text>
+                },
+                {
+                    title: "用例语句", dataIndex: "utterance", key: "utterance", width: 160, fixed: "left",
+                    ellipsis: true,
+                    render: (text) => <Tooltip title={text}><span>{text}</span></Tooltip>
+                },
+                {
+                    title: "预期路由", dataIndex: "expectedRoute", key: "expectedRoute", width: 100,
+                    render: (v) => <Tag color={v === "command" ? "blue" : v === "knowledge" ? "purple" : "cyan"}>{v}</Tag>
+                },
+                {
+                    title: "实际路由", key: "actualRoute", width: 100,
+                    render: (_, r) => {
+                        const match = r.expectedRoute === r.actualRoute;
+                        return <Tag color={match ? "green" : "red"}>{r.actualRoute}</Tag>;
+                    }
+                },
+                {
+                    title: "预期意图", dataIndex: "expectedIntent", key: "expectedIntent", width: 170,
+                    ellipsis: true,
+                    render: (v) => v ? <Text code style={{ fontSize: 12 }}>{v}</Text> : <Text type="secondary">-</Text>
+                },
+                {
+                    title: "实际意图", key: "actualIntent", width: 170,
+                    ellipsis: true,
+                    render: (_, r) => {
+                        if (!r.actualIntent) return <Text type="secondary">-</Text>;
+                        const match = r.expectedIntent === r.actualIntent;
+                        return <Text code style={{ fontSize: 12, color: match ? "#52c41a" : "#ff4d4f", background: match ? "#f6ffed" : "#fff1f0" }}>{r.actualIntent}</Text>;
+                    }
+                },
+                {
+                    title: "预期槽位", key: "expectedSlots", width: 120,
+                    render: (_, r) => renderSlotJson(r.expectedSlots)
+                },
+                {
+                    title: "实际槽位", key: "actualSlots", width: 120,
+                    render: (_, r) => {
+                        const match = slotsMatch(r.expectedSlots, r.actualSlots);
+                        return (
+                            <span style={{ color: match ? undefined : "#ff4d4f" }}>
+                                {renderSlotJson(r.actualSlots)}
+                            </span>
+                        );
+                    }
+                },
+                {
+                    title: "匹配得分", dataIndex: "score", key: "score", width: 130,
+                    sorter: (a, b) => a.score - b.score,
+                    render: (v) => {
+                        const pct = Math.round(v * 100);
+                        const color = pct >= 90 ? "#52c41a" : pct >= 70 ? "#faad14" : "#ff4d4f";
+                        return <Progress percent={pct} size="small" strokeColor={color} format={() => `${pct}%`} />;
+                    }
+                },
+                {
+                    title: "响应耗时", dataIndex: "latency", key: "latency", width: 100,
+                    sorter: (a, b) => a.latency - b.latency,
+                    render: (v) => {
+                        const color = v <= 200 ? "green" : v <= 500 ? "orange" : "red";
+                        return <Tag color={color}>{v}ms</Tag>;
+                    }
+                },
+                {
+                    title: "达标", dataIndex: "passed", key: "passed", width: 70,
+                    render: (v) => v ? <Tag color="success">&#10004;</Tag> : <Tag color="error">&#10008;</Tag>
+                },
+                {
+                    title: "标记", dataIndex: "source", key: "source", width: 110,
+                    render: (v) => <Tag color={v === "auto" ? "default" : "orange"}>{v === "auto" ? "auto-generated" : "manually-adjusted"}</Tag>
+                }
+            ];
+
+            const intentRankColumns = [
+                {
+                    title: "意图", dataIndex: "intent", key: "intent",
+                    render: (v) => <Text code>{v}</Text>
+                },
+                { title: "测试数", dataIndex: "total", key: "total", width: 80 },
+                { title: "通过", dataIndex: "passed", key: "passed", width: 80 },
+                {
+                    title: "准确率", dataIndex: "accuracy", key: "accuracy", width: 140,
+                    sorter: (a, b) => a.accuracy - b.accuracy,
+                    defaultSortOrder: "descend",
+                    render: (v) => {
+                        const color = v >= 90 ? "#52c41a" : v >= 70 ? "#faad14" : "#ff4d4f";
+                        return <Progress percent={v} size="small" strokeColor={color} format={() => `${v}%`} />;
+                    }
+                },
+                {
+                    title: "趋势", dataIndex: "trend", key: "trend", width: 80,
+                    render: (v) => v === "good"
+                        ? <Tag color="success"><CheckCircleOutlined /> &#10004;</Tag>
+                        : v === "warn"
+                            ? <Tag color="warning"><ExclamationCircleOutlined /> &#9888;</Tag>
+                            : <Tag color="error"><CloseCircleOutlined /> &#10008;</Tag>
+                }
+            ];
+
+            const menuItems = [
+                {
+                    key: "config", icon: <SettingOutlined />, label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: <DatabaseOutlined />, label: "指令库管理" },
+                        { key: "datasets", icon: <FileTextOutlined />, label: "数据集管理" },
+                        { key: "profiles", icon: <RobotOutlined />, label: "对话方案" }
+                    ]
+                },
+                {
+                    key: "testing", icon: <ExperimentOutlined />, label: "测试验证",
+                    children: [
+                        { key: "manual-test", icon: <MessageOutlined />, label: "手动测试" },
+                        { key: "batch-test", icon: <ExperimentOutlined />, label: "批量测试" }
+                    ]
+                },
+                {
+                    key: "system", icon: <UserOutlined />, label: "系统管理",
+                    children: [
+                        { key: "versions", icon: <RocketOutlined />, label: "版本管理" },
+                        { key: "users", icon: <UserOutlined />, label: "用户管理" },
+                        { key: "monitoring", icon: <BarChartOutlined />, label: "监控仪表盘" }
+                    ]
+                }
+            ];
+
+            // ─── Render ─────────────────────────────────────────────────
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">智能对话管理平台</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={["batch-test"]} openKeys={openKeys} onOpenChange={handleOpenChange} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={"main-content" + (inIframe ? " main-content-no-sider" : "")}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                                    <Button icon={<ArrowLeftOutlined />} onClick={() => window.location.href = "index.html"}>返回</Button>
+                                    <div>
+                                        <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                                            批次详情: {batchInfo.name}
+                                            <Tag color="red">未达标</Tag>
+                                        </h1>
+                                    </div>
+                                </div>
+                                <Space>
+                                    <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    <Button icon={<ReloadOutlined />} onClick={() => message.info("重新执行批次...")}>重新执行</Button>
+                                    <Button type="primary" icon={<DownloadOutlined />} onClick={() => message.success("报告已导出")}>导出报告</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* Section 1: Batch Summary */}
+                        <Card title="批次概览" style={{ marginBottom: 24 }}>
+                            <Row gutter={[16, 16]}>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="label">关联方案</div>
+                                        <div style={{ fontSize: 16, fontWeight: 600, marginTop: 8, color: "#1890ff" }}>{batchInfo.profileName}</div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="value" style={{ color: "#262626" }}>{batchInfo.totalCases}</div>
+                                        <div className="label">用例总数</div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="value" style={{ color: "#52c41a" }}>{batchInfo.passedCases}</div>
+                                        <div className="label">通过数</div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="value" style={{ color: "#ff4d4f" }}>{batchInfo.failedCases}</div>
+                                        <div className="label">失败数</div>
+                                    </div>
+                                </Col>
+                            </Row>
+                            <Divider style={{ margin: "16px 0" }} />
+                            <Row gutter={[16, 16]}>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="value" style={{ color: batchInfo.accuracy >= batchInfo.targetAccuracy ? "#52c41a" : "#ff4d4f" }}>
+                                            {batchInfo.accuracy}%
+                                        </div>
+                                        <div className="label">
+                                            准确率
+                                            <Tag color={batchInfo.accuracy >= batchInfo.targetAccuracy ? "green" : "red"} style={{ marginLeft: 4, fontSize: 11 }}>
+                                                目标 &ge;{batchInfo.targetAccuracy}%
+                                            </Tag>
+                                        </div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div className="value" style={{ color: batchInfo.avgLatency <= batchInfo.targetLatency ? "#52c41a" : "#ff4d4f" }}>
+                                            {batchInfo.avgLatency}ms
+                                        </div>
+                                        <div className="label">
+                                            平均耗时
+                                            <Tag color={batchInfo.avgLatency <= batchInfo.targetLatency ? "green" : "red"} style={{ marginLeft: 4, fontSize: 11 }}>
+                                                目标 &le;{batchInfo.targetLatency}ms
+                                            </Tag>
+                                        </div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{batchInfo.executedAt}</div>
+                                        <div className="label">执行时间</div>
+                                    </div>
+                                </Col>
+                                <Col span={6}>
+                                    <div className="stat-card">
+                                        <Tag color="red" style={{ fontSize: 14, padding: "4px 12px" }}>
+                                            <CloseCircleOutlined style={{ marginRight: 4 }} />未达标
+                                        </Tag>
+                                        <div className="label" style={{ marginTop: 8 }}>达标状态</div>
+                                    </div>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        {/* Section 2: Test Results Table */}
+                        <Card
+                            title={
+                                <Space>
+                                    <span>测试结果明细</span>
+                                    <Badge count={filteredCases.length} style={{ backgroundColor: "#1890ff" }} />
+                                </Space>
+                            }
+                            style={{ marginBottom: 24 }}
+                            extra={
+                                <Space wrap>
+                                    <Select
+                                        placeholder="达标状态"
+                                        allowClear
+                                        style={{ width: 120 }}
+                                        value={filterPassed}
+                                        onChange={setFilterPassed}
+                                    >
+                                        <Option value={true}>达标</Option>
+                                        <Option value={false}>未达标</Option>
+                                    </Select>
+                                    <Select
+                                        placeholder="路由类型"
+                                        allowClear
+                                        style={{ width: 120 }}
+                                        value={filterRoute}
+                                        onChange={setFilterRoute}
+                                    >
+                                        <Option value="command">command</Option>
+                                        <Option value="knowledge">knowledge</Option>
+                                        <Option value="chitchat">chitchat</Option>
+                                    </Select>
+                                    <Select
+                                        placeholder="意图名称"
+                                        allowClear
+                                        showSearch
+                                        style={{ width: 200 }}
+                                        value={filterIntent}
+                                        onChange={setFilterIntent}
+                                    >
+                                        {allIntents.map(i => <Option key={i} value={i}>{i}</Option>)}
+                                    </Select>
+                                </Space>
+                            }
+                        >
+                            <Table
+                                columns={caseColumns}
+                                dataSource={filteredCases}
+                                rowKey="id"
+                                size="small"
+                                scroll={{ x: 1600 }}
+                                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
+                                rowClassName={(r) => r.passed ? "" : "ant-table-row-error"}
+                            />
+                        </Card>
+
+                        {/* Section 3: Smart Analysis Report */}
+                        <Card title={<Space><FundOutlined /> 智能分析报告</Space>} style={{ marginBottom: 24 }}>
+                            <Tabs
+                                activeKey={analysisTab}
+                                onChange={setAnalysisTab}
+                                items={[
+                                    /* Tab 1: Summary */
+                                    {
+                                        key: "summary",
+                                        label: <span><InfoCircleOutlined /> 总体结论</span>,
+                                        children: (
+                                            <div>
+                                                <Alert
+                                                    message="测试结论"
+                                                    description={
+                                                        <div style={{ fontSize: 14, lineHeight: 2 }}>
+                                                            本次测试准确率 <Text strong style={{ color: "#ff4d4f" }}>88.0%</Text>，未达到目标
+                                                            <Text strong> 95%</Text>。主要问题集中在以下 <Text strong>3</Text> 个方面：
+                                                            口语化表达覆盖不足、路由策略误分类、以及批量测试环境缺少上下文支持导致的槽位提取失败。
+                                                        </div>
+                                                    }
+                                                    type="warning"
+                                                    showIcon
+                                                    icon={<ExclamationCircleOutlined />}
+                                                    style={{ marginBottom: 20 }}
+                                                />
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                                                    <Alert
+                                                        message="发现 1: 口语化表达覆盖不足"
+                                                        description={<span><Text code>decrease_temp</Text> 和 <Text code>defrost_food</Text> 意图的训练数据缺少口语化变体，导致 &quot;帮我调低一点&quot; &quot;解冻一下&quot; 等表达被误分类。影响 3 条用例。</span>}
+                                                        type="error"
+                                                        showIcon
+                                                    />
+                                                    <Alert
+                                                        message="发现 2: 路由策略误分类"
+                                                        description={<span>&quot;红烧肉怎么做&quot; 应路由至知识问答 (knowledge)，但 intent_first 策略优先匹配到指令路由。影响 1 条用例。</span>}
+                                                        type="error"
+                                                        showIcon
+                                                    />
+                                                    <Alert
+                                                        message="发现 3: 槽位提取缺少上下文"
+                                                        description={<span>&quot;收藏这个菜谱&quot; 中 &quot;这个&quot; 需要上下文指代消解，但批量测试为单轮执行，无多轮上下文。影响 2 条用例。</span>}
+                                                        type="warning"
+                                                        showIcon
+                                                    />
+                                                </div>
+                                            </div>
+                                        )
+                                    },
+                                    /* Tab 2: Intent Accuracy Ranking */
+                                    {
+                                        key: "ranking",
+                                        label: <span><AimOutlined /> 意图准确率排名</span>,
+                                        children: (
+                                            <Table
+                                                columns={intentRankColumns}
+                                                dataSource={intentRankings}
+                                                rowKey="intent"
+                                                pagination={false}
+                                                size="middle"
+                                            />
+                                        )
+                                    },
+                                    /* Tab 3: Confusion Matrix */
+                                    {
+                                        key: "confusion",
+                                        label: <span><TableOutlined /> 混淆矩阵</span>,
+                                        children: (
+                                            <div>
+                                                <Alert
+                                                    message="混淆矩阵展示了意图之间的误分类关系，数字为被混淆的用例数。"
+                                                    type="info"
+                                                    showIcon
+                                                    style={{ marginBottom: 16 }}
+                                                />
+                                                <Table
+                                                    size="small"
+                                                    pagination={false}
+                                                    bordered
+                                                    scroll={{ x: true }}
+                                                    dataSource={confusionPairs.map((p, i) => ({ ...p, key: i }))}
+                                                    columns={[
+                                                        {
+                                                            title: "实际意图 (预期)", dataIndex: "from", key: "from", width: 200,
+                                                            render: (v) => <Text code style={{ color: "#ff4d4f" }}>{v}</Text>
+                                                        },
+                                                        {
+                                                            title: <span>&rarr;</span>, key: "arrow", width: 50, align: "center",
+                                                            render: () => <span style={{ fontSize: 18 }}>&rarr;</span>
+                                                        },
+                                                        {
+                                                            title: "被误识别为", dataIndex: "to", key: "to", width: 240,
+                                                            render: (v) => <Text code>{v}</Text>
+                                                        },
+                                                        {
+                                                            title: "混淆次数", dataIndex: "count", key: "count", width: 100, align: "center",
+                                                            render: (v) => <Tag color="red" style={{ fontSize: 14, fontWeight: 600 }}>{v}</Tag>
+                                                        },
+                                                        {
+                                                            title: "严重度", key: "severity", width: 100, align: "center",
+                                                            render: (_, r) => r.count >= 3
+                                                                ? <Tag color="red">严重</Tag>
+                                                                : r.count >= 2
+                                                                    ? <Tag color="orange">中等</Tag>
+                                                                    : <Tag color="gold">轻微</Tag>
+                                                        }
+                                                    ]}
+                                                />
+                                                <Divider orientation="left" style={{ marginTop: 24 }}>混淆关系图</Divider>
+                                                <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.8 }}>
+{`  decrease_temp ──(3)──> set_cooking_temp     [严重] 口语化表达未区分
+  defrost_food  ──(2)──> set_cooking_time     [中等] 简短表达语义模糊
+  search_recipe ──(1)──> collect_recipe       [轻微] 路由误分后意图错配`}
+                                                </pre>
+                                            </div>
+                                        )
+                                    },
+                                    /* Tab 4: Failure Attribution */
+                                    {
+                                        key: "attribution",
+                                        label: <span><BugOutlined /> 失败归因分析</span>,
+                                        children: (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                                {failureCategories.map((cat, idx) => (
+                                                    <Card
+                                                        key={idx}
+                                                        size="small"
+                                                        type="inner"
+                                                        title={
+                                                            <Space>
+                                                                <Tag color={cat.count >= 3 ? "red" : cat.count >= 2 ? "orange" : "gold"}>
+                                                                    {cat.count} 例
+                                                                </Tag>
+                                                                <Text strong>{cat.category}</Text>
+                                                            </Space>
+                                                        }
+                                                    >
+                                                        <div style={{ marginBottom: 8 }}>
+                                                            <Text type="secondary">涉及用例：</Text>
+                                                            {cat.cases.map((c, i) => (
+                                                                <Tag key={i} style={{ marginLeft: 4 }}>&quot;{c}&quot;</Tag>
+                                                            ))}
+                                                        </div>
+                                                        <Alert
+                                                            message={cat.reason}
+                                                            type="info"
+                                                            showIcon
+                                                            icon={<BulbOutlined />}
+                                                        />
+                                                    </Card>
+                                                ))}
+                                                <Alert
+                                                    message="归因统计"
+                                                    description={
+                                                        <ul style={{ margin: 0, paddingLeft: 16, lineHeight: 2 }}>
+                                                            <li><strong>表达覆盖不足</strong>占比最高 (50%)，是本次测试的首要瓶颈</li>
+                                                            <li><strong>路由错误</strong>为个案，需评估是否调整全局路由策略</li>
+                                                            <li><strong>槽位提取失败</strong>属环境限制，批量测试天然无法模拟多轮上下文</li>
+                                                        </ul>
+                                                    }
+                                                    type="warning"
+                                                    showIcon
+                                                    style={{ marginTop: 8 }}
+                                                />
+                                            </div>
+                                        )
+                                    },
+                                    /* Tab 5: Optimization Suggestions */
+                                    {
+                                        key: "suggestions",
+                                        label: <span><BulbOutlined /> 优化建议</span>,
+                                        children: (
+                                            <div>
+                                                <Alert
+                                                    message="基于失败归因分析，系统给出以下优先级排序的优化建议。"
+                                                    type="info"
+                                                    showIcon
+                                                    style={{ marginBottom: 20 }}
+                                                />
+                                                <Steps
+                                                    direction="vertical"
+                                                    current={-1}
+                                                    items={suggestions.map((s, i) => ({
+                                                        title: <Text strong>建议 {i + 1}</Text>,
+                                                        description: (
+                                                            <div style={{ padding: "8px 0", fontSize: 14, lineHeight: 1.8 }}>{s}</div>
+                                                        ),
+                                                        icon: (
+                                                            <div style={{
+                                                                width: 28, height: 28, borderRadius: 14,
+                                                                background: i < 2 ? "#ff4d4f" : i < 4 ? "#faad14" : "#1890ff",
+                                                                color: "#fff", display: "flex", alignItems: "center",
+                                                                justifyContent: "center", fontSize: 14, fontWeight: 600
+                                                            }}>
+                                                                {i + 1}
+                                                            </div>
+                                                        )
+                                                    }))}
+                                                />
+                                                <Divider />
+                                                <Alert
+                                                    message="预期效果"
+                                                    description="完成建议 1-3 后预计准确率可提升至 94%+。配合建议 4-5 可进一步消除环境因素导致的误判，预计达到 97%+ 准确率。"
+                                                    type="success"
+                                                    showIcon
+                                                />
+                                            </div>
+                                        )
+                                    }
+                                ]}
+                            />
+                        </Card>
+                    </Content>
+
+                    {/* ─── Help Drawer (6 Tabs) ──────────────────────────── */}
+                    <Drawer
+                        title={
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? "切换到窄视图" : "切换到宽视图"}>
+                                    <Button
+                                        type="text"
+                                        icon={<ColumnWidthOutlined />}
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? "800px" : "1200px"}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            /* Drawer Tab 1: Data Flow */
+                            {
+                                key: "flow",
+                                label: "数据流向",
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">批量测试全链路数据流向</div>
+                                            <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, overflow: "auto", lineHeight: 1.8, fontSize: 13 }}>
+{`[批次创建] ──→ [用例加载] ──→ [逐条执行] ──→ [结果收集] ──→ [统计计算] ──→ [智能分析] ──→ [报告生成]
+     ↓              ↓              ↓              ↓              ↓              ↓              ↓
+ 选择方案+       加载关联       单轮调用         收集每条       准确率/耗时     混淆矩阵       汇总为
+ 用例集/数据集   测试用例       NLU Pipeline    实际结果       等聚合统计     失败归因       可导出报告
+
+详细流程：
+┌────────────────┐
+│  批次创建       │ ← 选择关联方案 + 用例数据集 → 生成 batch_id
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  用例加载       │ ← 从数据集读取 test_cases[] → 校验用例格式完整性
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  逐条执行       │ ← 对每条 case 调用 NLU Pipeline（单轮，无多轮上下文）
+│                │    输入: utterance → 输出: route, intent, slots, score, latency
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  结果收集       │ ← 逐条比对 expected vs actual → 判定 passed / failed
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  统计计算       │ ← accuracy = passed / total, avg_latency, per-intent stats
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  智能分析       │ ← 混淆矩阵、失败归因、优化建议
+└───────┬────────┘
+        ↓
+┌────────────────┐
+│  报告生成       │ ← 汇总为 JSON/PDF 报告 → 可导出
+└────────────────┘`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Drawer Tab 2: State Flow */
+                            {
+                                key: "state",
+                                label: "状态流转",
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">批次状态流转</div>
+                                            <div style={{ padding: 16, background: "#f6ffed", borderRadius: 8, border: "1px solid #b7eb8f", marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                                                <Tag color="default">pending (等待执行)</Tag>
+                                                <span>&rarr;</span>
+                                                <Tag color="processing">running (执行中)</Tag>
+                                                <span>&rarr;</span>
+                                                <Tag color="success">completed (已完成)</Tag>
+                                            </div>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">用例状态流转</div>
+                                            <div style={{ padding: 16, background: "#fff7e6", borderRadius: 8, border: "1px solid #ffd591", marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                                                <Tag color="default">pending (等待)</Tag>
+                                                <span>&rarr;</span>
+                                                <Tag color="success">passed (通过)</Tag>
+                                                <span> / </span>
+                                                <Tag color="error">failed (失败)</Tag>
+                                            </div>
+                                        </div>
+                                        <Alert
+                                            message="状态规则"
+                                            description={
+                                                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                    <li><strong>pending</strong>：批次创建后初始状态，等待手动或自动触发执行</li>
+                                                    <li><strong>running</strong>：逐条执行中，不可重复触发</li>
+                                                    <li><strong>completed</strong>：全部用例执行完毕，可查看报告和重新执行</li>
+                                                    <li>重新执行会将批次状态重置为 running，历史结果被覆盖</li>
+                                                </ul>
+                                            }
+                                            type="info"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            },
+                            /* Drawer Tab 3: Field Descriptions */
+                            {
+                                key: "fields",
+                                label: "字段说明",
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">FR-013 用例模板字段</div>
+                                            <Table
+                                                size="small"
+                                                pagination={false}
+                                                columns={[
+                                                    { title: "字段", dataIndex: "field", width: 140 },
+                                                    { title: "类型", dataIndex: "type", width: 90 },
+                                                    { title: "说明", dataIndex: "desc" }
+                                                ]}
+                                                dataSource={[
+                                                    { key: "1", field: "id", type: "string", desc: "用例编号，格式 TC-XXX，全局唯一" },
+                                                    { key: "2", field: "utterance", type: "string", desc: "用例语句，模拟用户输入" },
+                                                    { key: "3", field: "expectedRoute", type: "enum", desc: "预期路由: command / knowledge / chitchat" },
+                                                    { key: "4", field: "actualRoute", type: "enum", desc: "实际路由，NLU Pipeline 返回" },
+                                                    { key: "5", field: "expectedIntent", type: "string?", desc: "预期意图名称，chitchat 路由时为 null" },
+                                                    { key: "6", field: "actualIntent", type: "string?", desc: "实际识别意图，Pipeline 返回" },
+                                                    { key: "7", field: "expectedSlots", type: "array", desc: "预期槽位 [{name, value}]" },
+                                                    { key: "8", field: "actualSlots", type: "array", desc: "实际提取槽位 [{name, value}]" },
+                                                    { key: "9", field: "score", type: "float", desc: "匹配得分 0~1，综合路由+意图+槽位" },
+                                                    { key: "10", field: "latency", type: "int", desc: "响应耗时（毫秒）" },
+                                                    { key: "11", field: "passed", type: "boolean", desc: "是否达标（综合判断）" },
+                                                    { key: "12", field: "source", type: "enum", desc: "auto (自动生成) / manual (手动调整)" }
+                                                ]}
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">分析报告字段</div>
+                                            <Table
+                                                size="small"
+                                                pagination={false}
+                                                columns={[
+                                                    { title: "字段", dataIndex: "field", width: 160 },
+                                                    { title: "类型", dataIndex: "type", width: 90 },
+                                                    { title: "说明", dataIndex: "desc" }
+                                                ]}
+                                                dataSource={[
+                                                    { key: "1", field: "accuracy", type: "float", desc: "准确率 = passed / total * 100%" },
+                                                    { key: "2", field: "avg_latency", type: "float", desc: "平均响应耗时（毫秒）" },
+                                                    { key: "3", field: "intent_rankings", type: "array", desc: "按意图分组的准确率排名" },
+                                                    { key: "4", field: "confusion_matrix", type: "object", desc: "意图混淆矩阵" },
+                                                    { key: "5", field: "failure_attribution", type: "array", desc: "失败归因分类及原因" },
+                                                    { key: "6", field: "suggestions", type: "array", desc: "优化建议列表" }
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Drawer Tab 4: Operation Guide */
+                            {
+                                key: "operations",
+                                label: "操作说明",
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">重新执行流程</div>
+                                            <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"重新执行"按钮]
+    ↓
+[弹出确认对话框]
+    ├─ ⚠️ 警告：重新执行将覆盖当前结果
+    └─ 确认 / 取消
+    ↓ 确认
+[批次状态 → running]
+    ↓
+[逐条重新执行所有用例]
+    ↓
+[执行完毕 → completed]
+    ↓
+[刷新页面数据（概览 + 明细 + 分析报告）]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">导出报告流程</div>
+                                            <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击"导出报告"按钮]
+    ↓
+[后端生成报告文件]
+    ├─ 包含: 批次概览 + 用例明细 + 分析报告
+    ├─ 格式: JSON / Excel / PDF
+    └─ 文件名: batch_{batch_id}_{timestamp}.xlsx
+    ↓
+[浏览器下载文件]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">编辑用例流程</div>
+                                            <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+{`[在结果表格中选中用例行]
+    ↓
+[点击编辑操作按钮]
+    ├─ 可修改: expectedRoute, expectedIntent, expectedSlots
+    └─ source 字段自动标记为 "manually-adjusted"
+    ↓
+[保存] → [重新计算该行 passed 状态]
+    ↓
+[刷新统计数据和分析报告]`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Drawer Tab 5: Business Logic */
+                            {
+                                key: "logic",
+                                label: "业务逻辑",
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">准确率计算 (FR-014)</div>
+                                            <Alert
+                                                message="accuracy = passed_count / total_count * 100%"
+                                                description={
+                                                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                        <li><strong>passed</strong> 判定条件：route 匹配 AND intent 匹配 AND slots 匹配 AND score &ge; threshold</li>
+                                                        <li>route 匹配：expectedRoute === actualRoute</li>
+                                                        <li>intent 匹配：expectedIntent === actualIntent（chitchat 时均为 null，视为匹配）</li>
+                                                        <li>slots 匹配：JSON deep-equal（顺序不敏感）</li>
+                                                        <li>threshold 默认 0.60，取自关联方案的 intent_threshold</li>
+                                                    </ul>
+                                                }
+                                                type="info"
+                                                showIcon
+                                                style={{ marginBottom: 16 }}
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">混淆检测算法</div>
+                                            <ol style={{ lineHeight: 2.0, paddingLeft: 20 }}>
+                                                <li>遍历所有 failed 用例</li>
+                                                <li>提取 (expectedIntent, actualIntent) 对</li>
+                                                <li>按 (expected, actual) 分组计数</li>
+                                                <li>按计数降序排列，生成混淆对列表</li>
+                                                <li>计数 &ge; 3 标记为&quot;严重&quot;，&ge; 2 为&quot;中等&quot;，1 为&quot;轻微&quot;</li>
+                                            </ol>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">失败归因规则</div>
+                                            <ol style={{ lineHeight: 2.0, paddingLeft: 20 }}>
+                                                <li><strong>路由错误</strong>：expectedRoute !== actualRoute → 归因为路由策略问题</li>
+                                                <li><strong>意图混淆</strong>：路由正确但 intent 不匹配 → 归因为训练数据覆盖不足</li>
+                                                <li><strong>槽位失败</strong>：路由+意图均正确但 slots 不匹配 → 归因为槽位提取问题</li>
+                                                <li>系统按以上优先级自动分类，高优先级覆盖低优先级</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            /* Drawer Tab 6: Pitfalls */
+                            {
+                                key: "tips",
+                                label: "易错点",
+                                children: (
+                                    <div>
+                                        <Alert
+                                            message="批量测试 vs 交互测试的上下文差异"
+                                            description="批量测试为单轮执行，不支持多轮对话上下文。依赖指代消解（如'这个菜谱'）的用例在批量测试中天然无法正确提取槽位。不要将此类失败简单归因为模型问题。"
+                                            type="error"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="重新执行会覆盖历史结果"
+                                            description="点击'重新执行'后，之前的测试结果将被完全覆盖，无法恢复。如需保留历史结果用于对比，请先导出报告。"
+                                            type="error"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="手动调整用例会影响统计数据"
+                                            description="修改用例的预期值（expectedRoute / expectedIntent / expectedSlots）后，passed 状态会重新计算，进而影响整体准确率和分析报告。source 字段会自动从 auto 变为 manually-adjusted。"
+                                            type="warning"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="latency 受环境影响"
+                                            description="批量测试中的响应耗时受服务器负载、网络状况等因素影响。单条耗时异常不一定代表模型性能问题，应关注整体平均值和 P95/P99。"
+                                            type="warning"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="混淆矩阵仅统计 failed 用例"
+                                            description="混淆矩阵只展示失败用例的意图误分类情况。通过的用例即使匹配分数较低也不会出现在混淆矩阵中。"
+                                            type="info"
+                                            showIcon
+                                            style={{ marginBottom: 12 }}
+                                        />
+                                        <Alert
+                                            message="准确率目标来源于方案配置"
+                                            description="达标判断的准确率目标（如 95%）和耗时目标（如 200ms）来源于关联方案的配置。不同方案可能有不同的达标阈值。"
+                                            type="info"
+                                            showIcon
+                                        />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>

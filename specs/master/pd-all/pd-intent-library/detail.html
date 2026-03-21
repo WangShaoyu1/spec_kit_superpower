@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指令库详情 | SmartChef PD</title>
+    <!-- React 18 - unpkg CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Icons - unpkg -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- G6 - unpkg -->
+    <script src="https://unpkg.com/@antv/g6@4.8.0/dist/g6.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        
+        .compare-card { padding: 20px; border-radius: 8px; text-align: center; }
+        .compare-card.old { background: #f5f5f5; border: 1px solid #d9d9d9; }
+        .compare-card.new { background: #f6ffed; border: 2px solid #52c41a; }
+        .compare-value { font-size: 36px; font-weight: 600; }
+        
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const { 
+            Layout, Menu, Breadcrumb, Button, Table, Tag, Badge, Alert, Card, 
+            Space, Modal, Form, Input, Select, InputNumber, Slider, Drawer, Tabs, List,
+            message, Divider, Row, Col, Statistic, Progress, Checkbox, Timeline, Tooltip
+        } = antd;
+        const { 
+            SettingOutlined, DatabaseOutlined, AimOutlined, ExperimentOutlined,
+            FileTextOutlined, RobotOutlined, ThunderboltOutlined, BugOutlined,
+            MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined,
+            ApartmentOutlined, ArrowLeftOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
+            InfoCircleOutlined, QuestionCircleOutlined, SafetyCertificateOutlined,
+            InboxOutlined, SendOutlined, EyeOutlined, PlusOutlined, ColumnWidthOutlined,
+            UserOutlined, LockOutlined, WifiOutlined, ReloadOutlined, SaveOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+
+        // Mock 数据
+        const library = { name: '中文指令库', key: 'zh_intents_v1', language: 'zh' };
+        const mockModels = [
+            { id: 'model_001', version: 'v2.0', status: 'published', f1Score: 0.912, intentF1: 0.92, slotF1: 0.88, datasetId: 'ds_001', datasetName: '训练集_v2.0', createdAt: '2024-02-01', isCurrent: true },
+            { id: 'model_002', version: 'v2.1', status: 'archived', f1Score: 0.885, intentF1: 0.89, slotF1: 0.85, datasetId: 'ds_002', datasetName: '训练集_v2.1', createdAt: '2024-02-15', isCurrent: false },
+            { id: 'model_003', version: 'v2.2-beta', status: 'testable', f1Score: 0.938, intentF1: 0.95, slotF1: 0.91, datasetId: 'ds_003', datasetName: '训练集_v2.2', createdAt: '2024-03-10', isCurrent: false },
+            { id: 'model_004', version: 'v2.3-alpha', status: 'training', f1Score: null, intentF1: null, slotF1: null, datasetId: 'ds_004', datasetName: '训练集_v2.3', createdAt: '2024-03-13', progress: 67, isCurrent: false }
+        ];
+        const mockDatasets = [
+            { id: 'ds_001', name: '训练集_v2.0', type: '训练集', sampleCount: 1500, boundModel: 'v2.0' },
+            { id: 'ds_002', name: '训练集_v2.1', type: '训练集', sampleCount: 1600, boundModel: null },
+            { id: 'ds_003', name: '训练集_v2.2', type: '训练集', sampleCount: 1800, boundModel: 'v2.2-beta' },
+            { id: 'ds_eval_001', name: '评估集_通用', type: '评估集', sampleCount: 500, boundModel: null }
+        ];
+
+        const statusMap = {
+            draft: { status: 'default', text: '草稿' },
+            training: { status: 'processing', text: '训练中' },
+            trained: { status: 'success', text: '已训练' },
+            evaluating: { status: 'warning', text: '评估中' },
+            testable: { status: 'success', text: '可测试' },
+            published: { status: 'success', text: '已发布' },
+            archived: { status: 'error', text: '已归档' }
+        };
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(['models']);
+            const [openKeys, setOpenKeys] = useState(['data']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [trainModalVisible, setTrainModalVisible] = useState(false);
+            const [publishModalVisible, setPublishModalVisible] = useState(false);
+            // testModalVisible removed — 测试入口改为跳转 test.html 页面
+            const [publishTarget, setPublishTarget] = useState(null);
+            const [publishConfirm, setPublishConfirm] = useState(false);
+            const [countdown, setCountdown] = useState(0);
+
+            const graphRef = useRef(null);
+
+            const currentModel = useMemo(() => mockModels.find(m => m.isCurrent), []);
+            const hasTestableModel = useMemo(() => mockModels.some(m => m.status === 'testable'), []);
+            const availableDatasets = useMemo(() => mockDatasets.filter(d => d.type === '训练集' && !d.boundModel), []);
+
+            // 初始化 G6 - 在抽屉中渲染
+            useEffect(() => {
+                if (!window.G6 || !drawerVisible) return;
+                
+                // 延迟渲染，等待抽屉动画完成
+                const timer = setTimeout(() => {
+                    const container = document.getElementById('g6-container-drawer');
+                    if (!container) return;
+                    
+                    // 清理之前的图表
+                    if (graphRef.current) {
+                        graphRef.current.destroy();
+                        graphRef.current = null;
+                    }
+
+                    const states = [
+                        { id: 'draft', label: '草稿', x: 80, y: 100 },
+                        { id: 'training', label: '训练中', x: 200, y: 100 },
+                        { id: 'trained', label: '已训练', x: 320, y: 100 },
+                        { id: 'evaluating', label: '评估中', x: 440, y: 100 },
+                        { id: 'testable', label: '可测试', x: 560, y: 100 },
+                        { id: 'published', label: '已发布', x: 680, y: 100 },
+                        { id: 'archived', label: '已归档', x: 800, y: 100 }
+                    ];
+                    const currentStates = ['trained', 'testable', 'training'];
+
+                    const graph = new window.G6.Graph({
+                        container: 'g6-container-drawer',
+                        width: container.offsetWidth || 800,
+                        height: 200,
+                        fitCenter: true,
+                        defaultNode: { type: 'rect', size: [80, 32], style: { fill: '#f0f0f0', stroke: '#d9d9d9', radius: 16 }, labelCfg: { style: { fill: '#595959', fontSize: 11 } } },
+                        defaultEdge: { type: 'line', style: { stroke: '#bfbfbf', endArrow: true } }
+                    });
+
+                    const nodes = states.map(s => ({
+                        id: s.id, label: s.label, x: s.x, y: s.y,
+                        style: { fill: currentStates.includes(s.id) ? '#1890ff' : '#f0f0f0', stroke: currentStates.includes(s.id) ? '#1890ff' : '#d9d9d9' },
+                        labelCfg: { style: { fill: currentStates.includes(s.id) ? '#fff' : '#595959', fontSize: 11 } }
+                    }));
+                    const edges = [];
+                    for (let i = 0; i < states.length - 1; i++) edges.push({ source: states[i].id, target: states[i + 1].id });
+                    edges.push({ source: 'published', target: 'archived' });
+
+                    graph.data({ nodes, edges });
+                    graph.render();
+                    graph.on('node:click', (evt) => message.info(`状态：${evt.item.getModel().label}`));
+                    graphRef.current = graph;
+                }, 300);
+                
+                return () => clearTimeout(timer);
+            }, [drawerVisible]);
+
+            useEffect(() => {
+                if (countdown <= 0) return;
+                const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+                return () => clearTimeout(timer);
+            }, [countdown]);
+
+            const goTo = (page) => {
+                if (page === 'index') window.location.href = 'index.html';
+                else if (page === 'datasets') window.location.href = 'datasets.html';
+                else if (page === 'test') window.location.href = 'test.html';
+            };
+
+            // 修复菜单展开
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            // 测试入口：跳转到测试页面（单条+批量）
+
+            const openPublishModal = (model) => {
+                setPublishTarget(model);
+                setPublishModalVisible(true);
+                setPublishConfirm(false);
+                setCountdown(5);
+            };
+
+            const canPublish = () => true;
+            const canArchive = () => true;
+
+            const modelColumns = [
+                { title: '版本', key: 'version', width: 120, render: (_, record) => <span style={{ fontWeight: 600 }}>{record.version} {record.isCurrent && <Tag color="purple">当前</Tag>}</span> },
+                { title: '状态', key: 'status', width: 100, render: (_, record) => <Badge status={statusMap[record.status].status} text={statusMap[record.status].text} /> },
+                { title: 'F1-Score', key: 'f1', width: 150, render: (_, record) => record.f1Score ? <div><div style={{ color: record.f1Score >= 0.9 ? '#52c41a' : '#faad14', fontWeight: 600 }}>{(record.f1Score * 100).toFixed(1)}%</div><div style={{ fontSize: 11, color: '#8c8c8c' }}>intent:{(record.intentF1 * 100).toFixed(0)}% slot:{(record.slotF1 * 100).toFixed(0)}%</div></div> : '-' },
+                { title: '训练数据集', dataIndex: 'datasetName', key: 'dataset', width: 150, render: (t) => <Tag color="blue">{t}</Tag> },
+                { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 120 },
+                { title: '操作', key: 'action', width: 280, render: (_, record) => (
+                    <Space>
+                        {record.status === 'testable' && (
+                            <Tooltip title={!canPublish() ? '您没有发布权限，请联系管理员' : ''}>
+                                <Button 
+                                    type="primary" 
+                                    size="small" 
+                                    disabled={!canPublish()}
+                                    onClick={() => openPublishModal(record)}
+                                >
+                                    发布
+                                </Button>
+                            </Tooltip>
+                        )}
+                        {(record.status === 'testable' || record.status === 'published') && (
+                            <Button size="small" icon={<MessageOutlined />} onClick={() => goTo('test')}>
+                                测试
+                            </Button>
+                        )}
+                        <Tooltip title={!canArchive() ? '您没有归档权限' : ''}>
+                            <Button 
+                                type="link" 
+                                size="small" 
+                                danger 
+                                disabled={!canArchive()}
+                                onClick={() => {
+                                    if (canArchive()) {
+                                        Modal.confirm({ 
+                                            title: '归档确认', 
+                                            content: `归档版本 ${record.version}？归档后将无法进行测试或发布。`,
+                                            okType: 'danger',
+                                            onOk: () => message.success('已归档') 
+                                        });
+                                    }
+                                }}
+                            >
+                                归档
+                            </Button>
+                        </Tooltip>
+                    </Space>
+                ) }
+            ];
+
+            const menuItems = [
+                { key: 'config', icon: <SettingOutlined />, label: '配置管理', children: [{ key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('index') }, { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') }, { key: 'profiles', icon: <ApartmentOutlined />, label: '对话方案' }] },
+                { key: 'deploy', icon: <RocketOutlined />, label: '部署与监控', children: [{ key: 'versions', icon: <CloudUploadOutlined />, label: '版本发布' }, { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }] },
+                { key: 'system', icon: <UserOutlined />, label: '系统管理', children: [{ key: 'users', icon: <LockOutlined />, label: '用户管理' }] }
+            ];
+
+            // 切换抽屉宽度
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef 平台</div>
+                            <div className="sidebar-subtitle">D016 模型详情</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        <div className="page-header">
+                            <Breadcrumb style={{ marginBottom: 16 }}>
+                                <Breadcrumb.Item onClick={() => goTo('index')} style={{ cursor: 'pointer' }}>首页</Breadcrumb.Item>
+                                <Breadcrumb.Item>配置管理</Breadcrumb.Item>
+                                <Breadcrumb.Item>指令库详情</Breadcrumb.Item>
+                            </Breadcrumb>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                    <Button 
+                                        icon={<ArrowLeftOutlined />} 
+                                        onClick={() => goTo('index')}
+                                        style={{ marginTop: 4 }}
+                                    >
+                                        返回
+                                    </Button>
+                                    <div>
+                                        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>
+                                            {library.name}
+                                            <Tag color="blue" style={{ marginLeft: 8 }}>{library.key}</Tag>
+                                        </h1>
+                                        <p style={{ color: '#8c8c8c', fontSize: 14 }}>语种：{library.language === 'zh' ? '中文' : '英文'} | 当前模型：{currentModel?.version || '-'} | 共 {mockModels.length} 个版本</p>
+                                    </div>
+                                </div>
+                                <Space>
+                                    <Tooltip title="查看状态流转图、G6状态机可视化、状态机规则和字段说明">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button icon={<FileTextOutlined />} onClick={() => goTo('datasets')}>数据集</Button>
+                                    <Button type="primary" icon={<ThunderboltOutlined />} onClick={() => setTrainModalVisible(true)}>新建训练</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+
+                        {/* 操作区 */}
+                        <Row gutter={24} style={{ marginBottom: 24 }}>
+                            <Col span={12}>
+                                <Card>
+                                    <div style={{ fontWeight: 600, marginBottom: 12 }}><ThunderboltOutlined /> 训练操作</div>
+                                    <Space>
+                                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setTrainModalVisible(true)}>新建训练任务</Button>
+                                        <Button icon={<FileTextOutlined />} onClick={() => goTo('datasets')}>导入数据集</Button>
+                                    </Space>
+                                    <div style={{ marginTop: 12, padding: 12, background: '#e6f7ff', borderRadius: 6, borderLeft: '3px solid #1890ff', fontSize: 13 }}>
+                                        <strong>数据流向：</strong>导入训练集 → 创建训练任务 → 1:1绑定数据集 → 训练中 → 已训练
+                                    </div>
+                                </Card>
+                            </Col>
+                            <Col span={12}>
+                                <Card>
+                                    <div style={{ fontWeight: 600, marginBottom: 12 }}><SafetyCertificateOutlined /> 发布操作</div>
+                                    <Space>
+                                        <Button type="primary" danger icon={<RocketOutlined />} onClick={() => { const m = mockModels.find(x => x.status === 'testable'); if (m) openPublishModal(m); }} disabled={!hasTestableModel}>发布模型</Button>
+                                        <Button icon={<InboxOutlined />}>归档版本</Button>
+                                        <Button icon={<CloudUploadOutlined />} onClick={() => message.info('模型产物下载：支持 ONNX 格式，可在 Python 和 C++ 环境运行')}>下载模型</Button>
+                                    </Space>
+                                    <div style={{ marginTop: 12, padding: 12, background: '#f9f0ff', borderRadius: 6, borderLeft: '3px solid #722ed1', fontSize: 13 }}>
+                                        <strong>发布流向：</strong>可测试 → 旧版下线 → 新版上线 → 设备自动切换 → 旧版保留30天
+                                    </div>
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        {/* 模型版本列表 */}
+                        <Card title="模型版本列表" style={{ marginBottom: 24 }}>
+                            <Table columns={modelColumns} dataSource={mockModels} rowKey="id" pagination={{ pageSize: 10 }} />
+                        </Card>
+
+                        {/* 关联数据集 */}
+                        <Card title="关联数据集（1:1 绑定关系）" style={{ marginBottom: 24 }}>
+                            <Table
+                                columns={[
+                                    { title: '数据集ID', dataIndex: 'id', width: 120 },
+                                    { title: '名称', dataIndex: 'name', width: 150 },
+                                    { title: '类型', dataIndex: 'type', width: 100, render: (t) => <Tag color={t === '训练集' ? 'blue' : 'green'}>{t}</Tag> },
+                                    { title: '样本数', dataIndex: 'sampleCount', width: 100 },
+                                    { title: '绑定模型', key: 'model', width: 120, render: (_, r) => r.boundModel ? <Tag color="blue">{r.boundModel}</Tag> : <span style={{ color: '#8c8c8c' }}>-</span> },
+                                    { title: '操作', key: 'action', width: 150, render: (_, r) => <Space><Button type="link" size="small">查看</Button><Button type="link" size="small" danger disabled={r.boundModel}>删除</Button></Space> }
+                                ]}
+                                dataSource={mockDatasets}
+                                rowKey="id"
+                                pagination={{ pageSize: 10 }}
+                            />
+                        </Card>
+                    </Content>
+
+                    {/* 说明抽屉 - 带宽度切换 */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button 
+                                        type="text" 
+                                        icon={<ColumnWidthOutlined />} 
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            {
+                                key: 'flow',
+                                label: '数据流向',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">模型全链路数据流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto' }}>
+{`[导入训练集] --1:1绑定--> [创建训练任务]
+        ↓                        ↓
+   [数据集就绪]            [配置参数]
+                                ↓
+                        [模型训练] --生成--> [模型版本]
+                                                    ↓
+                                            [评估验证]
+                                                    ↓
+                                            [testable]
+                                                    ↓
+                        [手动发布] ←─────── [published]
+                                ↓
+                        [设备自动切换]
+                                ↓
+                        [旧版进入保留期]`}
+                                            </pre>
+                                        </div>
+                                        <Alert message="关键数据关系" description="训练集与模型 1:1 绑定，评估集可复用。模型产物支持下载，可在 Python 和 C++ 设备端运行。" type="info" showIcon />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'state',
+                                label: '状态流转',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">G6 状态机可视化</div>
+                                            <div style={{ padding: 16, background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 16 }}>
+                                                <div id="g6-container-drawer" style={{ width: '100%', height: 200 }}></div>
+                                            </div>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">状态流转图</div>
+                                            <div style={{ padding: 16, background: '#f6ffed', borderRadius: 8, border: '1px solid #b7eb8f', marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                                                <Tag color="default">草稿</Tag>
+                                                <span>→</span>
+                                                <Tag color="blue">训练中</Tag>
+                                                <span>→</span>
+                                                <Tag color="green">已训练</Tag>
+                                                <span>→</span>
+                                                <Tag color="orange">评估中</Tag>
+                                                <span>→</span>
+                                                <Tag color="cyan">可测试</Tag>
+                                                <span>→</span>
+                                                <Tag color="purple">已发布</Tag>
+                                                <span>→</span>
+                                                <Tag color="red">已归档</Tag>
+                                            </div>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">状态机规则</div>
+                                            <Alert
+                                                message="状态机规则"
+                                                description={
+                                                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                                        <li><strong>testable 唯一性</strong>：每个库只能有一个，切换时自动取消旧的</li>
+                                                        <li><strong>published 唯一性</strong>：每个库只能有一个，发布后设备自动切换</li>
+                                                        <li><strong>可同时持有 testable + published</strong>（用于灰度验证）</li>
+                                                        <li><strong>单库最多 5 个模型版本</strong>，归档后可恢复为 draft</li>
+                                                    </ul>
+                                                }
+                                                type="info"
+                                                showIcon
+                                            />
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">7 状态详细说明</div>
+                                            <List
+                                                size="small"
+                                                bordered
+                                                dataSource={[
+                                                    { state: 'draft', trigger: '创建训练任务', action: '可编辑配置' },
+                                                    { state: 'training', trigger: '开始训练', action: '实时查看进度' },
+                                                    { state: 'trained', trigger: '训练完成', action: '绑定评估集' },
+                                                    { state: 'evaluating', trigger: '开始评估', action: '执行批量测试' },
+                                                    { state: 'testable', trigger: '评估通过', action: '单条/批量测试，切换时自动取消旧的' },
+                                                    { state: 'published', trigger: '手动发布', action: '生产中生效，影响所有设备' },
+                                                    { state: 'archived', trigger: '手动归档', action: '可恢复为 draft' }
+                                                ]}
+                                                renderItem={item => (
+                                                    <List.Item>
+                                                        <Tag>{item.state}</Tag> - 触发：{item.trigger} - 操作：{item.action}
+                                                    </List.Item>
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'fields',
+                                label: '字段说明',
+                                children: (
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">模型版本字段详解</div>
+                                        <Table
+                                            size="small"
+                                            pagination={false}
+                                            columns={[
+                                                { title: '字段', dataIndex: 'field', width: 120 },
+                                                { title: '说明', dataIndex: 'desc' },
+                                                { title: '计算方式', dataIndex: 'calc', width: 200 }
+                                            ]}
+                                            dataSource={[
+                                                { field: 'F1-Score', desc: '综合质量指标', calc: '2 * (precision * recall) / (precision + recall)' },
+                                                { field: 'intent_f1', desc: '意图识别准确率', calc: '正确识别意图数 / 总样本数' },
+                                                { field: 'slot_f1', desc: '槽位提取准确率', calc: '仅在含槽位样本上计算' },
+                                                { field: '训练数据集', desc: '1:1绑定的数据集', calc: '创建时选定，不可更改' }
+                                            ]}
+                                        />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'operations',
+                                label: '操作说明',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">发布操作流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击发布按钮]
+    ↓
+[检查权限 model_publish] → 无权限 → [按钮禁用 + Tooltip]
+    ↓ 有权限
+[检查模型状态] → 非 testable → [禁止发布]
+    ↓ testable
+[弹出确认弹窗]
+    ├─ 展示版本对比（旧 vs 新 F1-Score）
+    ├─ 展示影响范围（设备数、会话数）
+    ├─ 勾选确认 "我已确认..."
+    └─ 倒计时 5 秒
+    ↓ 确认
+[执行发布] → 旧 published 自动取消 → 设备自动切换 → [成功提示]`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">测试操作流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击测试按钮]
+    ↓
+[检查模型状态] → 非 testable/published → [按钮不显示]
+    ↓ testable 或 published
+[打开测试弹窗]
+    ├─ 输入测试语句
+    ├─ 选择预期意图（可选）
+    └─ 点击执行
+    ↓
+[模型推理] → 返回结果
+    ├─ 意图识别结果
+    ├─ 槽位提取结果
+    └─ 置信度分数`}
+                                            </pre>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">下载操作流程</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 }}>
+{`[点击下载模型按钮]
+    ↓
+[检查模型状态] → 非 published → [提示"仅已发布模型可下载"]
+    ↓ published
+[生成下载链接]
+    ├─ 产物格式：ONNX（平台无关）
+    ├─ 附带版本元数据 JSON
+    └─ SHA256 校验哈希
+    ↓
+[下载完成] → 可在 Python 和 C++ 推理环境加载运行`}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'logic',
+                                label: '业务逻辑',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">testable 切换逻辑</div>
+                                            <ol style={{ lineHeight: 1.8 }}>
+                                                <li>用户选择模型 A 设为 testable</li>
+                                                <li>系统检查当前库是否已有 testable 模型 B</li>
+                                                <li>如存在 B，系统自动取消 B 的 testable 状态</li>
+                                                <li>将 A 设为 testable，记录切换日志</li>
+                                                <li>提示用户"testable 已切换为 A，B 已自动取消"</li>
+                                            </ol>
+                                        </div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">发布门禁逻辑</div>
+                                            <ol style={{ lineHeight: 1.8 }}>
+                                                <li>用户点击"发布"按钮</li>
+                                                <li>系统检查目标模型状态是否为 testable</li>
+                                                <li>弹出确认弹窗，展示版本对比、影响范围</li>
+                                                <li>用户勾选确认 + 5秒倒计时</li>
+                                                <li>发布后，旧 published 模型进入30天保留期</li>
+                                                <li>设备自动切换到新版本</li>
+                                            </ol>
+                                        </div>
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'tips',
+                                label: '易错点',
+                                children: (
+                                    <div>
+                                        <Alert message="⚠️ 训练中模型不可删除" description="处于 training 状态的模型不能删除或归档，需等待训练完成或手动停止。" type="error" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ published 模型影响生产" description="发布后所有在线设备立即切换，旧会话上下文重置。务必经过充分测试。" type="error" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ 训练集绑定后不可更改" description="模型创建时选定的训练集不可更改，如需更换需重新训练新版本。" type="warning" />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+
+                    {/* 训练弹窗 */}
+                    <Modal title="创建训练任务" open={trainModalVisible} onOk={() => { message.success('训练任务已创建'); setTrainModalVisible(false); }} onCancel={() => setTrainModalVisible(false)} width={700}>
+                        <Alert message="模型数量限制" description="当前库已有 4 个模型，新建训练将生成第 5 个版本。达到上限后需先归档历史版本。" type="warning" showIcon style={{ marginBottom: 16 }} />
+                        <Form layout="vertical">
+                            <Form.Item label="任务名称" required><Input placeholder="例如：v2.4 训练任务" /></Form.Item>
+                            <Form.Item label="选择训练数据集" required>
+                                <Select placeholder="选择数据集（1:1绑定）">
+                                    {availableDatasets.map(ds => <Option key={ds.id} value={ds.id}>{ds.name} ({ds.sampleCount}条)</Option>)}
+                                </Select>
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* 发布弹窗 */}
+                    <Modal title={<><ExclamationCircleOutlined style={{ color: '#ff4d4f' }} /> 确认发布模型</>} open={publishModalVisible} onOk={() => { message.success('发布成功'); setPublishModalVisible(false); }} onCancel={() => setPublishModalVisible(false)} width={600}
+                        footer={[
+                            <Button key="cancel" onClick={() => setPublishModalVisible(false)}>取消</Button>,
+                            <Button key="publish" type="primary" danger disabled={!publishConfirm || countdown > 0} onClick={() => { message.success('发布成功'); setPublishModalVisible(false); }}>
+                                {countdown > 0 ? `确认发布 (${countdown}s)` : '确认发布'}
+                            </Button>
+                        ]}
+                    >
+                        <Alert message="危险操作：此操作将立即生效到所有在线设备" type="error" showIcon style={{ marginBottom: 16 }} />
+                        <Row gutter={24} style={{ marginBottom: 16 }}>
+                            <Col span={12}>
+                                <div className="compare-card old">
+                                    <div className="compare-value" style={{ color: '#8c8c8c' }}>{currentModel?.f1Score ? (currentModel.f1Score * 100).toFixed(1) : '-'}%</div>
+                                    <div>当前版本 {currentModel?.version}</div>
+                                </div>
+                            </Col>
+                            <Col span={12}>
+                                <div className="compare-card new">
+                                    <div className="compare-value" style={{ color: '#52c41a' }}>{publishTarget?.f1Score ? (publishTarget.f1Score * 100).toFixed(1) : '-'}%</div>
+                                    <div>新版本 {publishTarget?.version}</div>
+                                </div>
+                            </Col>
+                        </Row>
+                        <Checkbox checked={publishConfirm} onChange={(e) => setPublishConfirm(e.target.checked)}>我已确认发布影响，了解此操作将立即生效到所有设备</Checkbox>
+                        {countdown > 0 && <div style={{ marginTop: 12, color: '#ff4d4f' }}>⏱️ 倒计时 {countdown} 秒</div>}
+                    </Modal>
+
+                    {/* 测试入口已改为跳转 test.html，包含单条测试（对话）+ 批量测试 */}
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

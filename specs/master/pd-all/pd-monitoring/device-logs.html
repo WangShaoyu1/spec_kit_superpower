@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备日志 | SmartChef PD</title>
+    <!-- React 18 - 使用 unpkg -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - 使用 unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; display: flex; flex-direction: column; }
+        .sidebar .ant-layout-sider-children { display: flex; flex-direction: column; height: 100%; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .sidebar-menu-wrap { flex: 1; overflow: auto; }
+        .sidebar-trigger { height: 48px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.65); cursor: pointer; border-top: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; transition: color 0.2s; }
+        .sidebar-trigger:hover { color: #fff; }
+        .main-content { margin-left: 260px; padding: 24px 32px; transition: margin-left 0.2s; }
+        .main-content.sider-collapsed { margin-left: 80px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        .device-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .device-info-item { text-align: center; padding: 12px; background: #fafafa; border-radius: 6px; }
+        .device-info-item .label { font-size: 12px; color: #8c8c8c; margin-bottom: 4px; }
+        .device-info-item .value { font-size: 16px; font-weight: 600; color: #262626; }
+
+        .chain-block { background: #fafafa; border-radius: 6px; padding: 12px 16px; margin-bottom: 8px; }
+        .chain-label { font-size: 12px; color: #8c8c8c; margin-bottom: 4px; }
+        .chain-value { font-size: 14px; color: #262626; }
+
+        .latency-green { color: #52c41a; }
+        .latency-blue { color: #1890ff; }
+        .latency-orange { color: #fa8c16; }
+        .latency-red { color: #ff4d4f; }
+
+        .context-json { background: #f6f8fa; border: 1px solid #e8e8e8; border-radius: 6px; padding: 12px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: "default",
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" }
+        });
+
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Alert, Card, Input, Select, Space,
+            Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip, Badge,
+            Descriptions, Timeline, Collapse, Progress, Empty, Divider, Typography
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            MessageOutlined, ExperimentOutlined, RocketOutlined, UserOutlined,
+            BarChartOutlined, SearchOutlined, QuestionCircleOutlined,
+            ColumnWidthOutlined, ArrowLeftOutlined, ClockCircleOutlined,
+            NodeIndexOutlined, AimOutlined, ThunderboltOutlined,
+            DesktopOutlined, SwapRightOutlined, SoundOutlined,
+            SmileOutlined, FileSearchOutlined, InfoCircleOutlined,
+            MenuFoldOutlined, MenuUnfoldOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { Text } = Typography;
+
+        // ── Mock Data ──
+
+        const mockSessions = [
+            { id: "sess_2026031809", startTime: "2026-03-18 09:30:00", endTime: "2026-03-18 09:35:00", turns: 6, version: "v2.1", routeDist: { command: 3, knowledge: 2, chitchat: 1 } },
+            { id: "sess_2026031716", startTime: "2026-03-17 16:10:00", endTime: "2026-03-17 16:25:00", turns: 8, version: "v2.1", routeDist: { command: 5, knowledge: 1, chitchat: 2 } },
+            { id: "sess_2026031614", startTime: "2026-03-16 14:00:00", endTime: "2026-03-16 14:12:00", turns: 4, version: "v2.0", routeDist: { command: 2, knowledge: 2, chitchat: 0 } }
+        ];
+
+        const mockRequests = [
+            { id: "req_001", input: "设置温度180度", route: { domain: "command", confidence: 0.96 }, intent: { name: "set_cooking_temp", confidence: 0.94 }, slots: [{ name: "number", value: "180", type: "temperature", required: true, filled: true }], response: "好的，已为您设置温度为180度。", latency: 128, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+            { id: "req_002", input: "柠香雪梨银耳汤需要哪些食材", route: { domain: "knowledge", confidence: 0.88 }, knowledgeHit: { docName: "柠香雪梨银耳汤", category: "菜谱", score: 0.92 }, response: "柠香雪梨银耳汤需要以下食材：银耳1朵、雪梨1个、枸杞适量...", latency: 1850, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+            { id: "req_003", input: "收藏它", route: { domain: "command", confidence: 0.91 }, intent: { name: "collect_recipe", confidence: 0.89 }, slots: [{ name: "recipe_ref", value: "柠香雪梨银耳汤", type: "reference", required: true, filled: true }], referenceResolution: { pronoun: "它", resolved: "柠香雪梨银耳汤" }, response: "好的，已为您收藏\"柠香雪梨银耳汤\"菜谱。", latency: 156, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "recipe_detail" } },
+            { id: "req_004", input: "开始烹饪", route: { domain: "command", confidence: 0.98 }, intent: { name: "voice_cmd_start_cooking", confidence: 0.97 }, slots: [], response: "好的，开始烹饪。", latency: 85, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "recipe_detail" } },
+            { id: "req_005", input: "还有多久", route: { domain: "command", confidence: 0.82 }, intent: { name: "query_remaining_time", confidence: 0.80 }, slots: [], dialogState: { contextUsed: "cooking_status=cooking" }, response: "当前烹饪还剩约12分钟。", latency: 110, deviceContext: { cooking_status: "cooking", door_closed: true, current_temp: 180, current_page: "cooking_progress" } },
+            { id: "req_006", input: "讲个笑话", route: { domain: "chitchat", confidence: 0.95 }, persona: { name: "活泼厨房助手", applied: true }, response: "好嘞小主！来一个厨房笑话...", latency: 2340, deviceContext: { cooking_status: "cooking", door_closed: true, current_temp: 180, current_page: "cooking_progress" } }
+        ];
+
+        const mockRequestsBySession = {
+            "sess_2026031809": mockRequests,
+            "sess_2026031716": [
+                { id: "req_101", input: "今天吃什么", route: { domain: "chitchat", confidence: 0.87 }, persona: { name: "活泼厨房助手", applied: true }, response: "小主今天想吃点什么呢？我推荐清蒸鲈鱼...", latency: 1920, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_102", input: "查一下清蒸鲈鱼的做法", route: { domain: "knowledge", confidence: 0.93 }, knowledgeHit: { docName: "清蒸鲈鱼", category: "菜谱", score: 0.95 }, response: "清蒸鲈鱼的做法：1.鲈鱼洗净划刀...", latency: 1650, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_103", input: "设置温度120度", route: { domain: "command", confidence: 0.95 }, intent: { name: "set_cooking_temp", confidence: 0.93 }, slots: [{ name: "number", value: "120", type: "temperature", required: true, filled: true }], response: "好的，已为您设置温度为120度。", latency: 105, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_104", input: "开始蒸", route: { domain: "command", confidence: 0.94 }, intent: { name: "voice_cmd_start_cooking", confidence: 0.91 }, slots: [], response: "好的，开始蒸制。", latency: 92, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 120, current_page: "recipe_detail" } },
+                { id: "req_105", input: "调高温度到150", route: { domain: "command", confidence: 0.97 }, intent: { name: "set_cooking_temp", confidence: 0.95 }, slots: [{ name: "number", value: "150", type: "temperature", required: true, filled: true }], response: "好的，已将温度调高到150度。", latency: 118, deviceContext: { cooking_status: "cooking", door_closed: true, current_temp: 120, current_page: "cooking_progress" } },
+                { id: "req_106", input: "还有多久", route: { domain: "command", confidence: 0.83 }, intent: { name: "query_remaining_time", confidence: 0.81 }, slots: [], dialogState: { contextUsed: "cooking_status=cooking" }, response: "还剩约8分钟。", latency: 95, deviceContext: { cooking_status: "cooking", door_closed: true, current_temp: 150, current_page: "cooking_progress" } },
+                { id: "req_107", input: "停止烹饪", route: { domain: "command", confidence: 0.99 }, intent: { name: "voice_cmd_stop_cooking", confidence: 0.98 }, slots: [], response: "好的，已停止烹饪。", latency: 78, deviceContext: { cooking_status: "cooking", door_closed: true, current_temp: 150, current_page: "cooking_progress" } },
+                { id: "req_108", input: "谢谢", route: { domain: "chitchat", confidence: 0.92 }, persona: { name: "活泼厨房助手", applied: true }, response: "不客气小主，随时为您服务！", latency: 1280, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 45, current_page: "home" } }
+            ],
+            "sess_2026031614": [
+                { id: "req_201", input: "红烧肉怎么做", route: { domain: "knowledge", confidence: 0.91 }, knowledgeHit: { docName: "红烧肉", category: "菜谱", score: 0.94 }, response: "红烧肉的做法：1.五花肉切块焯水...", latency: 1720, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_202", input: "需要多少糖", route: { domain: "knowledge", confidence: 0.85 }, knowledgeHit: { docName: "红烧肉", category: "菜谱", score: 0.88 }, response: "红烧肉建议用冰糖30克，效果更佳。", latency: 1580, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_203", input: "设置温度200度", route: { domain: "command", confidence: 0.96 }, intent: { name: "set_cooking_temp", confidence: 0.94 }, slots: [{ name: "number", value: "200", type: "temperature", required: true, filled: true }], response: "好的，已为您设置温度为200度。", latency: 112, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 25, current_page: "home" } },
+                { id: "req_204", input: "开始烹饪", route: { domain: "command", confidence: 0.98 }, intent: { name: "voice_cmd_start_cooking", confidence: 0.97 }, slots: [], response: "好的，开始烹饪。", latency: 88, deviceContext: { cooking_status: "idle", door_closed: true, current_temp: 200, current_page: "recipe_detail" } }
+            ]
+        };
+
+        const DOMAIN_COLORS = {
+            command: { color: "blue", label: "指令" },
+            knowledge: { color: "green", label: "知识" },
+            chitchat: { color: "orange", label: "闲聊" }
+        };
+
+        function getLatencyClass(ms) {
+            if (ms < 200) return "latency-green";
+            if (ms < 2000) return "latency-blue";
+            if (ms < 4000) return "latency-orange";
+            return "latency-red";
+        }
+
+        function getLatencyColor(ms) {
+            if (ms < 200) return "#52c41a";
+            if (ms < 2000) return "#1890ff";
+            if (ms < 4000) return "#fa8c16";
+            return "#ff4d4f";
+        }
+
+        // ── Request Chain Detail Component ──
+
+        function RequestChainDetail({ request, index }) {
+            var domainCfg = DOMAIN_COLORS[request.route.domain] || { color: "default", label: request.route.domain };
+
+            var items = [
+                {
+                    key: "input",
+                    label: React.createElement("span", null, React.createElement(SoundOutlined, { style: { marginRight: 6 } }), "输入文本"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement("span", { style: { fontSize: 15, fontWeight: 500 } }, request.input)
+                    )
+                },
+                {
+                    key: "route",
+                    label: React.createElement("span", null, React.createElement(NodeIndexOutlined, { style: { marginRight: 6 } }), "路由结果"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Space, { size: 16, align: "center" },
+                            React.createElement(Tag, { color: domainCfg.color, style: { fontSize: 14, padding: "2px 12px" } }, domainCfg.label),
+                            React.createElement("span", { style: { color: "#8c8c8c", fontSize: 12 } }, "置信度"),
+                            React.createElement(Progress, { percent: Math.round(request.route.confidence * 100), size: "small", style: { width: 180 }, strokeColor: domainCfg.color === "blue" ? "#1890ff" : domainCfg.color === "green" ? "#52c41a" : "#fa8c16" })
+                        )
+                    )
+                }
+            ];
+
+            if (request.route.domain === "command" && request.intent) {
+                items.push({
+                    key: "intent",
+                    label: React.createElement("span", null, React.createElement(AimOutlined, { style: { marginRight: 6 } }), "意图分类"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Space, { size: 16, align: "center" },
+                            React.createElement(Tag, { color: "processing" }, request.intent.name),
+                            React.createElement("span", { style: { color: "#8c8c8c", fontSize: 12 } }, "置信度"),
+                            React.createElement(Progress, { percent: Math.round(request.intent.confidence * 100), size: "small", style: { width: 180 } })
+                        )
+                    )
+                });
+
+                if (request.slots && request.slots.length > 0) {
+                    items.push({
+                        key: "slots",
+                        label: React.createElement("span", null, React.createElement(DatabaseOutlined, { style: { marginRight: 6 } }), "槽位提取"),
+                        children: React.createElement(Table, {
+                            size: "small",
+                            pagination: false,
+                            rowKey: "name",
+                            dataSource: request.slots,
+                            columns: [
+                                { title: "槽位名", dataIndex: "name", width: 120, render: function(v) { return React.createElement(Text, { code: true }, v); } },
+                                { title: "值", dataIndex: "value", width: 160, render: function(v) { return React.createElement("strong", null, v); } },
+                                { title: "类型", dataIndex: "type", width: 120, render: function(v) { return React.createElement(Tag, null, v); } },
+                                { title: "必填", dataIndex: "required", width: 80, render: function(v) { return v ? React.createElement(Tag, { color: "red" }, "是") : React.createElement(Tag, null, "否"); } },
+                                { title: "已填充", dataIndex: "filled", width: 80, render: function(v) { return v ? React.createElement(Tag, { color: "green" }, "是") : React.createElement(Tag, { color: "default" }, "否"); } }
+                            ]
+                        })
+                    });
+                }
+            }
+
+            if (request.route.domain === "knowledge" && request.knowledgeHit) {
+                items.push({
+                    key: "knowledge",
+                    label: React.createElement("span", null, React.createElement(FileSearchOutlined, { style: { marginRight: 6 } }), "知识库命中"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Descriptions, { size: "small", column: 3, bordered: true },
+                            React.createElement(Descriptions.Item, { label: "文档名称" }, React.createElement("strong", null, request.knowledgeHit.docName)),
+                            React.createElement(Descriptions.Item, { label: "分类" }, React.createElement(Tag, { color: "green" }, request.knowledgeHit.category)),
+                            React.createElement(Descriptions.Item, { label: "匹配得分" },
+                                React.createElement(Progress, { percent: Math.round(request.knowledgeHit.score * 100), size: "small", style: { width: 120 }, strokeColor: "#52c41a" })
+                            )
+                        )
+                    )
+                });
+            }
+
+            if (request.referenceResolution) {
+                items.push({
+                    key: "reference",
+                    label: React.createElement("span", null, React.createElement(SwapRightOutlined, { style: { marginRight: 6 } }), "指代消解"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Space, { size: 8 },
+                            React.createElement(Tag, { color: "volcano" }, request.referenceResolution.pronoun),
+                            React.createElement(SwapRightOutlined, null),
+                            React.createElement(Tag, { color: "cyan" }, request.referenceResolution.resolved)
+                        )
+                    )
+                });
+            }
+
+            if (request.route.domain === "chitchat" && request.persona) {
+                items.push({
+                    key: "persona",
+                    label: React.createElement("span", null, React.createElement(SmileOutlined, { style: { marginRight: 6 } }), "闲聊人设"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Space, null,
+                            React.createElement(Tag, { color: "orange" }, request.persona.name),
+                            request.persona.applied && React.createElement(Tag, { color: "success" }, "已应用")
+                        )
+                    )
+                });
+            }
+
+            if (request.dialogState) {
+                items.push({
+                    key: "dialogState",
+                    label: React.createElement("span", null, React.createElement(SwapRightOutlined, { style: { marginRight: 6 } }), "对话状态"),
+                    children: React.createElement("div", { className: "chain-block" },
+                        React.createElement(Tag, { color: "purple" }, "上下文引用: " + request.dialogState.contextUsed)
+                    )
+                });
+            }
+
+            items.push({
+                key: "response",
+                label: React.createElement("span", null, React.createElement(MessageOutlined, { style: { marginRight: 6 } }), "响应文本"),
+                children: React.createElement("div", { className: "chain-block", style: { background: "#f0f5ff", borderLeft: "3px solid #1890ff" } },
+                    React.createElement("span", { style: { fontSize: 14 } }, request.response)
+                )
+            });
+
+            items.push({
+                key: "latency",
+                label: React.createElement("span", null, React.createElement(ThunderboltOutlined, { style: { marginRight: 6 } }), "处理耗时"),
+                children: React.createElement("div", { className: "chain-block" },
+                    React.createElement(Statistic, {
+                        value: request.latency,
+                        suffix: "ms",
+                        valueStyle: { fontSize: 20, color: getLatencyColor(request.latency) }
+                    })
+                )
+            });
+
+            items.push({
+                key: "context",
+                label: React.createElement("span", null, React.createElement(DesktopOutlined, { style: { marginRight: 6 } }), "设备上下文快照"),
+                children: React.createElement("div", { className: "context-json" },
+                    JSON.stringify(request.deviceContext, null, 2)
+                )
+            });
+
+            return React.createElement(Collapse, {
+                size: "small",
+                items: [{
+                    key: request.id,
+                    label: React.createElement(Space, { size: 12 },
+                        React.createElement(Tag, { color: domainCfg.color }, domainCfg.label),
+                        React.createElement("span", { style: { fontWeight: 500 } }, request.input),
+                        React.createElement("span", { className: getLatencyClass(request.latency), style: { fontSize: 12 } }, request.latency + "ms")
+                    ),
+                    children: React.createElement(Descriptions, {
+                        column: 1,
+                        size: "small",
+                        bordered: false,
+                        labelStyle: { width: 130, fontWeight: 500 },
+                        items: items
+                    })
+                }]
+            });
+        }
+
+        // ── App ──
+
+        function App() {
+            var inIframe = typeof window !== "undefined" && window.self !== window.top;
+            var _useStateSider = useState(true), siderCollapsed = _useStateSider[0], setSiderCollapsed = _useStateSider[1];
+            var _useState = useState(["monitoring"]), selectedKeys = _useState[0], setSelectedKeys = _useState[1];
+            var _useState2 = useState(["system"]), openKeys = _useState2[0], setOpenKeys = _useState2[1];
+            var _useState3 = useState(false), drawerVisible = _useState3[0], setDrawerVisible = _useState3[1];
+            var _useState4 = useState(1200), drawerWidth = _useState4[0], setDrawerWidth = _useState4[1];
+
+            var _useState5 = useState(""), searchDeviceId = _useState5[0], setSearchDeviceId = _useState5[1];
+            var _useState6 = useState(false), deviceSearched = _useState6[0], setDeviceSearched = _useState6[1];
+            var _useState7 = useState(null), expandedSession = _useState7[0], setExpandedSession = _useState7[1];
+
+            // ── Navigation ──
+
+            var goTo = function(page) {
+                var map = {
+                    "libraries": "../pd-intent-library/index.html",
+                    "datasets": "../pd-intent-library/datasets.html",
+                    "profiles": "../pd-dialog-profile/index.html",
+                    "manual-test": "../pd-dialog-profile/test-chat.html",
+                    "monitoring": "index.html",
+                    "device-logs": "device-logs.html",
+                    "alert-rules": "alert-rules.html"
+                };
+                if (map[page]) window.location.href = map[page];
+            };
+
+            var handleOpenChange = useCallback(function(keys) {
+                setOpenKeys(keys);
+            }, []);
+
+            var toggleDrawerWidth = function() {
+                setDrawerWidth(function(prev) { return prev === 1200 ? 800 : 1200; });
+            };
+
+            var handleDeviceSearch = function() {
+                var val = searchDeviceId.trim();
+                if (!val) {
+                    message.warning("请输入设备 ID");
+                    return;
+                }
+                setDeviceSearched(true);
+                setExpandedSession(null);
+                message.success("已查询设备: " + val);
+            };
+
+            var handleViewChain = function(session) {
+                setExpandedSession(function(prev) { return prev === session.id ? null : session.id; });
+            };
+
+            // ── Mermaid rendering ──
+
+            useEffect(function() {
+                if (drawerVisible) {
+                    setTimeout(function() {
+                        mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            // ── Session table columns ──
+
+            var sessionColumns = [
+                {
+                    title: "会话 ID",
+                    dataIndex: "id",
+                    key: "id",
+                    width: 180,
+                    render: function(v) { return React.createElement("span", { style: { fontFamily: "SFMono-Regular, Consolas, monospace", fontSize: 13 } }, v); }
+                },
+                {
+                    title: "开始时间",
+                    dataIndex: "startTime",
+                    key: "startTime",
+                    width: 170
+                },
+                {
+                    title: "结束时间",
+                    key: "endTime",
+                    width: 170,
+                    render: function(_, record) {
+                        return record.endTime ? record.endTime : React.createElement(Tag, { color: "processing" }, "进行中");
+                    }
+                },
+                {
+                    title: "对话轮次",
+                    dataIndex: "turns",
+                    key: "turns",
+                    width: 90,
+                    render: function(v) { return React.createElement(Badge, { count: v, style: { backgroundColor: "#1890ff" }, overflowCount: 999 }); }
+                },
+                {
+                    title: "使用版本",
+                    dataIndex: "version",
+                    key: "version",
+                    width: 100,
+                    render: function(v) { return React.createElement(Tag, { color: "cyan" }, v); }
+                },
+                {
+                    title: "路由分布",
+                    key: "routeDist",
+                    width: 220,
+                    render: function(_, record) {
+                        var rd = record.routeDist;
+                        return React.createElement(Space, { size: 4 },
+                            rd.command > 0 && React.createElement(Tag, { color: "blue" }, "指令" + rd.command),
+                            rd.knowledge > 0 && React.createElement(Tag, { color: "green" }, "知识" + rd.knowledge),
+                            rd.chitchat > 0 && React.createElement(Tag, { color: "orange" }, "闲聊" + rd.chitchat)
+                        );
+                    }
+                },
+                {
+                    title: "操作",
+                    key: "action",
+                    width: 120,
+                    render: function(_, record) {
+                        return React.createElement(Button, {
+                            type: expandedSession === record.id ? "primary" : "default",
+                            size: "small",
+                            icon: React.createElement(NodeIndexOutlined, null),
+                            onClick: function() { handleViewChain(record); }
+                        }, expandedSession === record.id ? "收起链路" : "查看链路");
+                    }
+                }
+            ];
+
+            // ── Menu ──
+
+            var menuItems = [
+                {
+                    key: "config",
+                    icon: React.createElement(SettingOutlined, null),
+                    label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: React.createElement(DatabaseOutlined, null), label: "指令库管理", onClick: function() { goTo("libraries"); } },
+                        { key: "datasets", icon: React.createElement(FileTextOutlined, null), label: "数据集管理", onClick: function() { goTo("datasets"); } },
+                        { key: "profiles", icon: React.createElement(RobotOutlined, null), label: "对话方案", onClick: function() { goTo("profiles"); } }
+                    ]
+                },
+                {
+                    key: "testing",
+                    icon: React.createElement(ExperimentOutlined, null),
+                    label: "测试验证",
+                    children: [
+                        { key: "manual-test", icon: React.createElement(MessageOutlined, null), label: "手动测试", onClick: function() { goTo("manual-test"); } },
+                        { key: "batch-test", icon: React.createElement(ExperimentOutlined, null), label: "批量测试" }
+                    ]
+                },
+                {
+                    key: "system",
+                    icon: React.createElement(UserOutlined, null),
+                    label: "系统管理",
+                    children: [
+                        { key: "versions", icon: React.createElement(RocketOutlined, null), label: "版本管理" },
+                        { key: "users", icon: React.createElement(UserOutlined, null), label: "用户管理" },
+                        { key: "monitoring", icon: React.createElement(BarChartOutlined, null), label: "监控仪表盘", onClick: function() { goTo("monitoring"); } }
+                    ]
+                }
+            ];
+
+            // ── Expanded session data ──
+
+            var expandedSessionData = expandedSession ? mockSessions.find(function(s) { return s.id === expandedSession; }) : null;
+            var expandedRequests = expandedSession ? (mockRequestsBySession[expandedSession] || []) : [];
+
+            // ── Drawer tabs ──
+
+            var drawerTabs = [
+                {
+                    key: "flow",
+                    label: "数据流向",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "设备日志全链路数据流向"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 } },
+"[Device Request]  设备请求入口\n" +
+"    \u251C\u2500 用户语音/文本输入\n" +
+"    \u251C\u2500 设备上下文快照 (cooking_status, door_closed, ...)\n" +
+"    \u2514\u2500 会话 ID + 设备 ID\n" +
+"           \u2193\n" +
+"[API Log]  API 结构化日志\n" +
+"    \u251C\u2500 NLU Pipeline: 路由 \u2192 意图 \u2192 槽位 \u2192 指代消解\n" +
+"    \u251C\u2500 知识检索: 文档匹配 + 得分\n" +
+"    \u251C\u2500 闲聊生成: 人设 + LLM 调用\n" +
+"    \u2514\u2500 处理耗时 + 响应文本\n" +
+"           \u2193\n" +
+"[Session Aggregation]  会话聚合\n" +
+"    \u251C\u2500 按设备 ID + 会话 ID 分组\n" +
+"    \u251C\u2500 统计: 轮次数、路由分布、版本\n" +
+"    \u2514\u2500 时间范围: 首请求 \u2192 末请求\n" +
+"           \u2193\n" +
+"[Chain View]  链路视图\n" +
+"    \u251C\u2500 Timeline: 按时序展示每轮请求\n" +
+"    \u2514\u2500 Collapse: 展开查看完整处理链"
+                            )
+                        ),
+                        React.createElement(Alert, {
+                            message: "关键数据关系",
+                            description: "设备:会话 = 1:N（一台设备可有多个历史会话）；会话:请求 = 1:N（一个会话包含多轮请求）；每个请求记录完整处理链（路由+意图+槽位+响应+上下文）。",
+                            type: "info",
+                            showIcon: true
+                        })
+                    )
+                },
+                {
+                    key: "state",
+                    label: "状态流转",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "会话生命周期状态机"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 } },
+"created \u2500\u2500\u2192 active \u2500\u2500\u2192 timeout \u2500\u2500\u2192 closed\n" +
+"  \u2502                \u2502\n" +
+"  \u2502                \u2514\u2500\u2500\u2500 用户主动关闭 \u2500\u2500\u2500\u2192 closed\n" +
+"  \u2502\n" +
+"  \u2514\u2500\u2500\u2500 首次请求到达时创建\n" +
+"\n" +
+"状态说明:\n" +
+"  created : 会话 ID 分配，等待首请求\n" +
+"  active  : 有活跃请求，计时器重置\n" +
+"  timeout : 超过 sessionTimeout 无新请求\n" +
+"  closed  : 会话结束，不再接收新请求"
+                            ),
+                            React.createElement(List, {
+                                size: "small",
+                                bordered: true,
+                                style: { marginTop: 16 },
+                                dataSource: [
+                                    { rule: "创建时机", desc: "设备发起首次请求时自动创建会话，分配唯一 session_id" },
+                                    { rule: "活跃保持", desc: "每次新请求到达，会话超时计时器重置为 sessionTimeout" },
+                                    { rule: "超时关闭", desc: "超过 sessionTimeout 无新请求，会话自动关闭" },
+                                    { rule: "版本绑定", desc: "会话创建时绑定当前 published 版本，会话内不随版本发布变化" }
+                                ],
+                                renderItem: function(item) {
+                                    return React.createElement(List.Item, null,
+                                        React.createElement(Tag, { color: "blue" }, item.rule), " ", item.desc
+                                    );
+                                }
+                            })
+                        ),
+                        React.createElement(Alert, {
+                            message: "版本锁定",
+                            description: "会话创建时绑定的版本在整个会话生命周期内不变。即使期间发布了新版本，当前会话仍使用创建时的版本，新会话才会使用新版本。",
+                            type: "warning",
+                            showIcon: true
+                        })
+                    )
+                },
+                {
+                    key: "fields",
+                    label: "字段说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "请求链路字段详解"),
+                            React.createElement(Table, {
+                                size: "small",
+                                pagination: false,
+                                rowKey: "field",
+                                columns: [
+                                    { title: "字段", dataIndex: "field", width: 140 },
+                                    { title: "类型", dataIndex: "type", width: 80 },
+                                    { title: "说明", dataIndex: "desc" },
+                                    { title: "出现条件", dataIndex: "condition", width: 160 }
+                                ],
+                                dataSource: [
+                                    { field: "input", type: "string", desc: "用户输入文本（语音转文字后的结果）", condition: "所有请求" },
+                                    { field: "route.domain", type: "enum", desc: "路由域：command / knowledge / chitchat", condition: "所有请求" },
+                                    { field: "route.confidence", type: "float", desc: "路由置信度 0~1", condition: "所有请求" },
+                                    { field: "intent.name", type: "string", desc: "意图分类名称", condition: "domain=command" },
+                                    { field: "intent.confidence", type: "float", desc: "意图置信度 0~1", condition: "domain=command" },
+                                    { field: "slots[]", type: "array", desc: "槽位提取结果：name, value, type, required, filled", condition: "domain=command" },
+                                    { field: "knowledgeHit", type: "object", desc: "知识库命中：docName, category, score", condition: "domain=knowledge" },
+                                    { field: "referenceResolution", type: "object", desc: "指代消解：pronoun -> resolved", condition: "存在指代时" },
+                                    { field: "dialogState", type: "object", desc: "对话状态上下文引用信息", condition: "使用上下文时" },
+                                    { field: "persona", type: "object", desc: "应用的闲聊人设信息", condition: "domain=chitchat" },
+                                    { field: "response", type: "string", desc: "系统响应文本", condition: "所有请求" },
+                                    { field: "latency", type: "int", desc: "处理耗时（毫秒）", condition: "所有请求" },
+                                    { field: "deviceContext", type: "object", desc: "请求时刻的设备上下文快照", condition: "所有请求" }
+                                ]
+                            })
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "设备上下文字段"),
+                            React.createElement(Table, {
+                                size: "small",
+                                pagination: false,
+                                rowKey: "field",
+                                columns: [
+                                    { title: "字段", dataIndex: "field", width: 140 },
+                                    { title: "类型", dataIndex: "type", width: 80 },
+                                    { title: "说明", dataIndex: "desc" }
+                                ],
+                                dataSource: [
+                                    { field: "cooking_status", type: "enum", desc: "烹饪状态：idle / cooking / paused / done" },
+                                    { field: "door_closed", type: "bool", desc: "设备门是否关闭" },
+                                    { field: "current_temp", type: "int", desc: "当前温度（摄氏度）" },
+                                    { field: "current_page", type: "string", desc: "设备当前显示的 UI 页面" }
+                                ]
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "operations",
+                    label: "操作说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "设备搜索流程"),
+                            React.createElement("div", { className: "mermaid", key: "op-search" },
+"flowchart TD\n" +
+"    A[输入设备 ID] --> B{ID 格式校验}\n" +
+"    B -->|为空| C[提示: 请输入设备 ID]\n" +
+"    B -->|有效| D[查询设备信息]\n" +
+"    D --> E{设备存在?}\n" +
+"    E -->|否| F[提示: 设备不存在]\n" +
+"    E -->|是| G[展示设备信息卡]\n" +
+"    G --> H[加载历史会话列表]"
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "会话链路展开流程"),
+                            React.createElement("div", { className: "mermaid", key: "op-chain" },
+"flowchart TD\n" +
+"    A[点击查看链路] --> B[加载会话请求数据]\n" +
+"    B --> C[展示会话摘要卡片]\n" +
+"    C --> D[渲染请求 Timeline]\n" +
+"    D --> E[每轮可展开 Collapse]\n" +
+"    E --> F[展示完整处理链]\n" +
+"    F --> G{用户操作}\n" +
+"    G -->|收起| H[隐藏链路详情]\n" +
+"    G -->|切换会话| I[收起当前 + 展开新会话]"
+                            )
+                        )
+                    )
+                },
+                {
+                    key: "logic",
+                    label: "业务逻辑",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "会话按设备 ID 隔离"),
+                            React.createElement("div", { style: { lineHeight: 1.8, marginBottom: 16 } },
+                                React.createElement("ol", null,
+                                    React.createElement("li", null, "每台设备有唯一 device_id，所有会话按 device_id 隔离查询"),
+                                    React.createElement("li", null, "同一设备的会话按时间倒序排列，最新会话在最前"),
+                                    React.createElement("li", null, "会话内的请求按时间正序排列，还原真实对话流程")
+                                )
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "版本绑定机制"),
+                            React.createElement("div", { style: { lineHeight: 1.8, marginBottom: 16 } },
+                                React.createElement("ol", null,
+                                    React.createElement("li", null, "会话创建时记录当时的 published 版本号"),
+                                    React.createElement("li", null, "会话生命周期内使用固定版本，不随新版发布动态切换"),
+                                    React.createElement("li", null, "版本号用于回溯：可定位该会话使用了哪个模型和配置")
+                                )
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "上下文快照时机"),
+                            React.createElement("div", { style: { lineHeight: 1.8 } },
+                                React.createElement("p", null, "每个请求的 deviceContext 是请求到达时刻的设备状态快照："),
+                                React.createElement("ul", { style: { paddingLeft: 20 } },
+                                    React.createElement("li", null, React.createElement("strong", null, "cooking_status"), "：可能在会话内变化（idle -> cooking -> idle）"),
+                                    React.createElement("li", null, React.createElement("strong", null, "current_temp"), "：随烹饪进度实时变化"),
+                                    React.createElement("li", null, React.createElement("strong", null, "current_page"), "：反映用户当时在设备上查看的页面"),
+                                    React.createElement("li", null, "快照用于排查：为何 NLU 做出特定路由决策")
+                                )
+                            ),
+                            React.createElement(Alert, {
+                                message: "快照与实时的区别",
+                                description: "deviceContext 是请求到达时的一次性快照，不是实时流。两个相邻请求之间设备状态可能已变化，需关注时序差异。",
+                                type: "info",
+                                showIcon: true,
+                                style: { marginTop: 12 }
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "tips",
+                    label: "易错点",
+                    children: React.createElement("div", null,
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F 会话超时处理",
+                            description: "会话超时后状态变为 closed，新请求将创建全新会话。若用户在超时边界前后连续说话，可能出现前后请求分属不同会话的情况，导致上下文断裂。",
+                            type: "error",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F 版本发布后的会话版本不一致",
+                            description: "发布新版本后，已存在的活跃会话仍使用旧版本，只有新建会话使用新版本。在日志中可能看到同一时间段内不同会话使用不同版本，这是正常行为而非 Bug。",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F 设备上下文滞后",
+                            description: "设备上下文快照存在微小延迟（通常 <100ms）。极端情况下，快照中的 cooking_status 可能与实际状态不一致（如设备刚切换状态但快照尚未更新），排查时需关注请求时间戳与状态变更时间。",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F 指代消解依赖上下文完整性",
+                            description: "指代消解（如\"它\"→\"柠香雪梨银耳汤\"）依赖前序请求的上下文。如果会话超时重建或上下文丢失，指代消解可能失败或指向错误对象。",
+                            type: "error",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F 耗时异常不代表一定有问题",
+                            description: "知识检索和闲聊生成的耗时通常在 1~3 秒之间（涉及 LLM 调用），属于正常范围。仅指令处理耗时超过 500ms 才需要关注。不同路由域的耗时基线不同。",
+                            type: "info"
+                        })
+                    )
+                }
+            ];
+
+            // ── Render ──
+
+            return React.createElement(Layout, { className: "page-layout" },
+
+                inIframe ? null : React.createElement(Sider, {
+                    collapsed: siderCollapsed,
+                    onCollapse: function() { setSiderCollapsed(function(v) { return !v; }); },
+                    collapsible: true,
+                    trigger: null,
+                    width: 260,
+                    collapsedWidth: 80,
+                    className: "sidebar"
+                },
+                    React.createElement("div", { className: "sidebar-header" },
+                        React.createElement("div", { className: "sidebar-logo" }, "SmartChef"),
+                        React.createElement("div", { className: "sidebar-subtitle" }, "智能对话管理平台")
+                    ),
+                    React.createElement("div", { className: "sidebar-menu-wrap" },
+                        React.createElement(Menu, {
+                            theme: "dark",
+                            mode: "inline",
+                            selectedKeys: selectedKeys,
+                            openKeys: openKeys,
+                            onOpenChange: handleOpenChange,
+                            onSelect: function(info) { setSelectedKeys([info.key]); },
+                            items: menuItems
+                        })
+                    ),
+                    React.createElement("div", {
+                        className: "sidebar-trigger",
+                        onClick: function() { setSiderCollapsed(function(v) { return !v; }); },
+                        title: siderCollapsed ? "展开侧边栏" : "收起侧边栏"
+                    }, siderCollapsed ? React.createElement(MenuUnfoldOutlined, { style: { fontSize: 18 } }) : React.createElement(MenuFoldOutlined, { style: { fontSize: 18 } }))
+                ),
+
+                React.createElement(Content, { className: "main-content" + (inIframe ? " main-content-no-sider" : siderCollapsed ? " sider-collapsed" : "") },
+
+                    // Page Header
+                    React.createElement("div", { className: "page-header" },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16 } },
+                                React.createElement(Button, { icon: React.createElement(ArrowLeftOutlined, null), onClick: function() { goTo("monitoring"); } }, "返回"),
+                                React.createElement("h1", { style: { fontSize: 24, fontWeight: 600, margin: 0 } }, "设备日志")
+                            ),
+                            React.createElement(Space, null,
+                                React.createElement(Tooltip, { title: "查看数据流向、状态流转、字段说明和业务约束" },
+                                    React.createElement(Button, { icon: React.createElement(QuestionCircleOutlined, null), onClick: function() { setDrawerVisible(true); } }, "说明")
+                                ),
+                                React.createElement(Input, {
+                                    placeholder: "输入设备 ID 查询",
+                                    value: searchDeviceId,
+                                    onChange: function(e) { setSearchDeviceId(e.target.value); },
+                                    onPressEnter: handleDeviceSearch,
+                                    prefix: React.createElement(SearchOutlined, null),
+                                    style: { width: 240 },
+                                    size: "large",
+                                    allowClear: true
+                                })
+                            )
+                        )
+                    ),
+
+                    // Section 1: Device Search & Info
+                    React.createElement(Card, { title: "设备查询", style: { marginBottom: 24 } },
+                        React.createElement(Space.Compact, { style: { width: "100%", marginBottom: deviceSearched ? 24 : 0 } },
+                            React.createElement(Input, {
+                                size: "large",
+                                placeholder: "输入设备 ID 查询",
+                                value: searchDeviceId,
+                                onChange: function(e) { setSearchDeviceId(e.target.value); },
+                                onPressEnter: handleDeviceSearch,
+                                prefix: React.createElement(DesktopOutlined, { style: { color: "#bfbfbf" } }),
+                                allowClear: true
+                            }),
+                            React.createElement(Button, { type: "primary", size: "large", icon: React.createElement(SearchOutlined, null), onClick: handleDeviceSearch }, "查询")
+                        ),
+                        deviceSearched && React.createElement("div", null,
+                            React.createElement(Divider, null),
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 } },
+                                React.createElement(DesktopOutlined, { style: { fontSize: 24, color: "#1890ff" } }),
+                                React.createElement("div", null,
+                                    React.createElement("div", { style: { fontWeight: 600, fontSize: 16 } }, "设备 ID: ", React.createElement("span", { style: { fontFamily: "SFMono-Regular, Consolas, monospace" } }, "DEV_A001")),
+                                    React.createElement("div", { style: { color: "#8c8c8c", fontSize: 13 } }, "设备已接入系统，状态正常")
+                                )
+                            ),
+                            React.createElement("div", { className: "device-info-grid" },
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "首次接入"),
+                                    React.createElement("div", { className: "value" }, "2026-03-01")
+                                ),
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "最后活跃"),
+                                    React.createElement("div", { className: "value" }, "2026-03-18 09:33")
+                                ),
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "总会话数"),
+                                    React.createElement("div", { className: "value", style: { color: "#1890ff" } }, "42")
+                                ),
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "总请求数"),
+                                    React.createElement("div", { className: "value", style: { color: "#722ed1" } }, "386")
+                                ),
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "使用版本"),
+                                    React.createElement("div", { className: "value" }, React.createElement(Tag, { color: "cyan" }, "v2.1"))
+                                ),
+                                React.createElement("div", { className: "device-info-item" },
+                                    React.createElement("div", { className: "label" }, "设备状态"),
+                                    React.createElement("div", { className: "value" }, React.createElement(Tag, { color: "green" }, "在线"))
+                                )
+                            )
+                        )
+                    ),
+
+                    // Section 2: Session List (FR-031)
+                    deviceSearched && React.createElement(Card, {
+                        title: React.createElement(Space, null,
+                            "历史会话列表",
+                            React.createElement(Tag, { color: "blue" }, mockSessions.length + " 个会话（近 3 天）")
+                        ),
+                        style: { marginBottom: 24 }
+                    },
+                        React.createElement(Table, {
+                            columns: sessionColumns,
+                            dataSource: mockSessions,
+                            rowKey: "id",
+                            pagination: { pageSize: 10, showTotal: function(total) { return "共 " + total + " 条"; } },
+                            size: "middle",
+                            rowClassName: function(record) { return record.id === expandedSession ? "ant-table-row-selected" : ""; }
+                        })
+                    ),
+
+                    // Section 3: Session Detail / Request Chain (FR-032)
+                    expandedSession && expandedSessionData && React.createElement(Card, {
+                        title: React.createElement(Space, null,
+                            React.createElement(NodeIndexOutlined, null),
+                            "会话链路详情"
+                        ),
+                        style: { marginBottom: 24 }
+                    },
+                        // Session summary
+                        React.createElement(Card, { type: "inner", style: { marginBottom: 20, background: "#fafafa" } },
+                            React.createElement(Row, { gutter: 24 },
+                                React.createElement(Col, { span: 6 },
+                                    React.createElement(Statistic, { title: "会话 ID", value: expandedSessionData.id, valueStyle: { fontSize: 14, fontFamily: "SFMono-Regular, Consolas, monospace" } })
+                                ),
+                                React.createElement(Col, { span: 6 },
+                                    React.createElement(Statistic, {
+                                        title: "持续时间",
+                                        value: (function() {
+                                            var start = dayjs(expandedSessionData.startTime);
+                                            var end = dayjs(expandedSessionData.endTime);
+                                            return end.diff(start, "minute") + " 分钟";
+                                        })(),
+                                        prefix: React.createElement(ClockCircleOutlined, null)
+                                    })
+                                ),
+                                React.createElement(Col, { span: 4 },
+                                    React.createElement(Statistic, { title: "对话轮次", value: expandedSessionData.turns, valueStyle: { color: "#1890ff" } })
+                                ),
+                                React.createElement(Col, { span: 4 },
+                                    React.createElement(Statistic, {
+                                        title: "使用版本",
+                                        value: expandedSessionData.version,
+                                        valueStyle: { fontSize: 16 }
+                                    })
+                                ),
+                                React.createElement(Col, { span: 4 },
+                                    React.createElement("div", null,
+                                        React.createElement("div", { style: { color: "#8c8c8c", fontSize: 12, marginBottom: 8 } }, "路由分布"),
+                                        React.createElement(Space, { size: 4 },
+                                            expandedSessionData.routeDist.command > 0 && React.createElement(Tag, { color: "blue" }, "指令 " + expandedSessionData.routeDist.command),
+                                            expandedSessionData.routeDist.knowledge > 0 && React.createElement(Tag, { color: "green" }, "知识 " + expandedSessionData.routeDist.knowledge),
+                                            expandedSessionData.routeDist.chitchat > 0 && React.createElement(Tag, { color: "orange" }, "闲聊 " + expandedSessionData.routeDist.chitchat)
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+
+                        // Request chain timeline
+                        React.createElement(Timeline, {
+                            items: expandedRequests.map(function(req, idx) {
+                                var domainCfg = DOMAIN_COLORS[req.route.domain] || { color: "default", label: req.route.domain };
+                                var dotColor = domainCfg.color === "blue" ? "#1890ff" : domainCfg.color === "green" ? "#52c41a" : "#fa8c16";
+                                return {
+                                    key: req.id,
+                                    color: dotColor,
+                                    children: React.createElement("div", { style: { marginBottom: 8 } },
+                                        React.createElement("div", { style: { marginBottom: 8, display: "flex", alignItems: "center", gap: 8 } },
+                                            React.createElement(Tag, { style: { margin: 0 } }, "第 " + (idx + 1) + " 轮"),
+                                            React.createElement(Text, { type: "secondary", style: { fontSize: 12 } }, req.id)
+                                        ),
+                                        React.createElement(RequestChainDetail, { request: req, index: idx })
+                                    )
+                                };
+                            })
+                        })
+                    ),
+
+                    // Empty state when no device searched
+                    !deviceSearched && React.createElement(Card, { style: { textAlign: "center", padding: 60 } },
+                        React.createElement(Empty, {
+                            image: React.createElement(DesktopOutlined, { style: { fontSize: 64, color: "#d9d9d9" } }),
+                            description: React.createElement("div", null,
+                                React.createElement("p", { style: { fontSize: 16, color: "#595959" } }, "输入设备 ID 开始查询"),
+                                React.createElement("p", { style: { fontSize: 13, color: "#8c8c8c" } }, "查看设备的历史会话列表和每轮请求的完整处理链路")
+                            )
+                        })
+                    )
+                ),
+
+                // Help Drawer
+                React.createElement(Drawer, {
+                    title: React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("span", null, "页面逻辑说明"),
+                        React.createElement(Tooltip, { title: drawerWidth === 1200 ? "切换到窄视图" : "切换到宽视图" },
+                            React.createElement(Button, {
+                                type: "text",
+                                icon: React.createElement(ColumnWidthOutlined, null),
+                                onClick: toggleDrawerWidth,
+                                size: "small"
+                            }, drawerWidth === 1200 ? "800px" : "1200px")
+                        )
+                    ),
+                    width: drawerWidth,
+                    open: drawerVisible,
+                    onClose: function() { setDrawerVisible(false); }
+                },
+                    React.createElement(Tabs, { items: drawerTabs })
+                )
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+    </script>
+</body>
+</html>

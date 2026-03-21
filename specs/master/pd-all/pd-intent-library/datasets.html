@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据集管理 | SmartChef PD</title>
+    <!-- React 18 - 使用 unpkg CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - 使用 unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const { 
+            Layout, Menu, Breadcrumb, Button, Table, Tag, Progress, Alert, Card, 
+            Input, Select, Space, Drawer, Tabs, List, message, Statistic, Row, Col,
+            Modal, Form, Slider, Checkbox, Radio, Upload, Divider, Tooltip
+        } = antd;
+        const { 
+            SettingOutlined, DatabaseOutlined, AimOutlined, ExperimentOutlined,
+            FileTextOutlined, RobotOutlined, ThunderboltOutlined, BugOutlined,
+            MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined,
+            ApartmentOutlined, SearchOutlined, EyeOutlined, DownloadOutlined,
+            UploadOutlined, QuestionCircleOutlined, RobotFilled, PlusOutlined,
+            ArrowRightOutlined, InfoCircleOutlined, WarningOutlined, InboxOutlined,
+            CheckCircleOutlined, ColumnWidthOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { TabPane } = Tabs;
+        const { Dragger } = Upload;
+
+        // Mock 数据集
+        const mockDatasets = [
+            { id: 'ds_001', name: '训练集_v2.0', type: 'train', sampleCount: 1500, intentCount: 39, boundModel: 'v2.0', progress: 100, createdAt: '2024-02-01', sourceStats: { manual: 500, llm: 1000 } },
+            { id: 'ds_002', name: '训练集_v2.1', type: 'train', sampleCount: 1600, intentCount: 40, boundModel: null, progress: 100, createdAt: '2024-02-15', sourceStats: { manual: 600, llm: 1000 } },
+            { id: 'ds_003', name: '训练集_v2.2', type: 'train', sampleCount: 1800, intentCount: 42, boundModel: 'v2.2-beta', progress: 100, createdAt: '2024-03-10', sourceStats: { manual: 800, llm: 1000 } },
+            { id: 'ds_004', name: '评估集_通用', type: 'eval', sampleCount: 500, intentCount: 39, boundModel: null, progress: 100, createdAt: '2024-03-01', sourceStats: { manual: 200, llm: 300 } }
+        ];
+
+        // Mock 数据集详细数据项
+        const mockDatasetItems = {
+            'ds_001': [
+                { id: 'item_001', intent_key: 'device.on', utterance: '帮我打开烤箱', language: 'zh', slots: '{"device":"烤箱"}', source: 'llm' },
+                { id: 'item_002', intent_key: 'device.off', utterance: '关闭微波炉', language: 'zh', slots: '{"device":"微波炉"}', source: 'manual' },
+                { id: 'item_003', intent_key: 'cook.start', utterance: '开始烹饪', language: 'zh', slots: '{}', source: 'llm' },
+            ],
+            'ds_002': [
+                { id: 'item_004', intent_key: 'timer.set', utterance: '定时5分钟', language: 'zh', slots: '{"duration":"5min"}', source: 'manual' },
+                { id: 'item_005', intent_key: 'device.on', utterance: '打开设备', language: 'zh', slots: '{}', source: 'llm' },
+            ],
+            'ds_003': [
+                { id: 'item_006', intent_key: 'recipe.query', utterance: '查询菜谱', language: 'zh', slots: '{}', source: 'llm' },
+            ],
+            'ds_004': [
+                { id: 'item_007', intent_key: 'device.on', utterance: '开机', language: 'zh', slots: '{}', source: 'manual', expected_result: 'device.on', threshold: 0.9 },
+            ]
+        };
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(['datasets']);
+            const [openKeys, setOpenKeys] = useState(['data']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [filters, setFilters] = useState({ name: '', type: undefined, status: undefined });
+            const [uploadModalVisible, setUploadModalVisible] = useState(false);
+            const [uploadType, setUploadType] = useState('train');
+            const [llmModalVisible, setLlmModalVisible] = useState(false);
+            const [llmMode, setLlmMode] = useState('train');
+            const defaultPrompt = `你是一个智能厨房语音助手的训练数据生成器。\n\n请根据以下意图定义，为每个 intent_key 生成至少 {{min_samples}} 条用户可能说出的自然语言表达。\n\n要求：\n1. 覆盖口语化、简写、方言等多种表达变体\n2. 包含完整句和不完整句\n3. 包含携带槽位参数和不携带的情况\n4. 每条数据标注 intent_key、utterance、language、slots(json)\n\n意图列表：\n{{intent_list}}`;
+            const [llmConfig, setLlmConfig] = useState({ model: 'GPT-4', minSamples: 20, generateVariants: true, includeDialects: false, promptTemplate: defaultPrompt });
+            const [fileList, setFileList] = useState([]);
+            
+            // "管理数据"入口改为跳转 dataset-detail.html 页面
+
+            const filteredData = useMemo(() => {
+                return mockDatasets.filter(ds => {
+                    if (filters.name && !ds.name.includes(filters.name) && !ds.id.includes(filters.name)) return false;
+                    if (filters.type && ds.type !== filters.type) return false;
+                    if (filters.status) {
+                        const bound = !!ds.boundModel;
+                        if (filters.status === 'bound' && !bound) return false;
+                        if (filters.status === 'unbound' && bound) return false;
+                    }
+                    return true;
+                });
+            }, [filters]);
+
+            const goTo = (page) => {
+                if (page === 'index') window.location.href = 'index.html';
+                else if (page === 'detail') window.location.href = 'detail.html';
+                else if (page === 'dataset-detail') window.location.href = 'dataset-detail.html';
+            };
+
+            // 修复菜单展开 - 使用 useCallback 确保函数引用稳定
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const columns = [
+                {
+                    title: '名称 / ID',
+                    key: 'name',
+                    width: 220,
+                    render: (_, record) => (
+                        <div>
+                            <div style={{ fontWeight: 500 }}>{record.name}</div>
+                            <div style={{ fontSize: 12, color: '#8c8c8c', fontFamily: 'monospace' }}>{record.id}</div>
+                            {record.sourceStats.llm > 0 && <Tag color="purple" style={{ marginTop: 4 }}><RobotFilled /> LLM</Tag>}
+                        </div>
+                    )
+                },
+                { title: '类型', key: 'type', width: 100, render: (_, r) => <Tag color={r.type === 'train' ? 'blue' : 'green'}>{r.type === 'train' ? '训练集' : '评估集'}</Tag> },
+                { title: '样本数', key: 'samples', width: 150, render: (_, r) => <Progress percent={r.progress} format={() => `${r.sampleCount}`} size="small" /> },
+                { title: '意图数', dataIndex: 'intentCount', key: 'intentCount', width: 80 },
+                { title: '绑定模型', key: 'bound', width: 150, render: (_, r) => r.boundModel ? <Tag color="blue">已绑定: {r.boundModel}</Tag> : <span style={{ color: '#8c8c8c' }}>-</span> },
+                { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 120 },
+                { title: '操作', key: 'action', width: 280, render: (_, r) => (
+                    <Space>
+                        <Button type="primary" size="small" onClick={() => goTo('dataset-detail')}>管理数据</Button>
+                        <Button type="link" size="small" icon={<DownloadOutlined />}>下载</Button>
+                        <Button type="link" size="small" danger disabled={r.boundModel} onClick={() => Modal.confirm({ title: '删除确认', content: `删除 ${r.name}？`, okType: 'danger', onOk: () => message.success('删除成功') })}>删除</Button>
+                    </Space>
+                ) }
+            ];
+
+            const menuItems = [
+                { key: 'config', icon: <SettingOutlined />, label: '配置管理', children: [{ key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('index') }, { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理' }, { key: 'profiles', icon: <ApartmentOutlined />, label: '对话方案' }] },
+                { key: 'deploy', icon: <RocketOutlined />, label: '部署与监控', children: [{ key: 'versions', icon: <CloudUploadOutlined />, label: '版本发布' }, { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }] },
+                { key: 'system', icon: <SettingOutlined />, label: '系统管理', children: [{ key: 'users', icon: <DatabaseOutlined />, label: '用户管理' }] }
+            ];
+
+            // 切换抽屉宽度
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef 平台</div>
+                            <div className="sidebar-subtitle">D016 数据集管理</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        <div className="page-header">
+                            <Breadcrumb style={{ marginBottom: 16 }}>
+                                <Breadcrumb.Item onClick={() => goTo('index')} style={{ cursor: 'pointer' }}>首页</Breadcrumb.Item>
+                                <Breadcrumb.Item>数据与训练</Breadcrumb.Item>
+                                <Breadcrumb.Item>数据集管理</Breadcrumb.Item>
+                            </Breadcrumb>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>数据集管理</h1>
+                                    <p style={{ color: '#8c8c8c', fontSize: 14 }}>管理训练集与评估集，支持 Excel/JSON 导入、LLM 合成</p>
+                                </div>
+                                <Space>
+                                    <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    <Button icon={<RobotFilled />} onClick={() => { setLlmMode('train'); setLlmModalVisible(true); }}>LLM生成训练集</Button>
+                                    <Button icon={<RobotFilled />} onClick={() => { setLlmMode('eval'); setLlmModalVisible(true); }}>LLM生成评估集</Button>
+                                    <Button icon={<UploadOutlined />} onClick={() => { setUploadType('train'); setUploadModalVisible(true); }}>导入训练集</Button>
+                                    <Button icon={<UploadOutlined />} onClick={() => { setUploadType('eval'); setUploadModalVisible(true); }}>导入评估集</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* 筛选栏 */}
+                        <Card style={{ marginBottom: 24 }}>
+                            <Row gutter={16}>
+                                <Col span={6}>
+                                    <Input placeholder="搜索名称或ID" value={filters.name} onChange={(e) => setFilters({...filters, name: e.target.value})} prefix={<SearchOutlined />} allowClear />
+                                </Col>
+                                <Col span={4}>
+                                    <Select placeholder="类型" value={filters.type} onChange={(val) => setFilters({...filters, type: val})} style={{ width: '100%' }} allowClear>
+                                        <Option value="train">训练集</Option>
+                                        <Option value="eval">评估集</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={4}>
+                                    <Select placeholder="绑定状态" value={filters.status} onChange={(val) => setFilters({...filters, status: val})} style={{ width: '100%' }} allowClear>
+                                        <Option value="bound">已绑定</Option>
+                                        <Option value="unbound">未绑定</Option>
+                                    </Select>
+                                </Col>
+                                <Col span={6}>
+                                    <Space>
+                                        <Button type="primary" onClick={() => message.success('查询条件已应用')}>查询</Button>
+                                        <Button onClick={() => setFilters({ name: '', type: undefined, status: undefined })}>重置</Button>
+                                    </Space>
+                                </Col>
+                            </Row>
+                        </Card>
+
+                        {/* 数据表格 */}
+                        <Card>
+                            <Table columns={columns} dataSource={filteredData} rowKey="id" pagination={{ pageSize: 10 }} />
+                        </Card>
+
+                        {/* 字段说明 */}
+                        <Card style={{ marginTop: 24 }} size="small" title={<><InfoCircleOutlined /> 字段说明（D016 规范）</>}>
+                            <Row gutter={48}>
+                                <Col span={8}><strong>数据集ID:</strong> 系统生成的唯一标识</Col>
+                                <Col span={8}><strong>样本数:</strong> 数据集中的问答对数量</Col>
+                                <Col span={8}><strong>绑定状态:</strong> 训练集1:1绑定模型，评估集可复用</Col>
+                            </Row>
+                        </Card>
+                    </Content>
+
+                    {/* 说明抽屉 - 增加宽度切换功能 */}
+                    <Drawer 
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button 
+                                        type="text" 
+                                        icon={<ColumnWidthOutlined />} 
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        } 
+                        width={drawerWidth} 
+                        open={drawerVisible} 
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={[
+                            {
+                                key: 'flow',
+                                label: '数据流向',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">数据集 → 模型绑定流向</div>
+                                            <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto' }}>
+{`[数据集导入/生成]
+    ├─ 训练集 ──1:1绑定──→ [模型训练]
+    │                        ↓
+    │                    [模型版本]
+    │                        ↓
+    │                    [发布生效]
+    │
+    └─ 评估集 ──1:N复用──→ [模型A评估]
+                  ├──────→ [模型B评估]
+                  └──────→ [模型C评估]`}
+                                            </pre>
+                                        </div>
+                                        <Alert message="绑定规则" description="训练集绑定模型后不可删除，不可用于其他模型。评估集可绑定多个模型，用于多次评估。" type="info" showIcon />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'fields',
+                                label: '字段规范',
+                                children: (
+                                    <div className="drawer-section">
+                                        <div className="drawer-section-title">训练集最小字段</div>
+                                        <Table size="small" pagination={false} columns={[{ title: '字段', dataIndex: 'field', width: 120 }, { title: '类型', dataIndex: 'type', width: 100 }, { title: '说明', dataIndex: 'desc' }]} dataSource={[{ field: 'intent_key', type: 'string', desc: '意图标识' }, { field: 'utterance', type: 'string', desc: '用户语句' }, { field: 'language', type: 'enum', desc: '语种 zh/en' }, { field: 'slots(json)', type: 'json', desc: '槽位参数，如{"device":"烤箱"}' }, { field: 'source', type: 'enum', desc: 'manual(人工)/llm(合成)' }]} />
+                                        <Divider />
+                                        <div className="drawer-section-title">评估集额外字段</div>
+                                        <Table size="small" pagination={false} columns={[{ title: '字段', dataIndex: 'field', width: 150 }, { title: '说明', dataIndex: 'desc' }]} dataSource={[{ field: 'expected_result', desc: '预期结果' }, { field: 'threshold', desc: '预期阈值' }, { field: 'actual_result', desc: '实际结果（评估后回填）' }, { field: 'actual_score', desc: '实际分数（评估后回填）' }, { field: 'is_hit', desc: '是否命中（评估后回填）' }]} />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'llm',
+                                label: 'LLM合成',
+                                children: (
+                                    <div>
+                                        <div className="drawer-section">
+                                            <div className="drawer-section-title">LLM 数据生成治理规范</div>
+                                            <ol>
+                                                <li><strong>覆盖全部意图：</strong>生成的数据必须覆盖所有 intent_key</li>
+                                                <li><strong>每意图最少N条：</strong>N可配置（默认20），确保数据充足</li>
+                                                <li><strong>多表达变体：</strong>包含口语化、方言、不完整句子等变体</li>
+                                                <li><strong>提示词模板：</strong>有默认模板，可在页面自定义配置</li>
+                                                <li><strong>生成用LLM：</strong>可选择 GPT-4/GPT-3.5/Claude-3</li>
+                                            </ol>
+                                        </div>
+                                        <Alert message="费用预估" description={'系统会根据【每意图最少数量】×【意图总数】自动计算预估费用（基于所选LLM的单价）。'} type="info" showIcon />
+                                    </div>
+                                )
+                            },
+                            {
+                                key: 'tips',
+                                label: '易错点',
+                                children: (
+                                    <div>
+                                        <Alert message="⚠️ 已绑定的训练集不可删除" description="训练集一旦绑定模型，就不能删除也不能用于其他模型。如需清理需先删除/归档关联的模型版本。" type="error" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ Excel导入字段必须完整" description="训练集导入必须包含 intent_key, utterance, language, slots, source 五个字段。评估集还需包含 expected_result 等字段。" type="warning" style={{ marginBottom: 12 }} />
+                                        <Alert message="⚠️ LLM生成后需审核" description="LLM生成的数据质量不一，建议生成后人工审核再使用。系统会标注 source=llm 便于区分。" type="warning" />
+                                    </div>
+                                )
+                            }
+                        ]} />
+                    </Drawer>
+
+                    {/* 上传弹窗 */}
+                    <Modal 
+                        title={`导入${uploadType === 'train' ? '训练集' : '评估集'}`} 
+                        open={uploadModalVisible} 
+                        onOk={() => { message.success('导入成功'); setUploadModalVisible(false); }} 
+                        onCancel={() => setUploadModalVisible(false)} 
+                        width={700}
+                    >
+                        <Alert
+                            message="选择数据集类型"
+                            description={
+                                <Radio.Group value={uploadType} onChange={(e) => setUploadType(e.target.value)} style={{ marginTop: 8 }}>
+                                    <Radio.Button value="train">训练集（1:1绑定模型）</Radio.Button>
+                                    <Radio.Button value="eval">评估集（可复用）</Radio.Button>
+                                </Radio.Group>
+                            }
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                        />
+                        <Dragger fileList={fileList} onChange={({ fileList }) => setFileList(fileList)} beforeUpload={() => false} accept=".xlsx,.xls,.json" style={{ padding: 24 }}>
+                            <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 48, color: '#1890ff' }} /></p>
+                            <p style={{ fontSize: 16 }}>点击或拖拽文件到此处上传</p>
+                            <p style={{ fontSize: 13, color: '#8c8c8c' }}>支持 Excel (.xlsx, .xls) 或 JSON 格式，最大 50MB</p>
+                        </Dragger>
+                        <div style={{ marginTop: 24 }}>
+                            <Tabs defaultActiveKey="train">
+                                <TabPane tab="训练集格式" key="train">
+                                    <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12 }}>
+                                        <div style={{ fontWeight: 500, marginBottom: 8 }}>Excel 列头（必填）:</div>
+                                        <div style={{ display: 'flex', padding: '8px 0', borderBottom: '1px dashed #d9f7be' }}>
+                                            <span style={{ width: 100, color: '#8c8c8c' }}>intent_key</span>
+                                            <span style={{ width: 120, color: '#8c8c8c' }}>utterance</span>
+                                            <span style={{ width: 80, color: '#8c8c8c' }}>language</span>
+                                            <span style={{ width: 120, color: '#8c8c8c' }}>slots(json)</span>
+                                            <span style={{ width: 100, color: '#8c8c8c' }}>source</span>
+                                        </div>
+                                        <div style={{ display: 'flex', padding: '8px 0' }}>
+                                            <span style={{ width: 100 }}>device.on</span>
+                                            <span style={{ width: 120 }}>帮我打开烤箱</span>
+                                            <span style={{ width: 80 }}>zh</span>
+                                            <span style={{ width: 120 }}>{'{"device":"烤箱"}'}</span>
+                                            <span style={{ width: 100 }}>llm</span>
+                                        </div>
+                                    </div>
+                                </TabPane>
+                                <TabPane tab="评估集格式" key="eval">
+                                    <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: 12 }}>
+                                        <div style={{ fontWeight: 500, marginBottom: 8 }}>评估集全字段（actual_* 可为空，由系统回填）:</div>
+                                        <div style={{ display: 'flex', padding: '8px 0', flexWrap: 'wrap', gap: '4px 0' }}>
+                                            <span style={{ width: 80, color: '#8c8c8c' }}>intent_key</span>
+                                            <span style={{ width: 80, color: '#8c8c8c' }}>utterance</span>
+                                            <span style={{ width: 80, color: '#8c8c8c' }}>language</span>
+                                            <span style={{ width: 60, color: '#8c8c8c' }}>source</span>
+                                            <span style={{ width: 95, color: '#8c8c8c' }}>expected_result</span>
+                                            <span style={{ width: 65, color: '#8c8c8c' }}>threshold</span>
+                                            <span style={{ width: 85, color: '#8c8c8c' }}>actual_result</span>
+                                            <span style={{ width: 80, color: '#8c8c8c' }}>actual_score</span>
+                                            <span style={{ width: 50, color: '#8c8c8c' }}>is_hit</span>
+                                        </div>
+                                    </div>
+                                </TabPane>
+                            </Tabs>
+                        </div>
+                    </Modal>
+
+                    {/* LLM弹窗 — 标题带 Tooltip 说明，表单含可编辑提示词 */}
+                    <Modal 
+                        title={
+                            <Space>
+                                <RobotFilled />
+                                <span>LLM 合成数据生成</span>
+                                <Tooltip title="系统将基于指令库中的全部 intent_key，使用 LLM 生成口语化、多表达变体的数据。生成后需人工审核。" placement="bottom">
+                                    <QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} />
+                                </Tooltip>
+                            </Space>
+                        }
+                        open={llmModalVisible} 
+                        onOk={() => { message.success('生成任务已提交'); setLlmModalVisible(false); }} 
+                        onCancel={() => setLlmModalVisible(false)} 
+                        width={780}
+                    >
+                        <Form layout="vertical" style={{ marginTop: 8 }}>
+                            <Form.Item label="数据集类型"><Radio.Group value={llmMode} onChange={(e) => setLlmMode(e.target.value)}><Radio.Button value="train">训练集</Radio.Button><Radio.Button value="eval">评估集</Radio.Button></Radio.Group></Form.Item>
+                            <Form.Item label="选择LLM模型" required><Select value={llmConfig.model} onChange={(val) => setLlmConfig({...llmConfig, model: val})}><Option value="GPT-4">GPT-4 (推荐)</Option><Option value="GPT-3.5">GPT-3.5</Option></Select></Form.Item>
+                            <Form.Item label="每意图最少样本数"><Slider min={10} max={100} value={llmConfig.minSamples} onChange={(val) => setLlmConfig({...llmConfig, minSamples: val})} marks={{ 10: '10', 50: '50', 100: '100' }} /><div style={{ textAlign: 'center', color: '#8c8c8c' }}>当前: {llmConfig.minSamples} 条/意图，预计共 {llmConfig.minSamples * 39} 条</div></Form.Item>
+                            <Form.Item label={<>提示词模板 <Tooltip title="支持变量: {{min_samples}} 每意图最少数量, {{intent_list}} 自动注入意图列表"><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></>}>
+                                <Input.TextArea 
+                                    value={llmConfig.promptTemplate} 
+                                    onChange={(e) => setLlmConfig({...llmConfig, promptTemplate: e.target.value})} 
+                                    rows={8}
+                                    style={{ fontFamily: 'monospace', fontSize: 12 }}
+                                />
+                                <Button type="link" size="small" style={{ padding: 0, marginTop: 4 }} onClick={() => setLlmConfig({...llmConfig, promptTemplate: defaultPrompt})}>恢复默认提示词</Button>
+                            </Form.Item>
+                            <Form.Item><Checkbox checked={llmConfig.generateVariants} onChange={(e) => setLlmConfig({...llmConfig, generateVariants: e.target.checked})}>生成多表达变体（口语化、方言、不完整句）</Checkbox></Form.Item>
+                        </Form>
+                        <div style={{ background: '#f6ffed', padding: 12, borderRadius: 6 }}><CheckCircleOutlined style={{ color: '#52c41a' }} /> 预估费用: ${(llmConfig.minSamples * 39 * 0.002).toFixed(2)} | 预计耗时: {(llmConfig.minSamples * 39 / 500).toFixed(1)} 分钟</div>
+                    </Modal>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

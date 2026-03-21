@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库管理 | SmartChef PD</title>
+    <!-- React 18 - 使用 unpkg -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - 使用 unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        .category-item { padding: 12px 16px; border: 1px solid #f0f0f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+        .category-item:hover { border-color: #1890ff; background: #f0f8ff; }
+        .category-item.active { border-color: #1890ff; background: #e6f4ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.1); }
+        .category-icon { font-size: 24px; margin-right: 12px; }
+        .field-tag-valid { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; display: inline-block; }
+        .field-tag-invalid { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; display: inline-block; text-decoration: line-through; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }
+        });
+
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Alert, Card, Input, Select, Space,
+            Drawer, Tabs, List, message, Statistic, Row, Col, Tooltip, Badge, Modal,
+            Form, Upload, Progress, Empty, Descriptions
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            MessageOutlined, ExperimentOutlined, RocketOutlined, UserOutlined,
+            BarChartOutlined, SearchOutlined, PlusOutlined, QuestionCircleOutlined,
+            ColumnWidthOutlined, CheckCircleOutlined, InfoCircleOutlined,
+            ClockCircleOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
+            ExclamationCircleOutlined, BookOutlined, UploadOutlined,
+            InboxOutlined, SyncOutlined, ReloadOutlined, FolderOutlined,
+            FileSearchOutlined, CloudUploadOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { TextArea } = Input;
+        const { Dragger } = Upload;
+
+        // ── Mock Data ──
+
+        const mockCategories = [
+            { id: 'kb_001', name: '菜谱知识', icon: '\u{1F373}', description: '菜谱数据（菜名、食材、步骤、营养成分等）', docCount: 1000, indexedCount: 998, status: 'ready' },
+            { id: 'kb_002', name: '公司信息', icon: '\u{1F3E2}', description: '公司介绍、企业文化、联系方式等', docCount: 15, indexedCount: 15, status: 'ready' },
+            { id: 'kb_003', name: '产品使用指南', icon: '\u{1F4D6}', description: '智能微波炉使用说明、故障排除、功能介绍', docCount: 9, indexedCount: 7, status: 'indexing' }
+        ];
+
+        const mockDocumentsMap = {
+            kb_001: [
+                { id: 'doc_001', name: '柠香雪梨银耳汤.json', format: 'json', size: '3.2 KB', validFields: 8, totalFields: 15, status: 'indexed', uploadedAt: '2026-03-10 09:00', filteredFields: ['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'share_count', 'comment_count'] },
+                { id: 'doc_002', name: '红烧肉.json', format: 'json', size: '4.1 KB', validFields: 8, totalFields: 14, status: 'indexed', uploadedAt: '2026-03-10 09:00', filteredFields: ['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'comment_count'] },
+                { id: 'doc_003', name: '蒜蓉蒸虾.md', format: 'markdown', size: '2.8 KB', validFields: 6, totalFields: 6, status: 'indexed', uploadedAt: '2026-03-11 14:30', filteredFields: [] },
+                { id: 'doc_004', name: '水煮鱼.json', format: 'json', size: '5.6 KB', validFields: 9, totalFields: 16, status: 'indexing', uploadedAt: '2026-03-17 16:00', filteredFields: ['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'share_count', 'ad_banner'] },
+                { id: 'doc_005', name: '菜谱批量导入_001-100.json', format: 'json', size: '156 KB', validFields: 8, totalFields: 15, status: 'indexed', uploadedAt: '2026-03-08 10:00', filteredFields: ['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'share_count', 'comment_count'] }
+            ],
+            kb_002: [
+                { id: 'doc_006', name: '公司简介.md', format: 'markdown', size: '1.5 KB', validFields: 4, totalFields: 4, status: 'indexed', uploadedAt: '2026-03-05 10:00', filteredFields: [] },
+                { id: 'doc_007', name: '企业文化.md', format: 'markdown', size: '2.1 KB', validFields: 5, totalFields: 5, status: 'indexed', uploadedAt: '2026-03-05 10:30', filteredFields: [] }
+            ],
+            kb_003: [
+                { id: 'doc_008', name: '微波炉使用指南.json', format: 'json', size: '8.3 KB', validFields: 10, totalFields: 12, status: 'indexed', uploadedAt: '2026-03-12 09:00', filteredFields: ['image_url', 'video_url'] },
+                { id: 'doc_009', name: '常见故障排除.md', format: 'markdown', size: '3.7 KB', validFields: 7, totalFields: 7, status: 'indexing', uploadedAt: '2026-03-17 15:30', filteredFields: [] }
+            ]
+        };
+
+        const mockSearchResults = [
+            { docName: '柠香雪梨银耳汤.json', score: 95, snippet: '...<em>银耳汤</em>是一道经典甜品，选用优质银耳、雪梨和冰糖，慢炖2小时...' },
+            { docName: '菜谱批量导入_001-100.json', score: 72, snippet: '...第38条：冰糖<em>银耳</em>莲子<em>汤</em>，食材包括银耳30g、莲子20g...' },
+            { docName: '红烧肉.json', score: 15, snippet: '...配菜推荐：清炒时蔬、<em>银耳</em>羹...' }
+        ];
+
+        const EMOJI_OPTIONS = [
+            { value: '\u{1F373}', label: '\u{1F373} 菜谱' },
+            { value: '\u{1F3E2}', label: '\u{1F3E2} 公司' },
+            { value: '\u{1F4D6}', label: '\u{1F4D6} 指南' },
+            { value: '\u{1F527}', label: '\u{1F527} 技术' },
+            { value: '\u{1F4A1}', label: '\u{1F4A1} 常见问题' }
+        ];
+
+        const FORMAT_COLORS = { json: 'blue', markdown: 'green', txt: 'orange' };
+        const STATUS_MAP = {
+            indexed: { color: 'green', text: '已索引' },
+            indexing: { color: 'blue', text: '索引中' },
+            failed: { color: 'red', text: '失败' }
+        };
+        const CATEGORY_STATUS_MAP = {
+            ready: { color: 'green', text: '就绪' },
+            indexing: { color: 'blue', text: '索引中' }
+        };
+
+        // ── App ──
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(['knowledge']);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+
+            const [selectedCategory, setSelectedCategory] = useState(null);
+            const [docFilters, setDocFilters] = useState({ name: '', format: undefined, status: undefined });
+
+            const [uploadModalVisible, setUploadModalVisible] = useState(false);
+            const [uploadProgress, setUploadProgress] = useState(0);
+            const [uploading, setUploading] = useState(false);
+
+            const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+            const [editingCategory, setEditingCategory] = useState(null);
+            const [categoryForm] = Form.useForm();
+
+            const [searchModalVisible, setSearchModalVisible] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [searching, setSearching] = useState(false);
+
+            const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+            const [deletingItem, setDeletingItem] = useState(null);
+            const [deleteType, setDeleteType] = useState('doc');
+
+            // ── Derived ──
+
+            const totalDocs = useMemo(() => mockCategories.reduce((sum, c) => sum + c.docCount, 0), []);
+            const totalIndexed = useMemo(() => mockCategories.reduce((sum, c) => sum + c.indexedCount, 0), []);
+            const totalIndexing = useMemo(() => totalDocs - totalIndexed, [totalDocs, totalIndexed]);
+
+            const currentDocuments = useMemo(() => {
+                if (!selectedCategory) return [];
+                const docs = mockDocumentsMap[selectedCategory.id] || [];
+                return docs.filter(d => {
+                    if (docFilters.name && !d.name.toLowerCase().includes(docFilters.name.toLowerCase())) return false;
+                    if (docFilters.format && d.format !== docFilters.format) return false;
+                    if (docFilters.status && d.status !== docFilters.status) return false;
+                    return true;
+                });
+            }, [selectedCategory, docFilters]);
+
+            // ── Navigation ──
+
+            const goTo = (page) => {
+                const map = {
+                    'libraries': '../pd-intent-library/index.html',
+                    'datasets': '../pd-intent-library/datasets.html',
+                    'profiles': '../pd-dialog-profile/index.html',
+                    'knowledge': 'index.html'
+                };
+                if (map[page]) window.location.href = map[page];
+            };
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            // ── Mermaid rendering ──
+
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            // ── Category Handlers ──
+
+            const openCreateCategory = () => {
+                setEditingCategory(null);
+                categoryForm.resetFields();
+                categoryForm.setFieldsValue({ icon: '\u{1F373}' });
+                setCategoryModalVisible(true);
+            };
+
+            const openEditCategory = (cat, e) => {
+                e.stopPropagation();
+                setEditingCategory(cat);
+                categoryForm.setFieldsValue({ name: cat.name, icon: cat.icon, description: cat.description });
+                setCategoryModalVisible(true);
+            };
+
+            const handleCategoryOk = () => {
+                categoryForm.validateFields().then(values => {
+                    message.success(editingCategory ? '分类更新成功' : '分类创建成功');
+                    setCategoryModalVisible(false);
+                    categoryForm.resetFields();
+                }).catch(() => {});
+            };
+
+            // ── Delete Handlers ──
+
+            const handleDeleteCategory = (cat, e) => {
+                e.stopPropagation();
+                setDeletingItem(cat);
+                setDeleteType('category');
+                setDeleteModalVisible(true);
+            };
+
+            const handleDeleteDoc = (doc) => {
+                setDeletingItem(doc);
+                setDeleteType('doc');
+                setDeleteModalVisible(true);
+            };
+
+            const confirmDelete = () => {
+                if (deleteType === 'category') {
+                    message.success('分类已删除：' + deletingItem.name);
+                    if (selectedCategory && selectedCategory.id === deletingItem.id) {
+                        setSelectedCategory(null);
+                    }
+                } else {
+                    message.success('文档已删除：' + deletingItem.name);
+                }
+                setDeleteModalVisible(false);
+                setDeletingItem(null);
+            };
+
+            // ── Upload Handlers ──
+
+            const handleUpload = (info) => {
+                if (info.file.status === 'uploading') {
+                    setUploading(true);
+                    setUploadProgress(info.file.percent || 0);
+                }
+                if (info.file.status === 'done') {
+                    setUploading(false);
+                    setUploadProgress(100);
+                    message.success(info.file.name + ' 上传成功，正在解析索引...');
+                }
+            };
+
+            const simulateUpload = () => {
+                setUploading(true);
+                setUploadProgress(0);
+                let p = 0;
+                const timer = setInterval(() => {
+                    p += Math.random() * 30;
+                    if (p >= 100) {
+                        p = 100;
+                        clearInterval(timer);
+                        setUploading(false);
+                        message.success('文档上传成功，正在解析建立索引...');
+                    }
+                    setUploadProgress(Math.min(p, 100));
+                }, 500);
+            };
+
+            // ── Search Handlers ──
+
+            const handleSearch = () => {
+                if (!searchQuery.trim()) {
+                    message.warning('请输入检索关键词');
+                    return;
+                }
+                setSearching(true);
+                setTimeout(() => {
+                    setSearchResults(mockSearchResults);
+                    setSearching(false);
+                }, 800);
+            };
+
+            // ── Table Columns ──
+
+            const columns = [
+                {
+                    title: '文档名称',
+                    key: 'name',
+                    width: 220,
+                    render: (_, record) => (
+                        <a href="detail.html" style={{ fontWeight: 500 }}>{record.name}</a>
+                    )
+                },
+                {
+                    title: '格式',
+                    key: 'format',
+                    width: 90,
+                    render: (_, record) => (
+                        <Tag color={FORMAT_COLORS[record.format]}>{record.format.toUpperCase()}</Tag>
+                    )
+                },
+                {
+                    title: '大小',
+                    dataIndex: 'size',
+                    key: 'size',
+                    width: 90
+                },
+                {
+                    title: '有效字段 / 总字段',
+                    key: 'fields',
+                    width: 140,
+                    render: (_, record) => {
+                        const ratio = record.totalFields > 0 ? record.validFields / record.totalFields : 1;
+                        const color = ratio >= 0.8 ? '#52c41a' : ratio >= 0.5 ? '#faad14' : '#ff4d4f';
+                        return (
+                            <Tooltip title={'过滤字段: ' + (record.filteredFields.length > 0 ? record.filteredFields.join(', ') : '无')}>
+                                <span style={{ fontFamily: 'monospace', color }}>{record.validFields}/{record.totalFields}</span>
+                                {record.filteredFields.length > 0 && (
+                                    <span style={{ fontSize: 11, color: '#8c8c8c', marginLeft: 4 }}>
+                                        (-{record.filteredFields.length})
+                                    </span>
+                                )}
+                            </Tooltip>
+                        );
+                    }
+                },
+                {
+                    title: '状态',
+                    key: 'status',
+                    width: 90,
+                    render: (_, record) => {
+                        const cfg = STATUS_MAP[record.status];
+                        return (
+                            <Tag
+                                color={cfg.color}
+                                icon={record.status === 'indexing' ? <SyncOutlined spin /> : record.status === 'indexed' ? <CheckCircleOutlined /> : null}
+                            >
+                                {cfg.text}
+                            </Tag>
+                        );
+                    }
+                },
+                {
+                    title: '上传时间',
+                    dataIndex: 'uploadedAt',
+                    key: 'uploadedAt',
+                    width: 150
+                },
+                {
+                    title: '操作',
+                    key: 'action',
+                    width: 200,
+                    render: (_, record) => (
+                        <Space>
+                            <Button type="link" size="small" icon={<EyeOutlined />} href="detail.html">查看</Button>
+                            <Tooltip title="重新解析文档并重建索引">
+                                <Button
+                                    type="link"
+                                    size="small"
+                                    icon={<ReloadOutlined />}
+                                    onClick={() => message.info('已提交重新索引任务：' + record.name)}
+                                >
+                                    重新索引
+                                </Button>
+                            </Tooltip>
+                            <Button
+                                type="link"
+                                size="small"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDeleteDoc(record)}
+                            >
+                                删除
+                            </Button>
+                        </Space>
+                    )
+                }
+            ];
+
+            // ── Menu ──
+
+            const menuItems = [
+                {
+                    key: 'config',
+                    icon: <SettingOutlined />,
+                    label: '配置管理',
+                    children: [
+                        { key: 'libraries', icon: <DatabaseOutlined />, label: '指令库管理', onClick: () => goTo('libraries') },
+                        { key: 'datasets', icon: <FileTextOutlined />, label: '数据集管理', onClick: () => goTo('datasets') },
+                        { key: 'profiles', icon: <RobotOutlined />, label: '对话方案', onClick: () => goTo('profiles') }
+                    ]
+                },
+                {
+                    key: 'knowledge',
+                    icon: <BookOutlined />,
+                    label: '知识库管理'
+                },
+                {
+                    key: 'testing',
+                    icon: <ExperimentOutlined />,
+                    label: '测试验证',
+                    children: [
+                        { key: 'manual-test', icon: <MessageOutlined />, label: '手动测试' },
+                        { key: 'batch-test', icon: <ExperimentOutlined />, label: '批量测试' }
+                    ]
+                },
+                {
+                    key: 'system',
+                    icon: <UserOutlined />,
+                    label: '系统管理',
+                    children: [
+                        { key: 'versions', icon: <RocketOutlined />, label: '版本管理' },
+                        { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+                        { key: 'monitoring', icon: <BarChartOutlined />, label: '监控仪表盘' }
+                    ]
+                }
+            ];
+
+            // ── Drawer Tabs ──
+
+            const drawerTabs = [
+                {
+                    key: 'flow',
+                    label: '数据流向',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">知识库文档全链路数据流向</div>
+                                <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.8 }}>
+{`[文档上传]  用户上传 JSON / Markdown / TXT 文件
+    ↓
+[格式检测]  识别文件格式，校验合法性
+    ↓
+[字段解析/过滤]  (FR-005)
+    ├─ JSON: 提取有效字段，过滤无效字段
+    │   ├─ 保留: recipe_name, ingredients, steps, nutrition...
+    │   └─ 过滤: image_url, oss_link, like_count, ad_banner...
+    └─ Markdown: 按标题层级分段
+    ↓
+[内容索引]  向量化嵌入，建立语义检索索引
+    ↓
+[可检索]  文档进入知识库，支持语义搜索`}
+                                </pre>
+                            </div>
+                            <Alert
+                                message="关键数据关系"
+                                description="分类:文档 = 1:N（一个分类下可有多个文档）；文档上传后自动触发解析和索引流程；索引完成后文档可被对话系统检索。"
+                                type="info"
+                                showIcon
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: 'state',
+                    label: '状态流转',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">文档生命周期状态机</div>
+                                <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4, overflow: 'auto', fontSize: 13, lineHeight: 1.8 }}>
+{`uploading → parsing → indexing → indexed
+                          ↓
+                        failed  ←── 可重试（重新索引）
+
+状态说明:
+  uploading : 文件上传中，显示进度条
+  parsing   : 解析文件内容，提取/过滤字段
+  indexing   : 向量化嵌入，建立检索索引
+  indexed   : 索引完成，文档可被检索
+  failed    : 索引失败，可点击"重新索引"重试`}
+                                </pre>
+                                <List
+                                    size="small"
+                                    bordered
+                                    style={{ marginTop: 16 }}
+                                    dataSource={[
+                                        { rule: '自动触发', desc: '文档上传后自动进入 parsing → indexing 流程，无需手动操作' },
+                                        { rule: '失败重试', desc: '索引失败后可点击"重新索引"按钮重试，不需要重新上传' },
+                                        { rule: '增量索引', desc: '新上传文档仅影响自身索引，不影响已有文档' },
+                                        { rule: '删除级联', desc: '删除文档同时清除其索引数据' }
+                                    ]}
+                                    renderItem={item => (
+                                        <List.Item>
+                                            <Tag color="blue">{item.rule}</Tag> {item.desc}
+                                        </List.Item>
+                                    )}
+                                />
+                            </div>
+                            <Alert
+                                message="分类状态"
+                                description="分类状态由其下文档状态决定：所有文档已索引 → ready（就绪）；存在文档索引中 → indexing（索引中）。"
+                                type="warning"
+                                showIcon
+                            />
+                        </div>
+                    )
+                },
+                {
+                    key: 'fields',
+                    label: '字段说明',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">文档字段详解</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="field"
+                                    columns={[
+                                        { title: '字段', dataIndex: 'field', width: 140 },
+                                        { title: '类型', dataIndex: 'type', width: 80 },
+                                        { title: '说明', dataIndex: 'desc' },
+                                        { title: '约束 / 默认值', dataIndex: 'constraint', width: 220 }
+                                    ]}
+                                    dataSource={[
+                                        { field: 'id', type: 'string', desc: '文档唯一标识', constraint: '只读，系统自动生成' },
+                                        { field: 'name', type: 'string', desc: '文档文件名', constraint: '上传时自动获取' },
+                                        { field: 'format', type: 'enum', desc: '文件格式', constraint: 'json | markdown | txt' },
+                                        { field: 'size', type: 'string', desc: '文件大小', constraint: '只读' },
+                                        { field: 'validFields', type: 'int', desc: '有效字段数（过滤后保留）', constraint: 'JSON 文档特有' },
+                                        { field: 'totalFields', type: 'int', desc: '原始总字段数', constraint: 'JSON 文档特有' },
+                                        { field: 'filteredFields', type: 'array', desc: '被过滤的无效字段列表', constraint: 'FR-005 自动过滤' },
+                                        { field: 'status', type: 'enum', desc: '文档索引状态', constraint: 'indexed | indexing | failed' },
+                                        { field: 'uploadedAt', type: 'datetime', desc: '上传时间', constraint: '只读' }
+                                    ]}
+                                />
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">分类字段详解</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="field"
+                                    columns={[
+                                        { title: '字段', dataIndex: 'field', width: 140 },
+                                        { title: '类型', dataIndex: 'type', width: 80 },
+                                        { title: '说明', dataIndex: 'desc' },
+                                        { title: '约束', dataIndex: 'constraint', width: 220 }
+                                    ]}
+                                    dataSource={[
+                                        { field: 'id', type: 'string', desc: '分类唯一标识', constraint: '只读，系统生成 kb_XXX' },
+                                        { field: 'name', type: 'string', desc: '分类显示名称', constraint: '必填，最长 30 字符' },
+                                        { field: 'icon', type: 'emoji', desc: '分类图标', constraint: '从预设列表选择' },
+                                        { field: 'description', type: 'string', desc: '分类描述', constraint: '可选，最长 200 字符' },
+                                        { field: 'docCount', type: 'int', desc: '文档总数', constraint: '只读，系统计算' },
+                                        { field: 'indexedCount', type: 'int', desc: '已索引文档数', constraint: '只读，系统计算' },
+                                        { field: 'status', type: 'enum', desc: '分类整体状态', constraint: 'ready | indexing' }
+                                    ]}
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'operations',
+                    label: '操作说明',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">上传文档流程</div>
+                                <div className="mermaid" key="op-upload">
+{`flowchart TD
+    A[点击上传文档] --> B[打开上传弹窗]
+    B --> C[拖拽/选择文件]
+    C --> D{格式校验}
+    D -->|不支持| E[提示: 仅支持 JSON/MD/TXT]
+    D -->|通过| F[上传文件]
+    F --> G[显示上传进度]
+    G --> H[解析文件内容]
+    H --> I{文件格式}
+    I -->|JSON| J[提取有效字段 + 过滤无效字段]
+    I -->|Markdown| K[按标题分段]
+    I -->|TXT| L[全文索引]
+    J --> M[建立向量索引]
+    K --> M
+    L --> M
+    M --> N[状态 = indexed]
+    M --> O[索引失败 → status = failed]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">新建分类流程</div>
+                                <div className="mermaid" key="op-create-cat">
+{`flowchart TD
+    A[点击新建分类] --> B[打开分类弹窗]
+    B --> C[填写名称/图标/描述]
+    C --> D{字段校验}
+    D -->|名称为空| E[提示: 请输入分类名称]
+    D -->|名称重复| F[提示: 分类名称已存在]
+    D -->|通过| G[保存分类]
+    G --> H[刷新分类列表]
+    H --> I[提示创建成功]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">删除文档流程</div>
+                                <div className="mermaid" key="op-delete-doc">
+{`flowchart TD
+    A[点击删除按钮] --> B[弹出确认弹窗]
+    B --> C{用户确认?}
+    C -->|取消| D[关闭弹窗]
+    C -->|确认| E[删除文档]
+    E --> F[清除文档索引数据]
+    F --> G[刷新文档列表]
+    G --> H[更新分类统计]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">重新索引流程</div>
+                                <div className="mermaid" key="op-reindex">
+{`flowchart TD
+    A[点击重新索引] --> B[清除旧索引]
+    B --> C[重新解析文档]
+    C --> D[重建向量索引]
+    D --> E{索引结果}
+    E -->|成功| F[status = indexed]
+    E -->|失败| G[status = failed]
+    F --> H[提示: 重新索引完成]
+    G --> I[提示: 索引失败，请重试]`}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'logic',
+                    label: '业务逻辑',
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">JSON 文档解析逻辑 (FR-005)</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <p><strong>有效字段（保留）：</strong></p>
+                                    <div style={{ marginBottom: 8 }}>
+                                        {['recipe_name', 'description', 'ingredients', 'steps', 'nutrition', 'cooking_tools', 'tags', 'cooking_time'].map(f => (
+                                            <span className="field-tag-valid" key={f}>{f}</span>
+                                        ))}
+                                    </div>
+                                    <p><strong>无效字段（过滤）：</strong></p>
+                                    <div style={{ marginBottom: 8 }}>
+                                        {['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'share_count', 'comment_count', 'ad_banner'].map(f => (
+                                            <span className="field-tag-invalid" key={f}>{f}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                                <Alert
+                                    message="过滤规则"
+                                    description="系统自动识别并过滤：图片/视频 URL、OSS 对象链接、社交互动数据（点赞/评论/分享数）、审核状态字段、广告位字段。仅保留对知识检索有语义价值的文本字段。"
+                                    type="info"
+                                    showIcon
+                                />
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">Markdown 文档解析逻辑</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <ol>
+                                        <li>按 h1/h2/h3 标题层级拆分文档为多个段落</li>
+                                        <li>每个段落作为一个独立的可检索单元（chunk）</li>
+                                        <li>保留标题层级关系，用于检索结果展示</li>
+                                        <li>Markdown 格式不做字段过滤（所有内容均为有效文本）</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">索引建立逻辑</div>
+                                <div style={{ lineHeight: 1.8, marginBottom: 16 }}>
+                                    <ol>
+                                        <li>解析后的有效内容进行文本向量化（embedding）</li>
+                                        <li>向量存入检索引擎，支持语义相似度搜索</li>
+                                        <li>检索时根据用户查询生成查询向量，计算余弦相似度</li>
+                                        <li>返回 Top-N 匹配结果及相关度评分</li>
+                                    </ol>
+                                </div>
+                                <Alert
+                                    message="索引更新策略"
+                                    description="文档更新后需手动点击'重新索引'以刷新向量数据。批量上传时系统按队列顺序处理索引任务。"
+                                    type="info"
+                                    showIcon
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: 'tips',
+                    label: '易错点',
+                    children: (
+                        <div>
+                            <Alert
+                                message="JSON 格式要求"
+                                description="上传的 JSON 文件必须是合法的 JSON 格式。常见错误：尾部多余逗号、未闭合的引号、使用单引号而非双引号。建议上传前使用 JSON 校验工具检查。"
+                                type="error"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="大批量上传性能"
+                                description="单次上传大文件（>10MB）或批量上传多个文件时，索引建立可能需要较长时间。建议分批上传，每批不超过 50 个文件，避免索引队列积压。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="重新索引覆盖旧数据"
+                                description="点击'重新索引'会清除该文档的所有旧索引数据后重建。索引期间该文档暂时不可被检索到。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="删除分类的级联影响"
+                                description="删除分类会同时删除该分类下的所有文档及其索引数据。此操作不可恢复，请谨慎操作。"
+                                type="error"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="Markdown 分段粒度"
+                                description="Markdown 文档按标题分段。如果文档没有标题层级，整篇文档作为一个检索单元，可能导致检索精度下降。建议 Markdown 文档使用清晰的标题结构。"
+                                type="info"
+                            />
+                        </div>
+                    )
+                }
+            ];
+
+            // ── Render ──
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">智能对话管理平台</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    {/* Main Content */}
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>知识库管理</h1>
+                                    <p style={{ color: '#8c8c8c', fontSize: 14 }}>管理知识库分类与文档，上传文档后系统自动解析内容并建立检索索引</p>
+                                </div>
+                                <Space>
+                                    <Tooltip title="查看数据流向、状态流转、字段说明和业务约束">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreateCategory}>新建分类</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* Statistics Cards */}
+                        <Row gutter={24} style={{ marginBottom: 24 }}>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="分类总数" value={mockCategories.length} prefix={<FolderOutlined />} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="文档总数" value={totalDocs} formatter={(val) => val.toLocaleString()} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="已索引" value={totalIndexed} valueStyle={{ color: '#52c41a' }} formatter={(val) => val.toLocaleString()} />
+                                </Card>
+                            </Col>
+                            <Col span={6}>
+                                <Card>
+                                    <Statistic title="索引中" value={totalIndexing} valueStyle={{ color: '#1890ff' }} />
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        {/* Two-panel Layout */}
+                        <div style={{ display: 'flex', gap: 24 }}>
+                            {/* Left Panel: Category List */}
+                            <Card
+                                title={
+                                    <Space>
+                                        <span>知识库分类</span>
+                                        <Badge count={mockCategories.length} style={{ backgroundColor: '#1890ff' }} />
+                                    </Space>
+                                }
+                                style={{ width: 320, flexShrink: 0 }}
+                                bodyStyle={{ padding: '12px 16px' }}
+                            >
+                                {mockCategories.map(cat => (
+                                    <div
+                                        key={cat.id}
+                                        className={'category-item' + (selectedCategory && selectedCategory.id === cat.id ? ' active' : '')}
+                                        onClick={() => { setSelectedCategory(cat); setDocFilters({ name: '', format: undefined, status: undefined }); }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                                                <span className="category-icon">{cat.icon}</span>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ fontWeight: 500, fontSize: 14 }}>{cat.name}</span>
+                                                        <Badge count={cat.docCount} style={{ backgroundColor: '#f0f0f0', color: '#595959' }} overflowCount={9999} />
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {cat.description}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Space size={4} style={{ marginLeft: 8, flexShrink: 0 }}>
+                                                <Tooltip title="编辑分类">
+                                                    <Button type="text" size="small" icon={<EditOutlined />} onClick={(e) => openEditCategory(cat, e)} />
+                                                </Tooltip>
+                                                <Tooltip title="删除分类">
+                                                    <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={(e) => handleDeleteCategory(cat, e)} />
+                                                </Tooltip>
+                                            </Space>
+                                        </div>
+                                    </div>
+                                ))}
+                                <Button
+                                    type="dashed"
+                                    block
+                                    icon={<PlusOutlined />}
+                                    style={{ marginTop: 8 }}
+                                    onClick={openCreateCategory}
+                                >
+                                    新建分类
+                                </Button>
+                            </Card>
+
+                            {/* Right Panel: Document List */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                {!selectedCategory ? (
+                                    <Card style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Empty
+                                            image={<BookOutlined style={{ fontSize: 64, color: '#d9d9d9' }} />}
+                                            description={<span style={{ color: '#8c8c8c' }}>请从左侧选择知识库分类</span>}
+                                        />
+                                    </Card>
+                                ) : (
+                                    <div>
+                                        {/* Category Header */}
+                                        <Card style={{ marginBottom: 16 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <span style={{ fontSize: 28 }}>{selectedCategory.icon}</span>
+                                                    <div>
+                                                        <Space>
+                                                            <span style={{ fontSize: 18, fontWeight: 600 }}>{selectedCategory.name}</span>
+                                                            <Tag color={CATEGORY_STATUS_MAP[selectedCategory.status].color}>
+                                                                {selectedCategory.status === 'indexing' && <SyncOutlined spin style={{ marginRight: 4 }} />}
+                                                                {CATEGORY_STATUS_MAP[selectedCategory.status].text}
+                                                            </Tag>
+                                                        </Space>
+                                                        <div style={{ fontSize: 13, color: '#8c8c8c', marginTop: 4 }}>
+                                                            {selectedCategory.description} | 文档 {selectedCategory.docCount} | 已索引 {selectedCategory.indexedCount}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Space>
+                                                    <Button icon={<UploadOutlined />} type="primary" onClick={() => setUploadModalVisible(true)}>上传文档</Button>
+                                                    <Button icon={<FileSearchOutlined />} onClick={() => { setSearchModalVisible(true); setSearchQuery(''); setSearchResults([]); }}>检索测试</Button>
+                                                </Space>
+                                            </div>
+                                        </Card>
+
+                                        {/* Filter Bar */}
+                                        <Card style={{ marginBottom: 16 }}>
+                                            <Row gutter={16} align="middle">
+                                                <Col span={8}>
+                                                    <Input
+                                                        placeholder="搜索文档名称"
+                                                        value={docFilters.name}
+                                                        onChange={(e) => setDocFilters({ ...docFilters, name: e.target.value })}
+                                                        prefix={<SearchOutlined />}
+                                                        allowClear
+                                                    />
+                                                </Col>
+                                                <Col span={5}>
+                                                    <Select
+                                                        placeholder="全部格式"
+                                                        value={docFilters.format}
+                                                        onChange={(val) => setDocFilters({ ...docFilters, format: val })}
+                                                        style={{ width: '100%' }}
+                                                        allowClear
+                                                    >
+                                                        <Option value="json">JSON</Option>
+                                                        <Option value="markdown">Markdown</Option>
+                                                        <Option value="txt">TXT</Option>
+                                                    </Select>
+                                                </Col>
+                                                <Col span={5}>
+                                                    <Select
+                                                        placeholder="全部状态"
+                                                        value={docFilters.status}
+                                                        onChange={(val) => setDocFilters({ ...docFilters, status: val })}
+                                                        style={{ width: '100%' }}
+                                                        allowClear
+                                                    >
+                                                        <Option value="indexed">已索引</Option>
+                                                        <Option value="indexing">索引中</Option>
+                                                        <Option value="failed">失败</Option>
+                                                    </Select>
+                                                </Col>
+                                                <Col span={6}>
+                                                    <Button onClick={() => setDocFilters({ name: '', format: undefined, status: undefined })}>重置</Button>
+                                                </Col>
+                                            </Row>
+                                        </Card>
+
+                                        {/* Documents Table */}
+                                        <Card>
+                                            <Table
+                                                columns={columns}
+                                                dataSource={currentDocuments}
+                                                pagination={{
+                                                    showSizeChanger: true,
+                                                    showQuickJumper: true,
+                                                    showTotal: (total) => '共 ' + total + ' 条'
+                                                }}
+                                                rowKey="id"
+                                                scroll={{ x: 1000 }}
+                                            />
+                                        </Card>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </Content>
+
+                    {/* Upload Document Modal */}
+                    <Modal
+                        title={'上传文档 - ' + (selectedCategory ? selectedCategory.name : '')}
+                        open={uploadModalVisible}
+                        onCancel={() => { setUploadModalVisible(false); setUploading(false); setUploadProgress(0); }}
+                        footer={[
+                            <Button key="cancel" onClick={() => { setUploadModalVisible(false); setUploading(false); setUploadProgress(0); }}>关闭</Button>,
+                            <Button key="demo" type="primary" onClick={simulateUpload} loading={uploading}>模拟上传</Button>
+                        ]}
+                        width={640}
+                        maskClosable={false}
+                    >
+                        <Dragger
+                            accept=".json,.md,.markdown,.txt"
+                            multiple
+                            showUploadList
+                            beforeUpload={() => false}
+                            onChange={handleUpload}
+                            style={{ marginBottom: 16 }}
+                        >
+                            <p className="ant-upload-drag-icon">
+                                <InboxOutlined />
+                            </p>
+                            <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
+                            <p className="ant-upload-hint">支持 JSON、Markdown (.md)、TXT 格式，可批量上传</p>
+                        </Dragger>
+
+                        {uploading && (
+                            <Progress percent={Math.round(uploadProgress)} status="active" style={{ marginBottom: 16 }} />
+                        )}
+
+                        <Alert
+                            message="系统将自动解析文档内容"
+                            description={
+                                <div>
+                                    <p style={{ marginBottom: 4 }}>- JSON 格式：提取菜名、食材、步骤、营养等有效字段，过滤图片URL、点赞数等无效字段</p>
+                                    <p>- Markdown 格式：按标题分段建立索引</p>
+                                </div>
+                            }
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                        />
+
+                        <div style={{ marginBottom: 8 }}>
+                            <div style={{ fontWeight: 500, marginBottom: 8 }}>字段过滤预览：</div>
+                            <div style={{ marginBottom: 8 }}>
+                                <span style={{ fontSize: 13, color: '#52c41a', fontWeight: 500 }}>有效字段（保留）：</span>
+                                {['菜名', '基本描述', '食材配料', '烹饪步骤', '营养成分', '烹饪器具', '分类标签', '烹饪时间'].map(f => (
+                                    <span className="field-tag-valid" key={f}>{f}</span>
+                                ))}
+                            </div>
+                            <div>
+                                <span style={{ fontSize: 13, color: '#ff4d4f', fontWeight: 500 }}>无效字段（过滤）：</span>
+                                {['image_url', 'oss_link', 'like_count', 'review_status', 'creator_avatar', 'share_count', 'comment_count', 'ad_banner'].map(f => (
+                                    <span className="field-tag-invalid" key={f}>{f}</span>
+                                ))}
+                            </div>
+                        </div>
+                    </Modal>
+
+                    {/* Create / Edit Category Modal */}
+                    <Modal
+                        title={editingCategory ? '编辑分类 - ' + editingCategory.name : '新建分类'}
+                        open={categoryModalVisible}
+                        onOk={handleCategoryOk}
+                        onCancel={() => { setCategoryModalVisible(false); categoryForm.resetFields(); }}
+                        width={480}
+                        maskClosable={false}
+                        okText={editingCategory ? '保存' : '创建'}
+                        cancelText="取消"
+                    >
+                        <Form form={categoryForm} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>
+                                <Input placeholder="请输入分类名称" maxLength={30} allowClear />
+                            </Form.Item>
+                            <Form.Item name="icon" label="分类图标" rules={[{ required: true, message: '请选择分类图标' }]}>
+                                <Select placeholder="请选择图标">
+                                    {EMOJI_OPTIONS.map(opt => (
+                                        <Option key={opt.value} value={opt.value}>{opt.label}</Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+                            <Form.Item name="description" label="分类描述">
+                                <TextArea placeholder="请输入分类描述" rows={3} maxLength={200} showCount />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* Search / Retrieval Test Modal */}
+                    <Modal
+                        title="检索测试"
+                        open={searchModalVisible}
+                        onCancel={() => setSearchModalVisible(false)}
+                        footer={null}
+                        width={700}
+                    >
+                        <div style={{ marginBottom: 16 }}>
+                            <Space.Compact style={{ width: '100%' }}>
+                                <Input
+                                    placeholder="输入检索关键词，如：银耳汤"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onPressEnter={handleSearch}
+                                    prefix={<SearchOutlined />}
+                                    allowClear
+                                />
+                                <Button type="primary" onClick={handleSearch} loading={searching}>搜索</Button>
+                            </Space.Compact>
+                        </div>
+
+                        {searchResults.length > 0 && (
+                            <div>
+                                <div style={{ fontSize: 13, color: '#8c8c8c', marginBottom: 12 }}>
+                                    找到 {searchResults.length} 条匹配结果
+                                </div>
+                                <List
+                                    dataSource={searchResults}
+                                    renderItem={(item, index) => (
+                                        <List.Item>
+                                            <div style={{ width: '100%' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                    <span style={{ fontWeight: 500 }}>{item.docName}</span>
+                                                    <Tag color={item.score >= 80 ? 'green' : item.score >= 50 ? 'orange' : 'default'}>
+                                                        匹配度 {item.score}%
+                                                    </Tag>
+                                                </div>
+                                                <Progress
+                                                    percent={item.score}
+                                                    size="small"
+                                                    strokeColor={item.score >= 80 ? '#52c41a' : item.score >= 50 ? '#faad14' : '#d9d9d9'}
+                                                    style={{ marginBottom: 8 }}
+                                                />
+                                                <div
+                                                    style={{ fontSize: 13, color: '#595959', background: '#fafafa', padding: '8px 12px', borderRadius: 4, lineHeight: 1.6 }}
+                                                    dangerouslySetInnerHTML={{ __html: item.snippet }}
+                                                />
+                                            </div>
+                                        </List.Item>
+                                    )}
+                                />
+                            </div>
+                        )}
+
+                        {searchResults.length === 0 && searchQuery && !searching && (
+                            <Empty description="暂无匹配结果" />
+                        )}
+                    </Modal>
+
+                    {/* Delete Confirmation Modal */}
+                    <Modal
+                        title="删除确认"
+                        open={deleteModalVisible}
+                        onOk={confirmDelete}
+                        onCancel={() => { setDeleteModalVisible(false); setDeletingItem(null); }}
+                        okText="确认删除"
+                        okType="danger"
+                        cancelText="取消"
+                        maskClosable={false}
+                    >
+                        {deletingItem && (
+                            <div>
+                                <p>确定删除{deleteType === 'category' ? '分类' : '文档'} <strong>{deletingItem.name}</strong>？</p>
+                                <Alert
+                                    message="此操作不可恢复"
+                                    description={
+                                        deleteType === 'category'
+                                            ? '删除分类将同时删除该分类下的所有文档及其索引数据。'
+                                            : '删除后文档内容和索引数据将被永久清除。'
+                                    }
+                                    type="warning"
+                                    showIcon
+                                    style={{ marginTop: 12 }}
+                                />
+                            </div>
+                        )}
+                    </Modal>
+
+                    {/* Help Drawer */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? '切换到窄视图' : '切换到宽视图'}>
+                                    <Button
+                                        type="text"
+                                        icon={<ColumnWidthOutlined />}
+                                        onClick={toggleDrawerWidth}
+                                        size="small"
+                                    >
+                                        {drawerWidth === 1200 ? '800px' : '1200px'}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={drawerTabs} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

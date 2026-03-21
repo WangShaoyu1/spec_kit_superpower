@@ -1,7 +1,0 @@
-# DVC 锁定文件占位
-# 
-# 生成方式：安装 DVC 后运行 `dvc repro` 或 `dvc lock`，
-# 将根据 dvc.yaml 的 pipeline 定义自动生成完整的 dvc.lock。
-#
-# dvc.lock 记录各 stage 的输入/输出 hash，确保流水线可复现。
-# 首次运行前此文件可为空或仅含此注释。

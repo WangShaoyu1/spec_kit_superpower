@@ -9,8 +9,8 @@
 #
 # OPTIONS:
 #   -Json               Output in JSON format
-#   -RequireTasks       Require tasks.md to exist (for implementation phase)
-#   -IncludeTasks       Include tasks.md in AVAILABLE_DOCS list
+#   -RequireTasks       Require tasks/ directory or tasks.md to exist (for implementation phase)
+#   -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
 #   -PathsOnly          Only output path variables (no validation)
 #   -Help, -h           Show help message
 
@@ -35,7 +35,7 @@ Consolidated prerequisite checking for Spec-Driven Development workflow.
 OPTIONS:
   -Json               Output in JSON format
   -RequireTasks       Require tasks.md to exist (for implementation phase)
-  -IncludeTasks       Include tasks.md in AVAILABLE_DOCS list
+  -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
   -PathsOnly          Only output path variables (no prerequisite validation)
   -Help, -h           Show this help message
 
@@ -43,7 +43,7 @@ EXAMPLES:
   # Check task prerequisites (plan.md required)
   .\check-prerequisites.ps1 -Json
   
-  # Check implementation prerequisites (plan.md + tasks.md required)
+  # Check implementation prerequisites (plan.md + tasks/ required)
   .\check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
   
   # Get feature paths only (no validation)
@@ -98,30 +98,31 @@ if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
     exit 1
 }
 
-# Check for tasks.md if required
-if ($RequireTasks -and -not (Test-Path $paths.TASKS -PathType Leaf)) {
-    Write-Output "ERROR: tasks.md not found in $($paths.FEATURE_DIR)"
-    Write-Output "Run /speckit.tasks first to create the task list."
-    exit 1
+# Check for tasks/ directory (or legacy tasks.md) if required
+if ($RequireTasks) {
+    $hasTasksDir = Test-Path $paths.TASKS_DIR -PathType Container
+    $hasTasksFile = Test-Path $paths.TASKS_FILE -PathType Leaf
+    if (-not $hasTasksDir -and -not $hasTasksFile) {
+        Write-Output "ERROR: tasks/ directory (or tasks.md) not found in $($paths.FEATURE_DIR)"
+        Write-Output "Run /speckit.tasks first to create the task list."
+        exit 1
+    }
 }
 
 # Build list of available documents
 $docs = @()
 
-# Always check these optional docs
-if (Test-Path $paths.RESEARCH) { $docs += 'research.md' }
-if (Test-Path $paths.DATA_MODEL) { $docs += 'data-model.md' }
+# Design documents (new workflow: pd-all/, ad/, dd/)
+if (Test-Path $paths.PD_ALL_DIR -PathType Container) { $docs += 'pd-all/' }
+if (Test-Path $paths.AD_DIR -PathType Container) { $docs += 'ad/' }
+elseif (Test-Path $paths.AD_FILE -PathType Leaf) { $docs += 'ad.md' }
+if (Test-Path $paths.DD_DIR -PathType Container) { $docs += 'dd/' }
+elseif (Test-Path $paths.DD_FILE -PathType Leaf) { $docs += 'dd.md' }
 
-# Check contracts directory (only if it exists and has files)
-if ((Test-Path $paths.CONTRACTS_DIR) -and (Get-ChildItem -Path $paths.CONTRACTS_DIR -ErrorAction SilentlyContinue | Select-Object -First 1)) { 
-    $docs += 'contracts/' 
-}
-
-if (Test-Path $paths.QUICKSTART) { $docs += 'quickstart.md' }
-
-# Include tasks.md if requested and it exists
-if ($IncludeTasks -and (Test-Path $paths.TASKS)) { 
-    $docs += 'tasks.md' 
+# Include tasks directory (or legacy tasks.md) if requested and it exists
+if ($IncludeTasks) {
+    if (Test-Path $paths.TASKS_DIR -PathType Container) { $docs += 'tasks/' }
+    elseif (Test-Path $paths.TASKS_FILE -PathType Leaf) { $docs += 'tasks.md' }
 }
 
 # Output results
@@ -136,13 +137,24 @@ if ($Json) {
     Write-Output "FEATURE_DIR:$($paths.FEATURE_DIR)"
     Write-Output "AVAILABLE_DOCS:"
     
-    # Show status of each potential document
-    Test-FileExists -Path $paths.RESEARCH -Description 'research.md' | Out-Null
-    Test-FileExists -Path $paths.DATA_MODEL -Description 'data-model.md' | Out-Null
-    Test-DirHasFiles -Path $paths.CONTRACTS_DIR -Description 'contracts/' | Out-Null
-    Test-FileExists -Path $paths.QUICKSTART -Description 'quickstart.md' | Out-Null
+    # Show status of design documents
+    Test-DirHasFiles -Path $paths.PD_ALL_DIR -Description 'pd-all/' | Out-Null
+    if (Test-Path $paths.AD_DIR -PathType Container) {
+        Test-DirHasFiles -Path $paths.AD_DIR -Description 'ad/' | Out-Null
+    } else {
+        Test-FileExists -Path $paths.AD_FILE -Description 'ad.md' | Out-Null
+    }
+    if (Test-Path $paths.DD_DIR -PathType Container) {
+        Test-DirHasFiles -Path $paths.DD_DIR -Description 'dd/' | Out-Null
+    } else {
+        Test-FileExists -Path $paths.DD_FILE -Description 'dd.md' | Out-Null
+    }
     
     if ($IncludeTasks) {
-        Test-FileExists -Path $paths.TASKS -Description 'tasks.md' | Out-Null
+        if (Test-Path $paths.TASKS_DIR -PathType Container) {
+            Test-DirHasFiles -Path $paths.TASKS_DIR -Description 'tasks/' | Out-Null
+        } else {
+            Test-FileExists -Path $paths.TASKS_FILE -Description 'tasks.md' | Out-Null
+        }
     }
 }

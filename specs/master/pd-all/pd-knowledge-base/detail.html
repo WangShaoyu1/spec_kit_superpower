@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档详情 | SmartChef PD</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+        .valid-field-card { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; }
+        .invalid-field-card { background: #fafafa; border: 1px solid #d9d9d9; border-radius: 8px; }
+        .recipe-preview { background: #fff; padding: 24px; border-radius: 8px; border: 1px solid #f0f0f0; }
+        .recipe-preview h2 { font-size: 20px; margin-bottom: 8px; }
+        .recipe-preview .desc { color: #8c8c8c; margin-bottom: 16px; font-size: 14px; }
+        .recipe-preview .section-label { font-weight: 600; font-size: 14px; margin: 16px 0 8px; color: #262626; }
+        .search-result-card { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; padding: 20px; margin-top: 16px; }
+        .highlight { background: #ffe58f; padding: 1px 4px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Badge, Alert, Card, Space,
+            Modal, Drawer, Tabs, Descriptions, Tooltip, Row, Col, Divider,
+            message, Input, Progress, List, Typography, Empty
+        } = antd;
+        const {
+            ArrowLeftOutlined, QuestionCircleOutlined, ReloadOutlined,
+            DeleteOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined,
+            ExperimentOutlined, UserOutlined, BarChartOutlined, ColumnWidthOutlined,
+            SettingOutlined, RocketOutlined, MessageOutlined, CloudUploadOutlined,
+            SearchOutlined, CheckCircleOutlined, CloseCircleOutlined,
+            ExclamationCircleOutlined, InfoCircleOutlined, BookOutlined,
+            FileSearchOutlined, TagOutlined, SafetyCertificateOutlined,
+            FilterOutlined, ApartmentOutlined, ThunderboltOutlined,
+            FileJsonOutlined, CopyOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Search } = Input;
+        const { Text } = Typography;
+
+        const docData = {
+            name: "柠香雪梨银耳汤.json",
+            category: "菜谱知识",
+            categoryEmoji: "\uD83C\uDF73",
+            format: "JSON",
+            size: "3.2 KB",
+            status: "indexed",
+            uploadTime: "2026-03-10 09:00",
+            indexTime: "2026-03-10 09:01",
+            indexVersion: "v1"
+        };
+
+        const validFields = [
+            { key: "1", field: "recipe_name", value: "柠香雪梨银耳汤", type: "string" },
+            { key: "2", field: "description", value: "一道清甜滋润的甜品", type: "string" },
+            { key: "3", field: "main_ingredients", value: "银耳 1朵, 雪梨 1个", type: "array" },
+            { key: "4", field: "sub_ingredients", value: "枸杞适量, 红枣3-5颗, 冰糖适量, 柠檬2片", type: "array" },
+            { key: "5", field: "steps", value: '["银耳提前泡发...", "雪梨去皮切块...", ...]', type: "array(5)" },
+            { key: "6", field: "nutrition", value: "热量: 120kcal, 蛋白质: 2g, ...", type: "object" },
+            { key: "7", field: "cooking_tools", value: "炖锅", type: "string" },
+            { key: "8", field: "tags", value: "甜品, 养生, 秋冬", type: "array" }
+        ];
+
+        const invalidFields = [
+            { key: "1", field: "image_url", value: "https://cdn.xxx.com/...", reason: "图片URL" },
+            { key: "2", field: "oss_link", value: "oss://bucket/...", reason: "OSS存储链接" },
+            { key: "3", field: "like_count", value: "2,345", reason: "社交互动数据" },
+            { key: "4", field: "review_status", value: "approved", reason: "审核状态" },
+            { key: "5", field: "creator_avatar", value: "https://avatar.xxx.com/...", reason: "用户头像" },
+            { key: "6", field: "share_count", value: "189", reason: "社交互动数据" },
+            { key: "7", field: "comment_count", value: "56", reason: "社交互动数据" }
+        ];
+
+        const recipeSteps = [
+            "银耳提前泡发2小时，撕成小朵，去除根蒂",
+            "雪梨去皮去核，切成小块备用",
+            "锅中加入适量清水，放入银耳，大火煮开后转小火炖煮40分钟",
+            "加入雪梨块、红枣、枸杞，继续炖煮20分钟",
+            "出锅前5分钟加入冰糖和柠檬片，搅拌均匀即可"
+        ];
+
+        function App() {
+            const inIframe = typeof window !== "undefined" && window.self !== window.top;
+            const [openKeys, setOpenKeys] = useState(["config"]);
+            const [selectedKeys, setSelectedKeys] = useState(["knowledge"]);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [searchResult, setSearchResult] = useState(null);
+            const [searching, setSearching] = useState(false);
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const goTo = (page) => {
+                if (page === "index") window.location.href = "index.html";
+            };
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const handleReindex = () => {
+                Modal.confirm({
+                    title: "确认重新索引",
+                    icon: React.createElement(ExclamationCircleOutlined),
+                    content: "重新索引将覆盖当前索引内容，索引期间该文档的检索结果可能不稳定。确定继续？",
+                    okText: "确认重新索引",
+                    cancelText: "取消",
+                    onOk: () => message.success("重新索引任务已提交，预计 1-2 分钟完成")
+                });
+            };
+
+            const handleDelete = () => {
+                setDeleteModalVisible(true);
+            };
+
+            const confirmDelete = () => {
+                message.success("文档已删除，正在返回列表...");
+                setDeleteModalVisible(false);
+                setTimeout(() => goTo("index"), 1000);
+            };
+
+            const handleSearch = (value) => {
+                if (!value.trim()) {
+                    message.warning("请输入检索内容");
+                    return;
+                }
+                setSearching(true);
+                setTimeout(() => {
+                    setSearchResult({
+                        score: 0.92,
+                        matchedContent: "柠香雪梨银耳汤需要以下食材：主料有银耳1朵、雪梨1个；辅料有枸杞适量、红枣3-5颗、冰糖适量、柠檬2片",
+                        response: "柠香雪梨银耳汤需要以下食材：主料有银耳1朵、雪梨1个；辅料有枸杞适量、红枣3-5颗、冰糖适量、柠檬2片。这是一道清甜滋润的甜品，适合秋冬季节食用。"
+                    });
+                    setSearching(false);
+                }, 800);
+            };
+
+            const menuItems = [
+                {
+                    key: "config", icon: React.createElement(SettingOutlined), label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: React.createElement(DatabaseOutlined), label: "指令库管理" },
+                        { key: "knowledge", icon: React.createElement(BookOutlined), label: "知识库管理" },
+                        { key: "profiles", icon: React.createElement(RobotOutlined), label: "对话方案" }
+                    ]
+                },
+                {
+                    key: "testing", icon: React.createElement(ExperimentOutlined), label: "测试验证",
+                    children: [
+                        { key: "manual-test", icon: React.createElement(MessageOutlined), label: "手动测试" },
+                        { key: "batch-test", icon: React.createElement(ExperimentOutlined), label: "批量测试" }
+                    ]
+                },
+                {
+                    key: "system", icon: React.createElement(UserOutlined), label: "系统管理",
+                    children: [
+                        { key: "versions", icon: React.createElement(RocketOutlined), label: "版本管理" },
+                        { key: "users", icon: React.createElement(UserOutlined), label: "用户管理" },
+                        { key: "monitoring", icon: React.createElement(BarChartOutlined), label: "监控仪表盘" }
+                    ]
+                }
+            ];
+
+            const validColumns = [
+                { title: "字段", dataIndex: "field", key: "field", width: 160, render: (t) => React.createElement("code", { style: { background: "#f6ffed", padding: "2px 6px", borderRadius: 4, color: "#389e0d", fontSize: 13 } }, t) },
+                { title: "值", dataIndex: "value", key: "value", ellipsis: true },
+                { title: "类型", dataIndex: "type", key: "type", width: 100, render: (t) => React.createElement(Tag, { color: "green" }, t) }
+            ];
+
+            const invalidColumns = [
+                { title: "字段", dataIndex: "field", key: "field", width: 160, render: (t) => React.createElement("code", { style: { background: "#f5f5f5", padding: "2px 6px", borderRadius: 4, color: "#8c8c8c", fontSize: 13, textDecoration: "line-through" } }, t) },
+                { title: "原值", dataIndex: "value", key: "value", ellipsis: true, render: (t) => React.createElement("span", { style: { color: "#8c8c8c", textDecoration: "line-through" } }, t) },
+                { title: "过滤原因", dataIndex: "reason", key: "reason", width: 140, render: (t) => React.createElement(Tag, { color: "default" }, t) }
+            ];
+
+            const drawerTabs = [
+                {
+                    key: "flow",
+                    label: "数据流向",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "文档全链路数据流向"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", lineHeight: 1.8 } },
+                                "[原始文档上传]\n    \u2193\n[JSON/MD \u89E3\u6790] \u2500\u2500 \u63D0\u53D6\u5168\u90E8\u5B57\u6BB5\n    \u2193\n[\u5B57\u6BB5\u8FC7\u6EE4] \u2500\u2500 FR-005 \u89C4\u5219\u5339\u914D\uFF0C\u8FC7\u6EE4\u56FE\u7247URL/OSS/\u793E\u4EA4\u6570\u636E\n    \u2193\n[\u7ED3\u6784\u5316\u5B58\u50A8] \u2500\u2500 \u4FDD\u7559\u6709\u6548\u5B57\u6BB5\u5165\u5E93\n    \u2193\n[\u5411\u91CF\u7D22\u5F15] \u2500\u2500 text \u2192 embedding \u2192 FAISS index\n    \u2193\n[\u8BED\u4E49\u68C0\u7D22] \u2500\u2500 \u7528\u6237\u67E5\u8BE2 \u2192 embedding \u2192 top-K \u5339\u914D"
+                            )
+                        ),
+                        React.createElement(Alert, {
+                            message: "关键数据关系",
+                            description: "每个文档经过解析 \u2192 过滤 \u2192 索引三个阶段。过滤规则基于 FR-005 定义的黑名单字段模式匹配。索引使用 FAISS 向量数据库，支持语义级检索。",
+                            type: "info",
+                            showIcon: true
+                        })
+                    )
+                },
+                {
+                    key: "state",
+                    label: "状态流转",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "文档状态流转"),
+                            React.createElement("div", { style: { padding: 16, background: "#f6ffed", borderRadius: 8, border: "1px solid #b7eb8f", marginBottom: 16, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 } },
+                                React.createElement(Tag, { color: "blue" }, "uploading"),
+                                React.createElement("span", null, "\u2192"),
+                                React.createElement(Tag, { color: "cyan" }, "parsing"),
+                                React.createElement("span", null, "\u2192"),
+                                React.createElement(Tag, { color: "orange" }, "filtering"),
+                                React.createElement("span", null, "\u2192"),
+                                React.createElement(Tag, { color: "purple" }, "indexing"),
+                                React.createElement("span", null, "\u2192"),
+                                React.createElement(Tag, { color: "green" }, "indexed"),
+                                React.createElement("span", null, "/"),
+                                React.createElement(Tag, { color: "red" }, "failed")
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "各状态说明"),
+                            React.createElement(List, {
+                                size: "small",
+                                bordered: true,
+                                dataSource: [
+                                    { state: "uploading", desc: "文件上传中，显示上传进度条" },
+                                    { state: "parsing", desc: "解析文档结构，提取所有字段" },
+                                    { state: "filtering", desc: "应用 FR-005 字段过滤规则，移除无效字段" },
+                                    { state: "indexing", desc: "对有效内容生成向量嵌入，写入 FAISS 索引" },
+                                    { state: "indexed", desc: "索引完成，可被知识问答检索命中" },
+                                    { state: "failed", desc: "任一阶段失败，显示错误信息，可重试" }
+                                ],
+                                renderItem: (item) => React.createElement(List.Item, null,
+                                    React.createElement(Tag, null, item.state),
+                                    " \u2014 ", item.desc
+                                )
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "fields",
+                    label: "字段说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "文档元数据字段"),
+                            React.createElement(Table, {
+                                size: "small",
+                                pagination: false,
+                                columns: [
+                                    { title: "字段", dataIndex: "field", width: 120 },
+                                    { title: "说明", dataIndex: "desc" },
+                                    { title: "来源", dataIndex: "source", width: 120 }
+                                ],
+                                dataSource: [
+                                    { key: "1", field: "文档名称", desc: "上传时的原始文件名", source: "上传时记录" },
+                                    { key: "2", field: "所属分类", desc: "文档归属的知识库分类（FR-006）", source: "上传时选择" },
+                                    { key: "3", field: "格式", desc: "JSON 或 Markdown", source: "文件扩展名" },
+                                    { key: "4", field: "大小", desc: "文件字节大小", source: "上传时计算" },
+                                    { key: "5", field: "状态", desc: "文档处理状态（uploading \u2192 indexed/failed）", source: "系统维护" },
+                                    { key: "6", field: "索引版本", desc: "当前索引内容的版本号，重新索引时递增", source: "索引完成时生成" }
+                                ]
+                            })
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "有效/无效字段分类规则（FR-005）"),
+                            React.createElement(Alert, {
+                                message: "字段过滤黑名单模式",
+                                description: React.createElement("ul", { style: { margin: 0, paddingLeft: 16 } },
+                                    React.createElement("li", null, React.createElement("strong", null, "图片URL"), "：字段名包含 image、photo、avatar、thumbnail 或值匹配 http(s)://*.jpg/png/gif/webp"),
+                                    React.createElement("li", null, React.createElement("strong", null, "OSS链接"), "：值匹配 oss://、s3://、cos:// 等对象存储协议"),
+                                    React.createElement("li", null, React.createElement("strong", null, "社交互动数据"), "：字段名包含 like_count、share_count、comment_count、view_count、favorite_count"),
+                                    React.createElement("li", null, React.createElement("strong", null, "审核状态"), "：字段名包含 review_status、audit_status、approval"),
+                                    React.createElement("li", null, React.createElement("strong", null, "用户隐私"), "：字段名包含 avatar、phone、email、address")
+                                ),
+                                type: "warning",
+                                showIcon: true
+                            })
+                        )
+                    )
+                },
+                {
+                    key: "operations",
+                    label: "操作说明",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "重新索引流程"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 } },
+                                "[\u70B9\u51FB\u201C\u91CD\u65B0\u7D22\u5F15\u201D\u6309\u94AE]\n    \u2193\n[\u786E\u8BA4\u5F39\u7A97] \u2192 \u53D6\u6D88 \u2192 [\u65E0\u64CD\u4F5C]\n    \u2193 \u786E\u8BA4\n[\u72B6\u6001\u8BBE\u4E3A indexing]\n    \u2193\n[\u91CD\u65B0\u89E3\u6790\u6587\u6863] \u2192 [\u5B57\u6BB5\u8FC7\u6EE4] \u2192 [\u751F\u6210\u5411\u91CF]\n    \u2193\n[\u8986\u76D6\u65E7\u7D22\u5F15] \u2192 [\u72B6\u6001\u6062\u590D\u4E3A indexed]\n    \u2193\n[\u7D22\u5F15\u7248\u672C +1] \u2192 [\u63D0\u793A\u6210\u529F]"
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "删除文档流程"),
+                            React.createElement("pre", { style: { background: "#f5f5f5", padding: 16, borderRadius: 4, fontSize: 13, lineHeight: 1.6 } },
+                                "[\u70B9\u51FB\u201C\u5220\u9664\u6587\u6863\u201D\u6309\u94AE]\n    \u2193\n[\u786E\u8BA4\u5F39\u7A97\uFF0C\u5C55\u793A\u5F71\u54CD\u8303\u56F4]\n    \u2193 \u786E\u8BA4\n[\u5220\u9664\u6587\u6863\u8BB0\u5F55] + [\u5220\u9664\u5411\u91CF\u7D22\u5F15]\n    \u2193\n[\u8FD4\u56DE\u5217\u8868\u9875] \u2192 [\u63D0\u793A\u201C\u6587\u6863\u5DF2\u5220\u9664\u201D]"
+                            )
+                        )
+                    )
+                },
+                {
+                    key: "logic",
+                    label: "业务逻辑",
+                    children: React.createElement("div", null,
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "JSON 字段过滤规则（FR-005）"),
+                            React.createElement(Row, { gutter: 24 },
+                                React.createElement(Col, { span: 12 },
+                                    React.createElement(Card, { size: "small", title: React.createElement("span", { style: { color: "#389e0d" } }, "\u2705 \u4FDD\u7559\u5B57\u6BB5\uFF08\u767D\u540D\u5355\uFF09") },
+                                        React.createElement("ul", { style: { margin: 0, paddingLeft: 16, lineHeight: 2 } },
+                                            React.createElement("li", null, "recipe_name \u2014 \u83DC\u8C31\u540D\u79F0"),
+                                            React.createElement("li", null, "description \u2014 \u83DC\u8C31\u63CF\u8FF0"),
+                                            React.createElement("li", null, "main_ingredients \u2014 \u4E3B\u6599"),
+                                            React.createElement("li", null, "sub_ingredients \u2014 \u8F85\u6599"),
+                                            React.createElement("li", null, "steps \u2014 \u6B65\u9AA4"),
+                                            React.createElement("li", null, "nutrition \u2014 \u8425\u517B\u4FE1\u606F"),
+                                            React.createElement("li", null, "cooking_tools \u2014 \u7528\u5177"),
+                                            React.createElement("li", null, "tags \u2014 \u6807\u7B7E"),
+                                            React.createElement("li", null, "cooking_time \u2014 \u70F9\u996A\u65F6\u95F4")
+                                        )
+                                    )
+                                ),
+                                React.createElement(Col, { span: 12 },
+                                    React.createElement(Card, { size: "small", title: React.createElement("span", { style: { color: "#ff4d4f" } }, "\u274C \u8FC7\u6EE4\u5B57\u6BB5\uFF08\u9ED1\u540D\u5355\uFF09") },
+                                        React.createElement("ul", { style: { margin: 0, paddingLeft: 16, lineHeight: 2 } },
+                                            React.createElement("li", null, "image_url / photo / thumbnail \u2014 \u56FE\u7247"),
+                                            React.createElement("li", null, "oss_link / s3_path \u2014 \u5BF9\u8C61\u5B58\u50A8"),
+                                            React.createElement("li", null, "like_count / share_count \u2014 \u793E\u4EA4\u6570\u636E"),
+                                            React.createElement("li", null, "comment_count / view_count \u2014 \u4E92\u52A8\u7EDF\u8BA1"),
+                                            React.createElement("li", null, "review_status / audit \u2014 \u5BA1\u6838\u72B6\u6001"),
+                                            React.createElement("li", null, "creator_avatar / phone \u2014 \u7528\u6237\u9690\u79C1")
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "Markdown 分段规则"),
+                            React.createElement("ol", { style: { lineHeight: 1.8 } },
+                                React.createElement("li", null, "\u6309 h1(#) \u548C h2(##) \u6807\u9898\u5206\u5272\u6587\u6863\u4E3A\u591A\u4E2A section"),
+                                React.createElement("li", null, "\u6BCF\u4E2A section \u72EC\u7ACB\u5EFA\u7ACB\u5411\u91CF\u7D22\u5F15"),
+                                React.createElement("li", null, "\u68C0\u7D22\u65F6\u8FD4\u56DE\u6700\u76F8\u5173\u7684 section\uFF0C\u800C\u975E\u6574\u7BC7\u6587\u6863"),
+                                React.createElement("li", null, "\u6807\u9898\u4F5C\u4E3A section \u5143\u6570\u636E\uFF0C\u63D0\u9AD8\u68C0\u7D22\u51C6\u786E\u6027")
+                            )
+                        ),
+                        React.createElement("div", { className: "drawer-section" },
+                            React.createElement("div", { className: "drawer-section-title" }, "向量嵌入流程"),
+                            React.createElement("ol", { style: { lineHeight: 1.8 } },
+                                React.createElement("li", null, "\u6709\u6548\u6587\u672C\u5185\u5BB9\u62FC\u63A5\u4E3A\u5355\u4E00\u5B57\u7B26\u4E32"),
+                                React.createElement("li", null, "\u8C03\u7528 embedding \u6A21\u578B\u751F\u6210\u5411\u91CF\uFF08\u7EF4\u5EA6\u53D6\u51B3\u4E8E\u6A21\u578B\uFF09"),
+                                React.createElement("li", null, "\u5411\u91CF\u5199\u5165 FAISS index\uFF0C\u5173\u8054\u6587\u6863 ID"),
+                                React.createElement("li", null, "\u68C0\u7D22\u65F6\uFF1A\u7528\u6237 query \u2192 embedding \u2192 FAISS top-K \u2192 \u8FD4\u56DE\u5339\u914D\u6587\u6863")
+                            )
+                        )
+                    )
+                },
+                {
+                    key: "tips",
+                    label: "易错点",
+                    children: React.createElement("div", null,
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F \u91CD\u65B0\u7D22\u5F15\u671F\u95F4\u7684\u68C0\u7D22\u7A33\u5B9A\u6027",
+                            description: "\u91CD\u65B0\u7D22\u5F15\u65F6\u65E7\u7D22\u5F15\u4F1A\u88AB\u8986\u76D6\uFF0C\u5728\u65B0\u7D22\u5F15\u5B8C\u6210\u524D\u8BE5\u6587\u6863\u7684\u68C0\u7D22\u7ED3\u679C\u53EF\u80FD\u4E0D\u7A33\u5B9A\u6216\u7F3A\u5931\u3002\u5EFA\u8BAE\u5728\u4F4E\u5CF0\u671F\u6267\u884C\u91CD\u65B0\u7D22\u5F15\u3002",
+                            type: "error",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F \u5927\u6587\u6863\u5904\u7406\u8D85\u65F6",
+                            description: "\u5355\u4E2A\u6587\u6863\u8D85\u8FC7 1MB \u65F6\uFF0C\u89E3\u6790\u548C\u7D22\u5F15\u53EF\u80FD\u8D85\u65F6\u3002\u5EFA\u8BAE\u5C06\u5927\u6587\u6863\u62C6\u5206\u4E3A\u591A\u4E2A\u5C0F\u6587\u6863\u4E0A\u4F20\uFF0C\u6BCF\u4E2A\u6587\u6863\u63A7\u5236\u5728 500KB \u4EE5\u5185\u3002",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F \u5220\u9664\u540E\u4E0D\u53EF\u6062\u590D",
+                            description: "\u5220\u9664\u6587\u6863\u4F1A\u540C\u65F6\u5220\u9664\u5176\u5411\u91CF\u7D22\u5F15\uFF0C\u5DF2\u5220\u9664\u7684\u6587\u6863\u65E0\u6CD5\u6062\u590D\u3002\u5982\u9700\u91CD\u65B0\u7D22\u5F15\u76F8\u540C\u5185\u5BB9\uFF0C\u5FC5\u987B\u91CD\u65B0\u4E0A\u4F20\u6587\u4EF6\u3002",
+                            type: "warning",
+                            style: { marginBottom: 12 }
+                        }),
+                        React.createElement(Alert, {
+                            message: "\u26A0\uFE0F \u5B57\u6BB5\u8FC7\u6EE4\u53EF\u80FD\u8BEF\u4F24",
+                            description: "\u81EA\u52A8\u8FC7\u6EE4\u57FA\u4E8E\u6A21\u5F0F\u5339\u914D\uFF0C\u53EF\u80FD\u5C06\u542B\u6709 url \u4F46\u5B9E\u9645\u4E3A\u6709\u6548\u5185\u5BB9\u7684\u5B57\u6BB5\u8BEF\u5220\u3002\u4E0A\u4F20\u540E\u5E94\u5728\u8BE6\u60C5\u9875\u68C0\u67E5\u8FC7\u6EE4\u7ED3\u679C\u662F\u5426\u5408\u7406\u3002",
+                            type: "info",
+                            style: { marginBottom: 12 }
+                        })
+                    )
+                }
+            ];
+
+            return React.createElement(Layout, { className: "page-layout" },
+                inIframe ? null : React.createElement(Sider, { trigger: null, width: 260, className: "sidebar" },
+                    React.createElement("div", { className: "sidebar-header" },
+                        React.createElement("div", { className: "sidebar-logo" }, "SmartChef \u5E73\u53F0"),
+                        React.createElement("div", { className: "sidebar-subtitle" }, "\u6587\u6863\u8BE6\u60C5")
+                    ),
+                    React.createElement(Menu, {
+                        theme: "dark",
+                        mode: "inline",
+                        selectedKeys: selectedKeys,
+                        openKeys: openKeys,
+                        onOpenChange: handleOpenChange,
+                        onSelect: ({ key }) => setSelectedKeys([key]),
+                        items: menuItems
+                    })
+                ),
+
+                React.createElement(Content, { className: "main-content" + (inIframe ? " main-content-no-sider" : "") },
+
+                    React.createElement("div", { className: "page-header" },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16 } },
+                                React.createElement(Button, { icon: React.createElement(ArrowLeftOutlined), onClick: () => goTo("index") }, "\u8FD4\u56DE"),
+                                React.createElement("div", null,
+                                    React.createElement("h1", { style: { fontSize: 22, fontWeight: 600, margin: 0, display: "flex", alignItems: "center", gap: 8 } },
+                                        "\u6587\u6863\u8BE6\u60C5: ", docData.name,
+                                        React.createElement(Tag, { color: "green", style: { fontSize: 13 } }, "\u5DF2\u7D22\u5F15")
+                                    )
+                                )
+                            ),
+                            React.createElement(Space, null,
+                                React.createElement(Button, { icon: React.createElement(QuestionCircleOutlined), onClick: () => setDrawerVisible(true) }, "\u8BF4\u660E"),
+                                React.createElement(Button, { icon: React.createElement(ReloadOutlined), onClick: handleReindex }, "\u91CD\u65B0\u7D22\u5F15"),
+                                React.createElement(Button, { danger: true, icon: React.createElement(DeleteOutlined), onClick: handleDelete }, "\u5220\u9664\u6587\u6863")
+                            )
+                        )
+                    ),
+
+                    React.createElement(Card, { title: "\u6587\u6863\u57FA\u672C\u4FE1\u606F", style: { marginBottom: 24 } },
+                        React.createElement(Descriptions, { bordered: true, column: 3 },
+                            React.createElement(Descriptions.Item, { label: "\u6587\u6863\u540D\u79F0" },
+                                React.createElement(Space, null,
+                                    React.createElement(FileJsonOutlined, { style: { color: "#1890ff" } }),
+                                    docData.name
+                                )
+                            ),
+                            React.createElement(Descriptions.Item, { label: "\u6240\u5C5E\u5206\u7C7B" }, docData.category, " ", docData.categoryEmoji),
+                            React.createElement(Descriptions.Item, { label: "\u683C\u5F0F" },
+                                React.createElement(Tag, { color: "blue" }, docData.format)
+                            ),
+                            React.createElement(Descriptions.Item, { label: "\u5927\u5C0F" }, docData.size),
+                            React.createElement(Descriptions.Item, { label: "\u72B6\u6001" },
+                                React.createElement(Tag, { color: "green" }, "\u5DF2\u7D22\u5F15")
+                            ),
+                            React.createElement(Descriptions.Item, { label: "\u4E0A\u4F20\u65F6\u95F4" }, docData.uploadTime),
+                            React.createElement(Descriptions.Item, { label: "\u7D22\u5F15\u65F6\u95F4" }, docData.indexTime),
+                            React.createElement(Descriptions.Item, { label: "\u7D22\u5F15\u7248\u672C" },
+                                React.createElement(Tag, null, docData.indexVersion)
+                            )
+                        )
+                    ),
+
+                    React.createElement(Card, {
+                        title: React.createElement(Space, null,
+                            React.createElement(FilterOutlined),
+                            "\u5B57\u6BB5\u89E3\u6790\u7ED3\u679C",
+                            React.createElement(Tag, { color: "blue" }, "FR-005")
+                        ),
+                        style: { marginBottom: 24 }
+                    },
+                        React.createElement(Row, { gutter: 24, style: { marginBottom: 16 } },
+                            React.createElement(Col, { span: 13 },
+                                React.createElement(Card, {
+                                    type: "inner",
+                                    className: "valid-field-card",
+                                    title: React.createElement("span", { style: { color: "#389e0d" } },
+                                        React.createElement(CheckCircleOutlined), " \u6709\u6548\u5B57\u6BB5\uFF08\u5DF2\u4FDD\u7559\uFF09"
+                                    )
+                                },
+                                    React.createElement(Table, {
+                                        columns: validColumns,
+                                        dataSource: validFields,
+                                        pagination: false,
+                                        size: "small"
+                                    })
+                                )
+                            ),
+                            React.createElement(Col, { span: 11 },
+                                React.createElement(Card, {
+                                    type: "inner",
+                                    className: "invalid-field-card",
+                                    title: React.createElement("span", { style: { color: "#8c8c8c" } },
+                                        React.createElement(CloseCircleOutlined), " \u65E0\u6548\u5B57\u6BB5\uFF08\u5DF2\u8FC7\u6EE4\uFF09"
+                                    )
+                                },
+                                    React.createElement(Table, {
+                                        columns: invalidColumns,
+                                        dataSource: invalidFields,
+                                        pagination: false,
+                                        size: "small"
+                                    })
+                                )
+                            )
+                        ),
+                        React.createElement(Alert, {
+                            message: React.createElement("span", null,
+                                "\u4FDD\u7559 ", React.createElement("strong", null, "8"), " / 15 \u4E2A\u5B57\u6BB5\uFF08\u8FC7\u6EE4\u7387 ",
+                                React.createElement("strong", null, "46.7%"),
+                                "\uFF09\uFF0C\u8FC7\u6EE4\u4E86\u56FE\u7247URL\u3001OSS\u94FE\u63A5\u3001\u793E\u4EA4\u6570\u636E\u548C\u5BA1\u6838\u72B6\u6001\u7B49\u975E\u77E5\u8BC6\u7C7B\u5B57\u6BB5"
+                            ),
+                            type: "info",
+                            showIcon: true
+                        })
+                    ),
+
+                    React.createElement(Card, {
+                        title: React.createElement(Space, null,
+                            React.createElement(FileSearchOutlined),
+                            "\u7D22\u5F15\u5185\u5BB9\u9884\u89C8"
+                        ),
+                        style: { marginBottom: 24 }
+                    },
+                        React.createElement("div", { className: "recipe-preview" },
+                            React.createElement("h2", null, "\uD83C\uDF4B \u67E0\u9999\u96EA\u68A8\u94F6\u8033\u6C64"),
+                            React.createElement("div", { className: "desc" }, "\u4E00\u9053\u6E05\u751C\u6ECB\u6DA6\u7684\u751C\u54C1"),
+                            React.createElement(Divider, { style: { margin: "12px 0" } }),
+                            React.createElement("div", { className: "section-label" }, "\uD83E\uDD62 \u4E3B\u6599"),
+                            React.createElement("ul", { style: { paddingLeft: 20, marginBottom: 8 } },
+                                React.createElement("li", null, "\u94F6\u8033 1\u6735"),
+                                React.createElement("li", null, "\u96EA\u68A8 1\u4E2A")
+                            ),
+                            React.createElement("div", { className: "section-label" }, "\uD83E\uDDC2 \u8F85\u6599"),
+                            React.createElement("ul", { style: { paddingLeft: 20, marginBottom: 8 } },
+                                React.createElement("li", null, "\u679A\u6776\u9002\u91CF"),
+                                React.createElement("li", null, "\u7EA2\u67A3 3-5\u9897"),
+                                React.createElement("li", null, "\u51B0\u7CD6\u9002\u91CF"),
+                                React.createElement("li", null, "\u67E0\u6AAC 2\u7247")
+                            ),
+                            React.createElement("div", { className: "section-label" }, "\uD83D\uDCDD \u6B65\u9AA4"),
+                            React.createElement("ol", { style: { paddingLeft: 20, marginBottom: 8, lineHeight: 2 } },
+                                recipeSteps.map((step, i) => React.createElement("li", { key: i }, step))
+                            ),
+                            React.createElement("div", { className: "section-label" }, "\uD83D\uDCCA \u8425\u517B\u4FE1\u606F"),
+                            React.createElement("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 } },
+                                React.createElement(Tag, { color: "volcano" }, "\u70ED\u91CF: 120kcal"),
+                                React.createElement(Tag, { color: "orange" }, "\u86CB\u767D\u8D28: 2g"),
+                                React.createElement(Tag, { color: "gold" }, "\u78B3\u6C34\u5316\u5408\u7269: 28g"),
+                                React.createElement(Tag, { color: "lime" }, "\u8118\u98DF\u7EA4\u7EF4: 3g")
+                            ),
+                            React.createElement("div", { className: "section-label" }, "\uD83C\uDFF7\uFE0F \u6807\u7B7E"),
+                            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                                React.createElement(Tag, { color: "magenta" }, "\u751C\u54C1"),
+                                React.createElement(Tag, { color: "green" }, "\u517B\u751F"),
+                                React.createElement(Tag, { color: "blue" }, "\u79CB\u51AC")
+                            )
+                        )
+                    ),
+
+                    React.createElement(Card, {
+                        title: React.createElement(Space, null,
+                            React.createElement(SearchOutlined),
+                            "\u68C0\u7D22\u6D4B\u8BD5"
+                        ),
+                        style: { marginBottom: 24 }
+                    },
+                        React.createElement(Alert, {
+                            message: "\u5FEB\u901F\u6D4B\u8BD5\uFF1A\u8F93\u5165\u67E5\u8BE2\u8BED\u53E5\uFF0C\u68C0\u9A8C\u8BE5\u6587\u6863\u662F\u5426\u53EF\u88AB\u68C0\u7D22\u547D\u4E2D",
+                            type: "info",
+                            showIcon: true,
+                            style: { marginBottom: 16 }
+                        }),
+                        React.createElement(Search, {
+                            placeholder: "\u8F93\u5165\u68C0\u7D22\u8BED\u53E5\uFF0C\u4F8B\u5982\uFF1A\u94F6\u8033\u6C64\u98DF\u6750",
+                            enterButton: React.createElement(Space, null, React.createElement(SearchOutlined), "\u68C0\u7D22\u6D4B\u8BD5"),
+                            size: "large",
+                            loading: searching,
+                            value: searchQuery,
+                            onChange: (e) => setSearchQuery(e.target.value),
+                            onSearch: handleSearch,
+                            style: { maxWidth: 600 }
+                        }),
+                        React.createElement("div", { style: { marginTop: 12 } },
+                            React.createElement(Space, null,
+                                React.createElement(Text, { type: "secondary" }, "\u5FEB\u901F\u6D4B\u8BD5:"),
+                                React.createElement(Button, { type: "link", size: "small", onClick: () => { setSearchQuery("\u94F6\u8033\u6C64\u98DF\u6750"); handleSearch("\u94F6\u8033\u6C64\u98DF\u6750"); } }, "\u94F6\u8033\u6C64\u98DF\u6750"),
+                                React.createElement(Button, { type: "link", size: "small", onClick: () => { setSearchQuery("\u96EA\u68A8\u6C64\u600E\u4E48\u505A"); handleSearch("\u96EA\u68A8\u6C64\u600E\u4E48\u505A"); } }, "\u96EA\u68A8\u6C64\u600E\u4E48\u505A"),
+                                React.createElement(Button, { type: "link", size: "small", onClick: () => { setSearchQuery("\u79CB\u51AC\u517B\u751F\u751C\u54C1"); handleSearch("\u79CB\u51AC\u517B\u751F\u751C\u54C1"); } }, "\u79CB\u51AC\u517B\u751F\u751C\u54C1")
+                            )
+                        ),
+                        searchResult && React.createElement("div", { className: "search-result-card" },
+                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+                                React.createElement("span", { style: { fontWeight: 600, fontSize: 15 } },
+                                    React.createElement(CheckCircleOutlined, { style: { color: "#52c41a", marginRight: 8 } }),
+                                    "\u68C0\u7D22\u547D\u4E2D"
+                                ),
+                                React.createElement(Tag, { color: "green" }, "\u5339\u914D\u6210\u529F")
+                            ),
+                            React.createElement("div", { style: { marginBottom: 16 } },
+                                React.createElement("div", { style: { fontWeight: 500, marginBottom: 8 } }, "\u5339\u914D\u5F97\u5206"),
+                                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                                    React.createElement(Progress, {
+                                        percent: searchResult.score * 100,
+                                        strokeColor: "#52c41a",
+                                        style: { flex: 1, maxWidth: 300 },
+                                        format: () => searchResult.score.toFixed(2)
+                                    })
+                                )
+                            ),
+                            React.createElement("div", { style: { marginBottom: 16 } },
+                                React.createElement("div", { style: { fontWeight: 500, marginBottom: 8 } }, "\u5339\u914D\u5185\u5BB9"),
+                                React.createElement("div", { style: { background: "#fff", padding: 12, borderRadius: 6, border: "1px solid #d9f7be", lineHeight: 1.8 } },
+                                    "\u67E0\u9999\u96EA\u68A8",
+                                    React.createElement("span", { className: "highlight" }, "\u94F6\u8033\u6C64"),
+                                    "\u9700\u8981\u4EE5\u4E0B",
+                                    React.createElement("span", { className: "highlight" }, "\u98DF\u6750"),
+                                    "\uFF1A\u4E3B\u6599\u6709",
+                                    React.createElement("span", { className: "highlight" }, "\u94F6\u8033"),
+                                    "1\u6735\u3001\u96EA\u68A8 1\u4E2A\uFF1B\u8F85\u6599\u6709\u679A\u6776\u9002\u91CF\u3001\u7EA2\u67A3 3-5\u9897\u3001\u51B0\u7CD6\u9002\u91CF\u3001\u67E0\u6AAC 2\u7247"
+                                )
+                            ),
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontWeight: 500, marginBottom: 8 } }, "\u54CD\u5E94\u9884\u89C8"),
+                                React.createElement("div", { style: { background: "#e6f7ff", padding: 12, borderRadius: 6, border: "1px solid #91d5ff", lineHeight: 1.8, color: "#262626" } },
+                                    searchResult.response
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                React.createElement(Modal, {
+                    title: React.createElement(Space, null,
+                        React.createElement(ExclamationCircleOutlined, { style: { color: "#ff4d4f" } }),
+                        "\u786E\u8BA4\u5220\u9664\u6587\u6863"
+                    ),
+                    open: deleteModalVisible,
+                    onOk: confirmDelete,
+                    onCancel: () => setDeleteModalVisible(false),
+                    okText: "\u786E\u8BA4\u5220\u9664",
+                    okButtonProps: { danger: true },
+                    cancelText: "\u53D6\u6D88",
+                    maskClosable: false,
+                    width: 520
+                },
+                    React.createElement(Alert, {
+                        message: "\u5371\u9669\u64CD\u4F5C\uFF1A\u6B64\u64CD\u4F5C\u4E0D\u53EF\u64A4\u9500",
+                        type: "error",
+                        showIcon: true,
+                        style: { marginBottom: 16 }
+                    }),
+                    React.createElement("div", { style: { marginBottom: 16 } },
+                        React.createElement("p", { style: { fontWeight: 500, marginBottom: 8 } }, "\u60A8\u5373\u5C06\u5220\u9664\u4EE5\u4E0B\u6587\u6863\uFF1A"),
+                        React.createElement("div", { style: { background: "#fff1f0", padding: 12, borderRadius: 6, border: "1px solid #ffa39e" } },
+                            React.createElement("div", null, React.createElement("strong", null, "\u6587\u6863: "), docData.name),
+                            React.createElement("div", null, React.createElement("strong", null, "\u5206\u7C7B: "), docData.category),
+                            React.createElement("div", null, React.createElement("strong", null, "\u72B6\u6001: "), "\u5DF2\u7D22\u5F15")
+                        )
+                    ),
+                    React.createElement("div", { style: { marginBottom: 8 } },
+                        React.createElement("p", { style: { fontWeight: 500, marginBottom: 8 } }, "\u5F71\u54CD\u8303\u56F4\uFF1A"),
+                        React.createElement("ul", { style: { paddingLeft: 20, lineHeight: 2, color: "#595959" } },
+                            React.createElement("li", null, "\u8BE5\u6587\u6863\u7684\u5411\u91CF\u7D22\u5F15\u5C06\u88AB\u6C38\u4E45\u5220\u9664"),
+                            React.createElement("li", null, "\u5DF2\u5F15\u7528\u6B64\u6587\u6863\u7684\u77E5\u8BC6\u95EE\u7B54\u5C06\u65E0\u6CD5\u547D\u4E2D\u8BE5\u5185\u5BB9"),
+                            React.createElement("li", null, "\u5220\u9664\u540E\u65E0\u6CD5\u6062\u590D\uFF0C\u9700\u91CD\u65B0\u4E0A\u4F20\u6587\u4EF6")
+                        )
+                    )
+                ),
+
+                React.createElement(Drawer, {
+                    title: React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("span", null, "\u9875\u9762\u903B\u8F91\u8BF4\u660E"),
+                        React.createElement(Tooltip, { title: drawerWidth === 1200 ? "\u5207\u6362\u5230\u7A84\u89C6\u56FE" : "\u5207\u6362\u5230\u5BBD\u89C6\u56FE" },
+                            React.createElement(Button, {
+                                type: "text",
+                                icon: React.createElement(ColumnWidthOutlined),
+                                onClick: toggleDrawerWidth,
+                                size: "small"
+                            }, drawerWidth === 1200 ? "800px" : "1200px")
+                        )
+                    ),
+                    width: drawerWidth,
+                    open: drawerVisible,
+                    onClose: () => setDrawerVisible(false)
+                },
+                    React.createElement(Tabs, { items: drawerTabs })
+                )
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+    </script>
+</body>
+</html>

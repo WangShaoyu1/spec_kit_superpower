@@ -1,89 +1,99 @@
+# Speckit Plan - 实施计划
+
+**核心规范**: `.specify/templates/plan-template.md` — plan.md 的结构和格式 MUST 遵循此模板。
+
+## 目的
+基于完成的设计文档（spec + pd + ad + dd），制定**可执行的技术实施计划**。
+plan.md 定位为"**实施规划桥梁**"——承上（设计文档链）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与阶段规划。
+
+## 输入（必须全部完成）
+- `specs/{branch}/spec.md` - 业务需求 (含模块映射表 + FR 标签) ✓
+- `specs/{branch}/pd-all/` - 模块化产品交互设计（含 pd-hub.html 统一入口 + pd-index.md 索引） ✓
+- `specs/{branch}/ad/` - 架构设计（含 README.md 索引 + ad-global.md + ad-<module>.md） ✓
+- `specs/{branch}/dd/` - 详细设计（含 README.md 索引 + dd-global.md + dd-<module>.md） ✓
+
+## 执行流程
+
+### Phase 0: Pre-flight 一致性扫描
+在编写 plan.md 前, 必须先检查以下冲突并给出 `OK / WARNING / BLOCKER` 结论:
+- 同一 FR 在 `spec / AD / DD` 中是否存在口径冲突
+- `AD` 引用的 PD 页面或流程是否真实存在
+- `plan` 将使用的源码路径是否与当前工程目录一致
+- `PD` 是否存在部分覆盖/待补充项, 以及这些项是否需要显式下传到 `tasks`
+- 关键异步链路是否已经定义真实成功信号、状态回传和失败处理
+
+若出现 `BLOCKER`, 必须先回到上游设计文档修正, **不得直接继续生成 plan.md**。
+
+### Phase 1: 技术方案细化
+基于 AD 和 DD，细化技术实现方案：
+- 技术栈版本确认（AD 中已选型，此处锁定具体版本）
+- 项目目录结构设计（源码 + 测试 + 配置）
+- 依赖清单（生产 + 开发依赖）
+
+### Phase 2: 阶段规划
+按依赖关系组织实施阶段（以 PD 模块为首要组织单元）：
+1. 阶段 1: 基础设施（阻塞后续所有工作）
+2. 阶段 2: 核心功能（按 PD 模块优先级，参考 spec.md 用户故事优先级排序）
+3. 阶段 3: 横切关注点（权限、监控、安全）
+4. 阶段 4: 完善与优化
+
+每个阶段定义：
+- 目标与交付物（对应 PD 模块的交互功能）
+- 验收检查点（对照 PD 交互稿验证）
+- 对应的 PD/AD/DD 章节引用（不复制内容）
+- 对应模块的核心业务链路与真实成功信号
+- 显式未完成声明（`Deferred / Stub / Out of Scope / Blocked By`）
+
+### Phase 3: 测试策略
+定义各阶段的测试类型：
+- 单元测试（开发同步，覆盖 DD 定义的算法逻辑）
+- 契约测试（API 稳定后，验证 AD 定义的接口契约）
+- 消费契约测试（前后端联调前，验证字段名、分页、下载、数组/对象返回形态）
+- 集成测试（阶段完成，验证 AD 数据流）
+- E2E 测试（功能闭环后，覆盖 PD 交互路径）
+- 状态机测试（异步链路实现时，覆盖提交/处理中/成功/失败全状态）
+
+### Phase 4: 风险与缓解
+识别实施风险：
+- 技术风险（新技术学习曲线）
+- 依赖风险（第三方服务/API）
+- 进度风险（任务估不准）
+
+## 输出产物
+
+```yaml
+# specs/{branch}/plan.md
 ---
-description: 执行实施规划工作流, 使用计划模板生成设计制品.
-handoffs:
-  - label: 创建任务
-    agent: speckit.tasks
-    prompt: 将计划分解为任务
-    send: true
-  - label: 创建检查清单
-    agent: speckit.checklist
-    prompt: 为需求创建质量检查清单
-    send: true
+version: 2.0
+based_on:
+  - spec.md
+  - pd-all/ (pd-index.md + pd-<module>/)
+  - ad/ (ad-global.md + ad-<module>.md)
+  - dd/ (dd-global.md + dd-<module>.md)
 ---
 
-## 用户输入
-
-```text
-$ARGUMENTS
+# 1. 摘要
+# 2. 技术背景（速查，不重复 AD/DD）
+# 3. 项目结构（设计文档 + 源代码）
+# 4. 阶段规划（含检查点）
+# 5. 测试策略
+# 6. 风险与缓解
 ```
 
-在继续之前, 你**必须**考虑用户输入(如果不为空).
+## Plan 完整性检查清单
 
-## 大纲
+- [ ] 每个阶段都能追溯到 spec/pd/ad/dd 的具体章节
+- [ ] Pre-flight 一致性扫描已完成，且无未处理的 BLOCKER
+- [ ] 阶段依赖关系无循环
+- [ ] 阶段划分有明确的检查点（Checkpoint）
+- [ ] 每个 UI 模块都定义了 1-3 条核心业务链路与真实成功信号
+- [ ] 测试策略覆盖所有 PD 模块交互流程
+- [ ] 测试策略覆盖前后端消费契约和异步状态机
+- [ ] 性能目标有对应的测试任务
+- [ ] 不重复 AD/DD 中已定义的详细内容（仅做引用）
+- [ ] **项目路径一致性**: plan.md 中引用的项目目录（如 `smartchef-v2/`）与 tasks/ 中的路径引用完全一致
+- [ ] **PD 模块路径映射**: 每个 PD 模块有明确的源码目录映射（如 `pd-intent-library/ → frontend/src/pages/IntentLibrary/`）
+- [ ] 已显式记录 Deferred / Stub / Out of Scope / Blocked By，不允许把“部分覆盖”藏在备注里
 
-1. **设置**: 从仓库根目录运行 `.specify/scripts/powershell/setup-plan.ps1 -Json` 并解析 JSON 获取 FEATURE_SPEC、IMPL_PLAN、SPECS_DIR、BRANCH. 对于参数中的单引号如 "I'm Groot", 使用转义语法: 例如 'I'\''m Groot'(或尽可能使用双引号: "I'm Groot").
-
-2. **加载上下文**: 读取 FEATURE_SPEC 和 `.specify/memory/constitution.md`. 加载 IMPL_PLAN 模板(已复制).
-
-3. **执行计划工作流**: 按照 IMPL_PLAN 模板中的结构: 
-   - 填充技术上下文(将未知项标记为 NEEDS CLARIFICATION)
-   - 从章程文档填充章程检查部分
-   - 评估关卡(如果违规无正当理由则报错)
-   - 阶段 0: 生成 research.md(解决所有 NEEDS CLARIFICATION)
-   - 阶段 1: 生成 data-model.md、contracts/、quickstart.md
-   - 阶段 1: 通过运行代理脚本更新代理上下文
-   - 设计后重新评估章程检查
-
-4. **停止并报告**: 命令在阶段 2 规划后结束. 报告分支、IMPL_PLAN 路径和生成的制品.
-
-## 阶段
-
-### 阶段 0: 大纲与研究
-
-1. **从上述技术上下文中提取未知项**: 
-   - 每个 NEEDS CLARIFICATION → 研究任务
-   - 每个依赖项 → 最佳实践任务
-   - 每个集成 → 模式任务
-
-2. **生成和分发研究代理**: 
-   ```
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
-
-3. **在 `research.md` 中整合发现**, 使用格式: 
-   - Decision: [选择了什么]
-   - Rationale: [为什么选择]
-   - Alternatives considered: [还评估了什么]
-
-**输出**: research.md, 所有 NEEDS CLARIFICATION 已解决
-
-### 阶段 1: 设计与合同
-
-**前提条件**: `research.md` 完成
-
-1. **从功能规范中提取实体** → `data-model.md`: 
-   - 实体名称、字段、关系
-   - 来自需求的验证规则
-   - 状态转换(如适用)
-
-2. **从功能需求生成 API 合同**: 
-   - 每个用户操作 → 端点
-   - 使用标准 REST/GraphQL 模式
-   - 将 OpenAPI/GraphQL 模式输出到 `/contracts/`
-
-3. **代理上下文更新**: 
-   - 运行 `.specify/scripts/powershell/update-agent-context.ps1 -AgentType cursor-agent`
-   - 这些脚本检测正在使用哪个 AI 代理
-   - 更新相应的代理特定上下文文件
-   - 仅添加当前计划中的新技术
-   - 保留标记之间的手动添加内容
-
-**输出**: data-model.md、/contracts/*、quickstart.md、代理特定文件
-
-## 关键规则
-
-- 使用绝对路径
-- 关卡失败或未解决的澄清事项时报错
+## 下一步
+plan.md 完成后，运行 `/speckit.tasks` 生成 tasks/ 任务目录，然后 `/speckit.implement` 开始执行。

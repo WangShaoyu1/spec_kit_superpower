@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手动测试 | SmartChef PD</title>
+    <!-- React 18 - unpkg CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Icons - unpkg -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid for flowcharts -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        .chat-container { display: flex; gap: 16px; height: calc(100vh - 180px); }
+        .session-panel { width: 280px; background: #fff; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; }
+        .chat-panel { flex: 1; background: #fff; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
+        .debug-panel { width: 360px; background: #fff; border-radius: 8px; padding: 16px; overflow-y: auto; }
+
+        .message-list { flex: 1; overflow-y: auto; padding: 16px; }
+        .message-item { margin-bottom: 16px; display: flex; gap: 8px; }
+        .message-item.user { flex-direction: row-reverse; }
+        .message-bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+        .message-bubble.user { background: #1890ff; color: #fff; border-bottom-right-radius: 4px; }
+        .message-bubble.bot { background: #f0f0f0; color: #262626; border-bottom-left-radius: 4px; }
+        .debug-info { margin-top: 8px; padding: 8px 12px; background: #fafafa; border-radius: 6px; border-left: 3px solid #1890ff; font-size: 12px; }
+        .input-area { padding: 16px; border-top: 1px solid #f0f0f0; display: flex; gap: 8px; }
+        .device-context-bar { padding: 8px 16px; background: #fffbe6; border-bottom: 1px solid #ffe58f; font-size: 12px; }
+
+        .session-card { padding: 12px; border-radius: 6px; cursor: pointer; margin-bottom: 8px; border: 1px solid #f0f0f0; transition: all 0.2s; position: relative; }
+        .session-card:hover { background: #f0f7ff; }
+        .session-card.active { background: #e6f7ff; border-left: 3px solid #1890ff; }
+        .session-card .session-name { font-weight: 500; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .session-card .session-meta { font-size: 11px; color: #8c8c8c; }
+        .session-card .delete-btn { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.2s; }
+        .session-card:hover .delete-btn { opacity: 1; }
+
+        .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .msg-avatar.user-avatar { background: #1890ff; color: #fff; }
+        .msg-avatar.bot-avatar { background: #722ed1; color: #fff; }
+
+        .msg-time { font-size: 11px; color: #bfbfbf; margin-top: 4px; }
+        .message-item.user .msg-time { text-align: right; }
+
+        .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 8px 14px; }
+        .typing-indicator span { width: 6px; height: 6px; border-radius: 50%; background: #8c8c8c; animation: typing 1.2s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+        .debug-section { margin-bottom: 16px; }
+        .debug-section-title { font-size: 13px; font-weight: 600; color: #595959; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+        .context-form-row { margin-bottom: 12px; }
+        .context-form-label { font-size: 12px; color: #595959; margin-bottom: 4px; font-family: 'SF Mono', 'Menlo', monospace; }
+
+        .preset-btn { margin-right: 8px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const { useState, useMemo, useCallback, useEffect, useRef } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Tag, Badge, Card, Space, Modal, Form, Input,
+            Select, InputNumber, Switch, Drawer, Tabs, Collapse, Statistic, Row,
+            Col, Progress, Divider, Descriptions, Table, Tooltip, message, Empty
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, AimOutlined, ExperimentOutlined,
+            FileTextOutlined, RobotOutlined, ThunderboltOutlined, BugOutlined,
+            MessageOutlined, BarChartOutlined, RocketOutlined, CloudUploadOutlined,
+            ApartmentOutlined, ArrowLeftOutlined, CheckCircleOutlined,
+            InfoCircleOutlined, QuestionCircleOutlined, SendOutlined, PlusOutlined,
+            DeleteOutlined, UserOutlined, LockOutlined, ColumnWidthOutlined,
+            DesktopOutlined, ClockCircleOutlined, ApiOutlined, NodeIndexOutlined,
+            BranchesOutlined, AlertOutlined, FundOutlined, TagOutlined,
+            EditOutlined, CaretRightOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+        const { TextArea } = Input;
+
+        const mockSessions = [
+            { id: 'sess_001', name: '指令测试-烹饪控制', profileName: '生产方案-中英双语', createdAt: '2026-03-18 09:30', messageCount: 8, isActive: true },
+            { id: 'sess_002', name: '知识问答-菜谱', profileName: '生产方案-中英双语', createdAt: '2026-03-18 10:15', messageCount: 3, isActive: false },
+            { id: 'sess_003', name: '英文测试', profileName: '生产方案-中英双语', createdAt: '2026-03-17 16:00', messageCount: 5, isActive: false }
+        ];
+
+        const mockMessagesBySession = {
+            sess_001: [
+                { id: 'm1', role: 'user', content: '设置温度180度', timestamp: '09:30:15' },
+                { id: 'm2', role: 'bot', content: '好的，已为您设置温度为180度。', timestamp: '09:30:15', debug: {
+                    routing: { domain: 'command', confidence: 0.96 },
+                    intent: { name: 'set_cooking_temp', confidence: 0.94 },
+                    slots: [{ name: 'number', value: '180', type: 'temperature' }],
+                    dialogState: { previousDomain: null, slotsFilled: true },
+                    responseTime: 128,
+                    modelUsed: '中文指令库 v2.0 (small model)'
+                }},
+                { id: 'm3', role: 'user', content: '柠香雪梨银耳汤需要哪些食材', timestamp: '09:31:02' },
+                { id: 'm4', role: 'bot', content: '柠香雪梨银耳汤需要以下食材：\n\n**主料：**\n- 银耳 1朵\n- 雪梨 1个\n\n**辅料：**\n- 枸杞 适量\n- 红枣 3-5颗\n- 冰糖 适量\n- 柠檬 2片', timestamp: '09:31:04', debug: {
+                    routing: { domain: 'knowledge', confidence: 0.88 },
+                    intent: null,
+                    slots: [],
+                    knowledgeHit: { docName: '柠香雪梨银耳汤', category: '菜谱', score: 0.92 },
+                    dialogState: { previousDomain: 'command' },
+                    responseTime: 1850,
+                    modelUsed: 'GPT-4o (knowledge QA)'
+                }},
+                { id: 'm5', role: 'user', content: '收藏它', timestamp: '09:32:10' },
+                { id: 'm6', role: 'bot', content: '好的，已为您收藏"柠香雪梨银耳汤"菜谱。', timestamp: '09:32:11', debug: {
+                    routing: { domain: 'command', confidence: 0.91 },
+                    intent: { name: 'collect_recipe', confidence: 0.89 },
+                    slots: [{ name: 'recipe_ref', value: '柠香雪梨银耳汤', type: 'reference', resolved: true, original: '它' }],
+                    referenceResolution: { pronoun: '它', resolved: '柠香雪梨银耳汤', source: 'previous_turn_knowledge_hit' },
+                    dialogState: { previousDomain: 'knowledge', slotsFilled: true },
+                    responseTime: 156,
+                    modelUsed: '中文指令库 v2.0 (small model)'
+                }},
+                { id: 'm7', role: 'user', content: '讲个笑话', timestamp: '09:33:00' },
+                { id: 'm8', role: 'bot', content: '好嘞小主！给您来一个：\n\n厨师问学徒："你知道什么菜最贵吗？"\n学徒想了想："松露？鹅肝？"\n厨师摇头："是散伙饭，因为吃完就没工作了！" 😂\n\n要不要再来一个？', timestamp: '09:33:02', debug: {
+                    routing: { domain: 'chitchat', confidence: 0.95 },
+                    intent: null,
+                    slots: [],
+                    persona: { name: '活泼厨房助手', applied: true },
+                    dialogState: { previousDomain: 'command' },
+                    responseTime: 2340,
+                    modelUsed: 'GPT-4o (chitchat with persona)'
+                }}
+            ],
+            sess_002: [
+                { id: 's2m1', role: 'user', content: '查一下麻婆豆腐的做法', timestamp: '10:15:03' },
+                { id: 's2m2', role: 'bot', content: '麻婆豆腐的做法：\n\n1. 豆腐切块，焯水备用\n2. 牛肉末炒香，加入豆瓣酱\n3. 加入高汤，放入豆腐\n4. 勾芡，撒花椒粉和葱花', timestamp: '10:15:05', debug: {
+                    routing: { domain: 'knowledge', confidence: 0.93 },
+                    intent: null,
+                    slots: [],
+                    knowledgeHit: { docName: '麻婆豆腐', category: '菜谱', score: 0.95 },
+                    dialogState: { previousDomain: null },
+                    responseTime: 1620,
+                    modelUsed: 'GPT-4o (knowledge QA)'
+                }},
+                { id: 's2m3', role: 'user', content: '需要哪些调料', timestamp: '10:15:20' },
+                { id: 's2m4', role: 'bot', content: '麻婆豆腐需要以下调料：\n- 郫县豆瓣酱 2勺\n- 花椒粉 适量\n- 生抽 1勺\n- 料酒 1勺\n- 淀粉 适量\n- 盐、鸡精 适量', timestamp: '10:15:22', debug: {
+                    routing: { domain: 'knowledge', confidence: 0.90 },
+                    intent: null,
+                    slots: [],
+                    knowledgeHit: { docName: '麻婆豆腐', category: '菜谱', score: 0.88 },
+                    dialogState: { previousDomain: 'knowledge' },
+                    responseTime: 1430,
+                    modelUsed: 'GPT-4o (knowledge QA)'
+                }}
+            ],
+            sess_003: [
+                { id: 's3m1', role: 'user', content: 'Set temperature to 200 degrees', timestamp: '16:00:05' },
+                { id: 's3m2', role: 'bot', content: 'Done! Temperature has been set to 200°C.', timestamp: '16:00:06', debug: {
+                    routing: { domain: 'command', confidence: 0.92 },
+                    intent: { name: 'set_cooking_temp', confidence: 0.90 },
+                    slots: [{ name: 'number', value: '200', type: 'temperature' }],
+                    dialogState: { previousDomain: null, slotsFilled: true },
+                    responseTime: 145,
+                    modelUsed: 'English Intent Lib v1.0 (small model)'
+                }},
+                { id: 's3m3', role: 'user', content: 'How long does roast chicken take?', timestamp: '16:01:30' },
+                { id: 's3m4', role: 'bot', content: 'A whole roast chicken typically takes about 1 hour and 20 minutes at 180°C. For a smaller chicken (about 1.5kg), 50-60 minutes should be sufficient.', timestamp: '16:01:33', debug: {
+                    routing: { domain: 'knowledge', confidence: 0.86 },
+                    intent: null,
+                    slots: [],
+                    knowledgeHit: { docName: 'Roast Chicken', category: 'Recipe', score: 0.89 },
+                    dialogState: { previousDomain: 'command' },
+                    responseTime: 1980,
+                    modelUsed: 'GPT-4o (knowledge QA)'
+                }}
+            ]
+        };
+
+        const devicePresets = {
+            idle: { cooking_status: 'idle', door_closed: true, current_temp: 25, current_page: 'home', screen_info: '15.6寸主屏' },
+            cooking: { cooking_status: 'cooking', door_closed: true, current_temp: 180, current_page: 'cooking_progress', screen_info: '15.6寸主屏' },
+            recipe: { cooking_status: 'idle', door_closed: true, current_temp: 25, current_page: 'recipe_browser', screen_info: '15.6寸主屏' }
+        };
+
+        const cookingStatusLabels = { idle: '空闲', cooking: '正在烹饪', preheating: '预热中', done: '已完成' };
+        const pageLabels = { home: '主页', recipe_browser: '菜谱浏览', cooking_progress: '烹饪进度', settings: '设置' };
+
+        function App() {
+            const inIframe = typeof window !== 'undefined' && window.self !== window.top;
+            const [sessions, setSessions] = useState(mockSessions);
+            const [activeSessionId, setActiveSessionId] = useState('sess_001');
+            const [messagesBySession, setMessagesBySession] = useState(mockMessagesBySession);
+            const [selectedDebugMsgId, setSelectedDebugMsgId] = useState('m2');
+            const [inputText, setInputText] = useState('');
+            const [sending, setSending] = useState(false);
+            const [openKeys, setOpenKeys] = useState(['config']);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [createModalVisible, setCreateModalVisible] = useState(false);
+            const [contextExpanded, setContextExpanded] = useState(false);
+            const [deviceContext, setDeviceContext] = useState(devicePresets.idle);
+            const [contextFormValues, setContextFormValues] = useState(devicePresets.idle);
+            const messagesEndRef = useRef(null);
+            const inputRef = useRef(null);
+            const [form] = Form.useForm();
+
+            const activeMessages = useMemo(
+                () => messagesBySession[activeSessionId] || [],
+                [messagesBySession, activeSessionId]
+            );
+
+            const selectedDebugData = useMemo(() => {
+                const msg = activeMessages.find(m => m.id === selectedDebugMsgId);
+                return msg?.debug || null;
+            }, [activeMessages, selectedDebugMsgId]);
+
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [activeMessages.length, sending]);
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const goTo = (page) => {
+                if (page === 'detail') window.location.href = 'detail.html';
+                else if (page === 'index') window.location.href = 'index.html';
+            };
+
+            const switchSession = (sessionId) => {
+                setActiveSessionId(sessionId);
+                const msgs = messagesBySession[sessionId] || [];
+                const lastBotMsg = [...msgs].reverse().find(m => m.role === 'bot' && m.debug);
+                setSelectedDebugMsgId(lastBotMsg ? lastBotMsg.id : null);
+            };
+
+            const createSession = (values) => {
+                const id = 'sess_' + Date.now();
+                const newSession = {
+                    id,
+                    name: values?.name || '新会话 ' + dayjs().format('HH:mm'),
+                    profileName: values?.profile || '生产方案-中英双语',
+                    createdAt: dayjs().format('YYYY-MM-DD HH:mm'),
+                    messageCount: 0,
+                    isActive: false
+                };
+                setSessions(prev => [newSession, ...prev]);
+                setMessagesBySession(prev => ({ ...prev, [id]: [] }));
+                switchSession(id);
+                setCreateModalVisible(false);
+                form.resetFields();
+                message.success('会话已创建');
+
+                if (values?.preset && values.preset !== 'custom') {
+                    setDeviceContext(devicePresets[values.preset]);
+                    setContextFormValues(devicePresets[values.preset]);
+                }
+            };
+
+            const deleteSession = (e, sessionId) => {
+                e.stopPropagation();
+                if (sessions.length <= 1) {
+                    message.warning('至少保留一个会话');
+                    return;
+                }
+                setSessions(prev => prev.filter(s => s.id !== sessionId));
+                setMessagesBySession(prev => {
+                    const next = { ...prev };
+                    delete next[sessionId];
+                    return next;
+                });
+                if (activeSessionId === sessionId) {
+                    const remaining = sessions.filter(s => s.id !== sessionId);
+                    if (remaining.length > 0) switchSession(remaining[0].id);
+                }
+            };
+
+            const mockBotReply = (userText) => {
+                const patterns = [
+                    { test: /温度|degree|temp/i, domain: 'command', intent: 'set_cooking_temp', reply: '好的，温度设置已更新。', confidence: 0.94, routeConf: 0.96, slots: [{ name: 'number', value: userText.match(/\d+/)?.[0] || '180', type: 'temperature' }], model: '中文指令库 v2.0 (small model)', time: 120 },
+                    { test: /打开|开启|open/i, domain: 'command', intent: 'device_on', reply: '已为您打开设备。', confidence: 0.92, routeConf: 0.95, slots: [{ name: 'device', value: '烤箱', type: 'device' }], model: '中文指令库 v2.0 (small model)', time: 98 },
+                    { test: /关闭|关掉|close|stop/i, domain: 'command', intent: 'device_off', reply: '设备已关闭。', confidence: 0.93, routeConf: 0.94, slots: [{ name: 'device', value: '烤箱', type: 'device' }], model: '中文指令库 v2.0 (small model)', time: 105 },
+                    { test: /食材|做法|怎么做|recipe|菜谱/i, domain: 'knowledge', reply: '为您找到相关菜谱信息，请查看详情。', routeConf: 0.88, knowledgeHit: { docName: '通用菜谱', category: '菜谱', score: 0.85 }, model: 'GPT-4o (knowledge QA)', time: 1800 },
+                    { test: /收藏|bookmark|save/i, domain: 'command', intent: 'collect_recipe', reply: '已为您收藏该菜谱。', confidence: 0.89, routeConf: 0.91, slots: [{ name: 'recipe_ref', value: '上一个菜谱', type: 'reference', resolved: true, original: '它' }], model: '中文指令库 v2.0 (small model)', time: 140 },
+                    { test: /笑话|joke|聊天|你好|hi|hello/i, domain: 'chitchat', reply: '哈哈，今天心情不错呢！有什么想聊的吗？', routeConf: 0.95, persona: { name: '活泼厨房助手', applied: true }, model: 'GPT-4o (chitchat with persona)', time: 2200 },
+                    { test: /计时|定时|timer|分钟/i, domain: 'command', intent: 'set_timer', reply: '已为您设置定时器。', confidence: 0.91, routeConf: 0.93, slots: [{ name: 'duration', value: userText.match(/\d+/)?.[0] || '10', type: 'duration' }], model: '中文指令库 v2.0 (small model)', time: 110 }
+                ];
+                const matched = patterns.find(p => p.test.test(userText));
+                if (matched) {
+                    const debug = {
+                        routing: { domain: matched.domain, confidence: matched.routeConf },
+                        intent: matched.intent ? { name: matched.intent, confidence: matched.confidence } : null,
+                        slots: matched.slots || [],
+                        dialogState: { previousDomain: activeMessages.length > 0 ? (activeMessages.filter(m => m.role === 'bot').pop()?.debug?.routing?.domain || null) : null, slotsFilled: true },
+                        responseTime: matched.time + Math.floor(Math.random() * 100),
+                        modelUsed: matched.model
+                    };
+                    if (matched.knowledgeHit) debug.knowledgeHit = matched.knowledgeHit;
+                    if (matched.persona) debug.persona = matched.persona;
+                    if (matched.slots?.some(s => s.resolved)) {
+                        debug.referenceResolution = { pronoun: matched.slots.find(s => s.resolved)?.original, resolved: matched.slots.find(s => s.resolved)?.value, source: 'previous_turn' };
+                    }
+                    return { content: matched.reply, debug };
+                }
+                return {
+                    content: '抱歉，我没有完全理解您的意思。请尝试更具体的描述，例如："设置温度180度"或"查找红烧肉的做法"。',
+                    debug: {
+                        routing: { domain: 'command', confidence: 0.45 },
+                        intent: { name: 'unknown', confidence: 0.32 },
+                        slots: [],
+                        dialogState: { previousDomain: null, slotsFilled: false },
+                        responseTime: 89,
+                        modelUsed: '中文指令库 v2.0 (small model)'
+                    }
+                };
+            };
+
+            const handleSend = () => {
+                const text = inputText.trim();
+                if (!text || sending) return;
+                const userMsg = { id: 'u_' + Date.now(), role: 'user', content: text, timestamp: dayjs().format('HH:mm:ss') };
+                setMessagesBySession(prev => ({
+                    ...prev,
+                    [activeSessionId]: [...(prev[activeSessionId] || []), userMsg]
+                }));
+                setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messageCount: (s.messageCount || 0) + 1 } : s));
+                setInputText('');
+                setSending(true);
+
+                const delay = 500 + Math.floor(Math.random() * 1500);
+                setTimeout(() => {
+                    const reply = mockBotReply(text);
+                    const botMsg = { id: 'b_' + Date.now(), role: 'bot', content: reply.content, timestamp: dayjs().format('HH:mm:ss'), debug: reply.debug };
+                    setMessagesBySession(prev => ({
+                        ...prev,
+                        [activeSessionId]: [...(prev[activeSessionId] || []), botMsg]
+                    }));
+                    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messageCount: (s.messageCount || 0) + 1 } : s));
+                    setSelectedDebugMsgId(botMsg.id);
+                    setSending(false);
+                }, delay);
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                }
+            };
+
+            const applyDeviceContext = () => {
+                setDeviceContext(contextFormValues);
+                setContextExpanded(false);
+                message.success('设备上下文已更新');
+            };
+
+            const applyPreset = (preset) => {
+                const values = devicePresets[preset];
+                setDeviceContext(values);
+                setContextFormValues(values);
+                message.success('已应用预设：' + (preset === 'idle' ? '空闲-主页' : preset === 'cooking' ? '正在烹饪' : '菜谱浏览'));
+            };
+
+            const getDomainColor = (domain) => {
+                if (domain === 'command') return 'blue';
+                if (domain === 'knowledge') return 'green';
+                if (domain === 'chitchat') return 'purple';
+                return 'default';
+            };
+
+            const getConfidenceColor = (val) => {
+                if (val >= 0.9) return '#52c41a';
+                if (val >= 0.7) return '#1890ff';
+                return '#fa8c16';
+            };
+
+            const getResponseTimeColor = (ms) => {
+                if (ms < 200) return '#52c41a';
+                if (ms < 2000) return '#1890ff';
+                if (ms < 4000) return '#fa8c16';
+                return '#ff4d4f';
+            };
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const contextSummary = `烹饪状态: ${cookingStatusLabels[deviceContext.cooking_status] || deviceContext.cooking_status} | 炉门: ${deviceContext.door_closed ? '已关闭' : '已打开'} | 温度: ${deviceContext.current_temp}°C | 当前页面: ${pageLabels[deviceContext.current_page] || deviceContext.current_page}`;
+
+            const menuItems = [
+                { key: 'config', icon: React.createElement(SettingOutlined), label: '配置管理', children: [
+                    { key: 'libraries', icon: React.createElement(DatabaseOutlined), label: '指令库管理' },
+                    { key: 'profiles', icon: React.createElement(ApartmentOutlined), label: '对话方案' }
+                ]},
+                { key: 'test', icon: React.createElement(ExperimentOutlined), label: '测试', children: [
+                    { key: 'manual', icon: React.createElement(MessageOutlined), label: '手动测试' },
+                    { key: 'batch', icon: React.createElement(ThunderboltOutlined), label: '批量测试' }
+                ]},
+                { key: 'deploy', icon: React.createElement(RocketOutlined), label: '部署与监控', children: [
+                    { key: 'versions', icon: React.createElement(CloudUploadOutlined), label: '版本发布' },
+                    { key: 'monitoring', icon: React.createElement(BarChartOutlined), label: '监控仪表盘' }
+                ]},
+                { key: 'system', icon: React.createElement(UserOutlined), label: '系统管理', children: [
+                    { key: 'users', icon: React.createElement(LockOutlined), label: '用户管理' }
+                ]}
+            ];
+
+            const renderDebugPanel = () => {
+                if (!selectedDebugData) {
+                    return (
+                        <div style={{ textAlign: 'center', padding: '60px 0', color: '#bfbfbf' }}>
+                            <BugOutlined style={{ fontSize: 40, marginBottom: 12 }} />
+                            <div>点击任意机器人回复查看调试信息</div>
+                        </div>
+                    );
+                }
+                const d = selectedDebugData;
+                return (
+                    <div>
+                        {/* 路由判断 */}
+                        <div className="debug-section">
+                            <div className="debug-section-title"><NodeIndexOutlined /> 路由判断</div>
+                            <Card size="small">
+                                <div style={{ marginBottom: 8 }}>
+                                    <span style={{ marginRight: 8 }}>域：</span>
+                                    <Tag color={getDomainColor(d.routing.domain)} style={{ fontSize: 13 }}>{d.routing.domain}</Tag>
+                                </div>
+                                <div>
+                                    <span style={{ marginRight: 8 }}>置信度：</span>
+                                    <Progress
+                                        percent={Math.round(d.routing.confidence * 100)}
+                                        size="small"
+                                        strokeColor={getConfidenceColor(d.routing.confidence)}
+                                        style={{ width: 180, display: 'inline-flex' }}
+                                    />
+                                    <span style={{ marginLeft: 8, fontWeight: 600, color: getConfidenceColor(d.routing.confidence) }}>
+                                        {(d.routing.confidence * 100).toFixed(1)}%
+                                    </span>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* 意图识别 (command only) */}
+                        {d.intent && (
+                            <div className="debug-section">
+                                <div className="debug-section-title"><AimOutlined /> 意图识别</div>
+                                <Card size="small">
+                                    <Descriptions size="small" column={1}>
+                                        <Descriptions.Item label="意图名">
+                                            <Tag color={d.intent.name === 'unknown' ? 'red' : 'blue'}>{d.intent.name}</Tag>
+                                        </Descriptions.Item>
+                                        <Descriptions.Item label="置信度">
+                                            <span style={{ fontWeight: 600, color: getConfidenceColor(d.intent.confidence) }}>
+                                                {(d.intent.confidence * 100).toFixed(1)}%
+                                            </span>
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* 槽位提取 (command only) */}
+                        {d.slots && d.slots.length > 0 && (
+                            <div className="debug-section">
+                                <div className="debug-section-title"><TagOutlined /> 槽位提取</div>
+                                <Table
+                                    size="small"
+                                    dataSource={d.slots}
+                                    pagination={false}
+                                    rowKey="name"
+                                    columns={[
+                                        { title: '槽位', dataIndex: 'name', width: 90 },
+                                        { title: '值', dataIndex: 'value', width: 120, render: (val, record) => (
+                                            <span>
+                                                {val}
+                                                {record.resolved && <Tag color="orange" style={{ marginLeft: 4, fontSize: 10 }}>已消解</Tag>}
+                                            </span>
+                                        )},
+                                        { title: '类型', dataIndex: 'type', width: 80, render: (t) => <Tag>{t}</Tag> }
+                                    ]}
+                                />
+                            </div>
+                        )}
+
+                        {/* 指代消解 */}
+                        {d.referenceResolution && (
+                            <div className="debug-section">
+                                <div className="debug-section-title"><BranchesOutlined /> 指代消解</div>
+                                <Card size="small">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Tag color="red">"{d.referenceResolution.pronoun}"</Tag>
+                                        <span style={{ fontSize: 18, color: '#1890ff' }}>→</span>
+                                        <Tag color="green">"{d.referenceResolution.resolved}"</Tag>
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 8 }}>
+                                        来源: {d.referenceResolution.source}
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* 知识库命中 (knowledge only) */}
+                        {d.knowledgeHit && (
+                            <div className="debug-section">
+                                <div className="debug-section-title"><FileTextOutlined /> 知识库命中</div>
+                                <Card size="small">
+                                    <Descriptions size="small" column={1}>
+                                        <Descriptions.Item label="文档">{d.knowledgeHit.docName}</Descriptions.Item>
+                                        <Descriptions.Item label="分类"><Tag>{d.knowledgeHit.category}</Tag></Descriptions.Item>
+                                        <Descriptions.Item label="匹配分">
+                                            <span style={{ fontWeight: 600, color: getConfidenceColor(d.knowledgeHit.score) }}>
+                                                {(d.knowledgeHit.score * 100).toFixed(1)}%
+                                            </span>
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* 人设应用 (chitchat only) */}
+                        {d.persona && (
+                            <div className="debug-section">
+                                <div className="debug-section-title"><RobotOutlined /> 人设应用</div>
+                                <Card size="small">
+                                    <Descriptions size="small" column={1}>
+                                        <Descriptions.Item label="人设名称">{d.persona.name}</Descriptions.Item>
+                                        <Descriptions.Item label="是否应用">
+                                            {d.persona.applied
+                                                ? <Tag color="green" icon={<CheckCircleOutlined />}>已应用</Tag>
+                                                : <Tag color="red">未应用</Tag>
+                                            }
+                                        </Descriptions.Item>
+                                    </Descriptions>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* 对话状态 */}
+                        <div className="debug-section">
+                            <div className="debug-section-title"><ApiOutlined /> 对话状态</div>
+                            <Card size="small">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                    <Tag>{d.dialogState.previousDomain || '(无)'}</Tag>
+                                    <span style={{ fontSize: 16, color: '#8c8c8c' }}>→</span>
+                                    <Tag color={getDomainColor(d.routing.domain)}>{d.routing.domain}</Tag>
+                                </div>
+                                {d.dialogState.slotsFilled !== undefined && (
+                                    <div style={{ fontSize: 12 }}>
+                                        槽位填充: {d.dialogState.slotsFilled
+                                            ? <Tag color="green" style={{ fontSize: 11 }}>完整</Tag>
+                                            : <Tag color="orange" style={{ fontSize: 11 }}>不完整</Tag>
+                                        }
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+
+                        {/* 响应耗时 */}
+                        <div className="debug-section">
+                            <div className="debug-section-title"><ClockCircleOutlined /> 响应耗时</div>
+                            <Card size="small">
+                                <Statistic
+                                    value={d.responseTime}
+                                    suffix="ms"
+                                    valueStyle={{ color: getResponseTimeColor(d.responseTime), fontSize: 28 }}
+                                />
+                            </Card>
+                        </div>
+
+                        {/* 使用模型 */}
+                        <div className="debug-section">
+                            <div className="debug-section-title"><DesktopOutlined /> 使用模型</div>
+                            <Card size="small">
+                                <Tag color="geekblue" style={{ fontSize: 13, padding: '4px 10px' }}>{d.modelUsed}</Tag>
+                            </Card>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderDrawerContent = () => {
+                const tabItems = [
+                    { key: 'flow', label: '数据流向', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">数据处理流程</div>
+                            <div id="mermaid-flow" style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
+                                <pre className="mermaid">{`graph LR
+    A[用户输入] --> B[语言检测]
+    B --> C{路由判断}
+    C -->|指令域| D[意图识别 + 槽位提取]
+    C -->|知识域| E[知识库检索 + QA生成]
+    C -->|闲聊域| F[人设加载 + LLM生成]
+    D --> G[指代消解]
+    G --> H[响应生成]
+    E --> H
+    F --> H
+    H --> I[返回用户]`}</pre>
+                            </div>
+                            <Divider />
+                            <div className="drawer-section-title">设备上下文影响</div>
+                            <Descriptions bordered size="small" column={1}>
+                                <Descriptions.Item label="语言检测">自动识别输入语种，选择对应指令库</Descriptions.Item>
+                                <Descriptions.Item label="路由优先级">指令域优先 → 知识域 → 闲聊域</Descriptions.Item>
+                                <Descriptions.Item label="设备上下文注入">烹饪状态、页面信息影响意图理解</Descriptions.Item>
+                                <Descriptions.Item label="指代消解">基于上轮对话的知识命中/指令结果消解代词</Descriptions.Item>
+                            </Descriptions>
+                        </div>
+                    )},
+                    { key: 'state', label: '状态流转', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">会话生命周期</div>
+                            <div id="mermaid-state" style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
+                                <pre className="mermaid">{`stateDiagram-v2
+    [*] --> 创建: 用户点击新建会话
+    创建 --> 活跃: 发送第一条消息
+    活跃 --> 活跃: 继续对话
+    活跃 --> 超时: 30分钟无操作
+    超时 --> 活跃: 用户再次发送消息
+    超时 --> 清除: 系统自动清理
+    活跃 --> 手动删除: 用户删除会话
+    手动删除 --> [*]
+    清除 --> [*]`}</pre>
+                            </div>
+                            <Divider />
+                            <div className="drawer-section-title">域切换规则</div>
+                            <Descriptions bordered size="small" column={1}>
+                                <Descriptions.Item label="指令 → 知识">用户从操作设备转向查询菜谱</Descriptions.Item>
+                                <Descriptions.Item label="知识 → 指令">用户从查询菜谱转向操作设备（如"收藏它"）</Descriptions.Item>
+                                <Descriptions.Item label="任意 → 闲聊">路由判断为非指令、非知识（如"讲个笑话"）</Descriptions.Item>
+                                <Descriptions.Item label="上下文传递">前一轮的域和实体信息传递到下一轮，用于指代消解</Descriptions.Item>
+                            </Descriptions>
+                        </div>
+                    )},
+                    { key: 'fields', label: '字段说明', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">Debug 面板字段说明</div>
+                            <Table
+                                size="small"
+                                pagination={false}
+                                dataSource={[
+                                    { key: '1', field: 'routing.domain', desc: '路由域（command/knowledge/chitchat）', source: '路由模块' },
+                                    { key: '2', field: 'routing.confidence', desc: '路由置信度（0-1），决定进入哪个域处理', source: '路由模块' },
+                                    { key: '3', field: 'intent.name', desc: '识别的意图名称（仅 command 域）', source: 'NLU 管线' },
+                                    { key: '4', field: 'intent.confidence', desc: '意图识别置信度', source: 'NLU 管线' },
+                                    { key: '5', field: 'slots[]', desc: '提取的槽位列表，含名称、值、类型', source: 'NLU 管线' },
+                                    { key: '6', field: 'referenceResolution', desc: '指代消解结果，原始代词→消解后实体', source: '对话管理器' },
+                                    { key: '7', field: 'knowledgeHit', desc: '知识库命中文档及匹配分（仅 knowledge 域）', source: '知识检索服务' },
+                                    { key: '8', field: 'persona', desc: '应用的人设名称和状态（仅 chitchat 域）', source: '闲聊服务' },
+                                    { key: '9', field: 'dialogState', desc: '对话状态，含前一域和槽位填充状态', source: '会话管理器' },
+                                    { key: '10', field: 'responseTime', desc: '端到端响应耗时（毫秒）', source: '网关' },
+                                    { key: '11', field: 'modelUsed', desc: '实际使用的模型/版本信息', source: '运行时' }
+                                ]}
+                                columns={[
+                                    { title: '字段路径', dataIndex: 'field', width: 180, render: (t) => <code style={{ fontSize: 12 }}>{t}</code> },
+                                    { title: '说明', dataIndex: 'desc' },
+                                    { title: '数据来源', dataIndex: 'source', width: 120 }
+                                ]}
+                            />
+                        </div>
+                    )},
+                    { key: 'operations', label: '操作说明', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">创建会话流程</div>
+                            <div id="mermaid-create" style={{ background: '#fafafa', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+                                <pre className="mermaid">{`graph TD
+    A[点击新建会话] --> B[填写会话名称]
+    B --> C[选择关联方案]
+    C --> D[选择设备上下文预设]
+    D --> E[点击确认创建]
+    E --> F[自动切换到新会话]
+    F --> G[开始对话测试]`}</pre>
+                            </div>
+                            <div className="drawer-section-title">发送消息流程</div>
+                            <div id="mermaid-send" style={{ background: '#fafafa', padding: 16, borderRadius: 8, marginBottom: 16 }}>
+                                <pre className="mermaid">{`graph TD
+    A[输入测试消息] --> B{Enter 发送}
+    B -->|Shift+Enter| C[换行]
+    B -->|Enter| D[添加用户消息到列表]
+                    D --> E[显示加载指示器]
+    E --> F[后端处理]
+    F --> G[收到机器人回复]
+    G --> H[显示回复+调试信息]
+    H --> I[自动滚动到底部]
+    I --> J[Debug面板更新为最新回复]`}</pre>
+                            </div>
+                            <div className="drawer-section-title">切换设备上下文</div>
+                            <div id="mermaid-context" style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
+                                <pre className="mermaid">{`graph TD
+    A[点击设备上下文按钮] --> B[展开上下文配置面板]
+    B --> C{选择方式}
+    C -->|快捷预设| D[点击预设按钮]
+    C -->|手动配置| E[修改各字段值]
+    D --> F[立即应用上下文]
+    E --> G[点击应用按钮]
+    G --> F
+    F --> H[上下文栏更新显示]
+    H --> I[后续消息使用新上下文]`}</pre>
+                            </div>
+                        </div>
+                    )},
+                    { key: 'logic', label: '业务逻辑', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">路由优先级规则</div>
+                            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+                                <Descriptions.Item label="优先级 1">指令域（command）— 设备操作、设置等明确指令优先处理</Descriptions.Item>
+                                <Descriptions.Item label="优先级 2">知识域（knowledge）— 菜谱查询、食材信息等知识问答</Descriptions.Item>
+                                <Descriptions.Item label="优先级 3">闲聊域（chitchat）— 无法归类到指令或知识时进入闲聊</Descriptions.Item>
+                                <Descriptions.Item label="阈值控制">指令置信度 &gt; 阈值时进入指令域，否则降级到知识域或闲聊域</Descriptions.Item>
+                            </Descriptions>
+                            <div className="drawer-section-title">指代消解逻辑</div>
+                            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+                                <Descriptions.Item label="触发条件">当前轮包含代词（它、这个、那个等）且前轮有实体信息</Descriptions.Item>
+                                <Descriptions.Item label="消解来源">1) 前轮知识命中的文档名 2) 前轮指令中的设备/菜谱名</Descriptions.Item>
+                                <Descriptions.Item label="消解策略">最近优先 — 优先使用最近一轮的实体</Descriptions.Item>
+                                <Descriptions.Item label="示例">"收藏它" → "它"消解为前轮知识命中的"柠香雪梨银耳汤"</Descriptions.Item>
+                            </Descriptions>
+                            <div className="drawer-section-title">多轮对话上下文传递</div>
+                            <Descriptions bordered size="small" column={1}>
+                                <Descriptions.Item label="会话隔离">每个测试会话独立维护上下文，互不影响</Descriptions.Item>
+                                <Descriptions.Item label="上下文内容">前轮的域、意图、槽位、知识命中均传递到下一轮</Descriptions.Item>
+                                <Descriptions.Item label="窗口大小">保留最近 5 轮对话的上下文用于消解和理解</Descriptions.Item>
+                                <Descriptions.Item label="设备上下文">全局设备状态（温度、页面等）在会话中持续生效</Descriptions.Item>
+                            </Descriptions>
+                        </div>
+                    )},
+                    { key: 'pitfalls', label: '易错点', children: (
+                        <div className="drawer-section">
+                            <div className="drawer-section-title">常见易错点</div>
+                            <Collapse
+                                defaultActiveKey={['1', '2', '3']}
+                                expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+                                items={[
+                                    { key: '1', label: '会话隔离：不同会话上下文完全独立', children: (
+                                        <div>
+                                            <p style={{ marginBottom: 8 }}>每个测试会话维护独立的对话上下文。在会话 A 中的对话历史不会影响会话 B。</p>
+                                            <p style={{ marginBottom: 8 }}><strong>影响：</strong>在会话 A 中提到的菜谱，切换到会话 B 后说"收藏它"无法消解。</p>
+                                            <p><strong>正确做法：</strong>在同一会话内完成完整的多轮测试场景。</p>
+                                        </div>
+                                    )},
+                                    { key: '2', label: '设备上下文影响理解', children: (
+                                        <div>
+                                            <p style={{ marginBottom: 8 }}>用户说"还有多久"时，如果设备上下文为"正在烹饪"，系统理解为查询剩余烹饪时间；如果设备为"空闲"，则可能无法理解。</p>
+                                            <p style={{ marginBottom: 8 }}><strong>建议：</strong>测试特定场景时，先设置对应的设备上下文预设。</p>
+                                            <p><strong>示例：</strong>测试烹饪相关指令时，选择"正在烹饪"预设。</p>
+                                        </div>
+                                    )},
+                                    { key: '3', label: '版本发布后现有测试会话不受影响', children: (
+                                        <div>
+                                            <p style={{ marginBottom: 8 }}>方案发布新版本后，已存在的测试会话仍使用创建时的快照配置，不会自动切换到新版本。</p>
+                                            <p style={{ marginBottom: 8 }}><strong>原因：</strong>测试会话绑定创建时的方案快照，确保测试结果的可复现性。</p>
+                                            <p><strong>正确做法：</strong>发布新版本后，创建新的测试会话来验证新版本效果。</p>
+                                        </div>
+                                    )}
+                                ]}
+                            />
+                        </div>
+                    )}
+                ];
+                return <Tabs items={tabItems} />;
+            };
+
+            useEffect(() => {
+                if (drawerVisible && window.mermaid) {
+                    setTimeout(() => {
+                        window.mermaid.initialize({ startOnLoad: false, theme: 'default' });
+                        window.mermaid.run();
+                    }, 300);
+                }
+            }, [drawerVisible]);
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef 平台</div>
+                            <div className="sidebar-subtitle">智能对话管理</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={['profiles']} openKeys={openKeys} onOpenChange={handleOpenChange} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={'main-content' + (inIframe ? ' main-content-no-sider' : '')}>
+                        {/* Page Header */}
+                        <div className="page-header">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                    <Button icon={<ArrowLeftOutlined />} onClick={() => goTo('detail')}>返回</Button>
+                                    <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0 }}>手动测试: 生产方案-中英双语</h1>
+                                </div>
+                                <Space>
+                                    <Tooltip title="查看数据流向、字段说明、操作说明等">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button
+                                        icon={<DesktopOutlined />}
+                                        type={contextExpanded ? 'primary' : 'default'}
+                                        onClick={() => setContextExpanded(!contextExpanded)}
+                                    >
+                                        设备上下文
+                                    </Button>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>新建会话</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        {/* Device Context Edit Panel */}
+                        {contextExpanded && (
+                            <Card
+                                size="small"
+                                title={<span><DesktopOutlined style={{ marginRight: 8 }} />设备上下文配置</span>}
+                                style={{ marginBottom: 16 }}
+                                extra={<Button type="primary" size="small" onClick={applyDeviceContext}>应用</Button>}
+                            >
+                                <div style={{ marginBottom: 12 }}>
+                                    <span style={{ marginRight: 8, fontWeight: 500 }}>快捷预设：</span>
+                                    <Button size="small" className="preset-btn" onClick={() => applyPreset('idle')}>空闲-主页</Button>
+                                    <Button size="small" className="preset-btn" onClick={() => applyPreset('cooking')}>正在烹饪</Button>
+                                    <Button size="small" className="preset-btn" onClick={() => applyPreset('recipe')}>菜谱浏览</Button>
+                                </div>
+                                <Divider style={{ margin: '12px 0' }} />
+                                <Row gutter={16}>
+                                    <Col span={5}>
+                                        <div className="context-form-row">
+                                            <div className="context-form-label">cooking_status</div>
+                                            <Select
+                                                size="small"
+                                                value={contextFormValues.cooking_status}
+                                                onChange={(v) => setContextFormValues(prev => ({ ...prev, cooking_status: v }))}
+                                                style={{ width: '100%' }}
+                                            >
+                                                <Option value="idle">idle (空闲)</Option>
+                                                <Option value="cooking">cooking (烹饪中)</Option>
+                                                <Option value="preheating">preheating (预热中)</Option>
+                                                <Option value="done">done (已完成)</Option>
+                                            </Select>
+                                        </div>
+                                    </Col>
+                                    <Col span={4}>
+                                        <div className="context-form-row">
+                                            <div className="context-form-label">door_closed</div>
+                                            <Switch
+                                                size="small"
+                                                checked={contextFormValues.door_closed}
+                                                onChange={(v) => setContextFormValues(prev => ({ ...prev, door_closed: v }))}
+                                                checkedChildren="关闭"
+                                                unCheckedChildren="打开"
+                                            />
+                                        </div>
+                                    </Col>
+                                    <Col span={5}>
+                                        <div className="context-form-row">
+                                            <div className="context-form-label">current_temp</div>
+                                            <InputNumber
+                                                size="small"
+                                                min={0}
+                                                max={300}
+                                                value={contextFormValues.current_temp}
+                                                onChange={(v) => setContextFormValues(prev => ({ ...prev, current_temp: v }))}
+                                                addonAfter="°C"
+                                                style={{ width: '100%' }}
+                                            />
+                                        </div>
+                                    </Col>
+                                    <Col span={5}>
+                                        <div className="context-form-row">
+                                            <div className="context-form-label">current_page</div>
+                                            <Select
+                                                size="small"
+                                                value={contextFormValues.current_page}
+                                                onChange={(v) => setContextFormValues(prev => ({ ...prev, current_page: v }))}
+                                                style={{ width: '100%' }}
+                                            >
+                                                <Option value="home">home (主页)</Option>
+                                                <Option value="recipe_browser">recipe_browser (菜谱)</Option>
+                                                <Option value="cooking_progress">cooking_progress (烹饪)</Option>
+                                                <Option value="settings">settings (设置)</Option>
+                                            </Select>
+                                        </div>
+                                    </Col>
+                                    <Col span={5}>
+                                        <div className="context-form-row">
+                                            <div className="context-form-label">screen_info</div>
+                                            <Input
+                                                size="small"
+                                                allowClear
+                                                value={contextFormValues.screen_info}
+                                                onChange={(e) => setContextFormValues(prev => ({ ...prev, screen_info: e.target.value }))}
+                                                placeholder="如: 15.6寸主屏"
+                                            />
+                                        </div>
+                                    </Col>
+                                </Row>
+                            </Card>
+                        )}
+
+                        {/* Three-column layout */}
+                        <div className="chat-container">
+                            {/* Left: Session list */}
+                            <div className="session-panel">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <span style={{ fontWeight: 600 }}>测试会话 <Badge count={sessions.length} style={{ backgroundColor: '#1890ff', marginLeft: 4 }} /></span>
+                                </div>
+                                <Button
+                                    type="dashed"
+                                    icon={<PlusOutlined />}
+                                    block
+                                    onClick={() => setCreateModalVisible(true)}
+                                    style={{ marginBottom: 12 }}
+                                >
+                                    新建会话
+                                </Button>
+                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                    {sessions.map(s => (
+                                        <div
+                                            key={s.id}
+                                            className={`session-card ${s.id === activeSessionId ? 'active' : ''}`}
+                                            onClick={() => switchSession(s.id)}
+                                        >
+                                            <div className="session-name">{s.name}</div>
+                                            <div className="session-meta">
+                                                <Tag style={{ fontSize: 10, marginRight: 0 }}>{s.profileName}</Tag>
+                                            </div>
+                                            <div className="session-meta" style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{s.createdAt}</span>
+                                                <span>{(messagesBySession[s.id] || []).length || s.messageCount} 条</span>
+                                            </div>
+                                            <Button
+                                                className="delete-btn"
+                                                type="text"
+                                                size="small"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={(e) => deleteSession(e, s.id)}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Center: Chat panel */}
+                            <div className="chat-panel">
+                                {/* Device context bar */}
+                                <div className="device-context-bar">
+                                    <DesktopOutlined style={{ marginRight: 6 }} />
+                                    {contextSummary}
+                                </div>
+
+                                {/* Messages */}
+                                <div className="message-list">
+                                    {activeMessages.length === 0 && !sending && (
+                                        <div style={{ textAlign: 'center', padding: '80px 0', color: '#bfbfbf' }}>
+                                            <RobotOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+                                            <div style={{ fontSize: 16 }}>输入测试消息开始对话</div>
+                                            <div style={{ fontSize: 13, marginTop: 8, color: '#d9d9d9' }}>
+                                                试试: "设置温度180度" 或 "柠香雪梨银耳汤需要哪些食材"
+                                            </div>
+                                        </div>
+                                    )}
+                                    {activeMessages.map((msg) => (
+                                        <div key={msg.id}>
+                                            <div className={`message-item ${msg.role}`}>
+                                                {msg.role === 'bot' && (
+                                                    <div className="msg-avatar bot-avatar"><RobotOutlined /></div>
+                                                )}
+                                                <div>
+                                                    <div className={`message-bubble ${msg.role}`}>{msg.content}</div>
+                                                    <div className={`msg-time ${msg.role === 'user' ? '' : ''}`} style={msg.role === 'user' ? { textAlign: 'right' } : {}}>
+                                                        {msg.timestamp}
+                                                    </div>
+                                                    {msg.debug && (
+                                                        <div
+                                                            className="debug-info"
+                                                            style={{
+                                                                cursor: 'pointer',
+                                                                borderLeftColor: selectedDebugMsgId === msg.id ? '#1890ff' : '#d9d9d9',
+                                                                background: selectedDebugMsgId === msg.id ? '#e6f7ff' : '#fafafa'
+                                                            }}
+                                                            onClick={() => setSelectedDebugMsgId(msg.id)}
+                                                        >
+                                                            <Space size={4} wrap>
+                                                                <Tag color={getDomainColor(msg.debug.routing.domain)} style={{ fontSize: 11, margin: 0 }}>
+                                                                    {msg.debug.routing.domain}
+                                                                </Tag>
+                                                                {msg.debug.intent && (
+                                                                    <Tag style={{ fontSize: 11, margin: 0 }}>{msg.debug.intent.name}</Tag>
+                                                                )}
+                                                                <span style={{ color: getResponseTimeColor(msg.debug.responseTime) }}>
+                                                                    {msg.debug.responseTime}ms
+                                                                </span>
+                                                                <span style={{ color: '#bfbfbf' }}>
+                                                                    {selectedDebugMsgId === msg.id ? '▼ 已选中' : '▶ 展开调试信息'}
+                                                                </span>
+                                                            </Space>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {msg.role === 'user' && (
+                                                    <div className="msg-avatar user-avatar"><UserOutlined /></div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {sending && (
+                                        <div className="message-item">
+                                            <div className="msg-avatar bot-avatar"><RobotOutlined /></div>
+                                            <div className="message-bubble bot">
+                                                <div className="typing-indicator">
+                                                    <span></span><span></span><span></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+
+                                {/* Input area */}
+                                <div className="input-area">
+                                    <TextArea
+                                        ref={inputRef}
+                                        value={inputText}
+                                        onChange={(e) => setInputText(e.target.value)}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="输入测试消息..."
+                                        allowClear
+                                        autoSize={{ minRows: 1, maxRows: 4 }}
+                                        style={{ flex: 1 }}
+                                        disabled={sending}
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<SendOutlined />}
+                                        onClick={handleSend}
+                                        loading={sending}
+                                        style={{ alignSelf: 'flex-end' }}
+                                    >
+                                        发送
+                                    </Button>
+                                </div>
+                                <div style={{ padding: '0 16px 8px', fontSize: 11, color: '#bfbfbf' }}>
+                                    Enter 发送, Shift+Enter 换行
+                                </div>
+                            </div>
+
+                            {/* Right: Debug panel */}
+                            <div className="debug-panel">
+                                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <BugOutlined />
+                                    调试面板
+                                </div>
+                                {renderDebugPanel()}
+                            </div>
+                        </div>
+                    </Content>
+
+                    {/* Create Session Modal */}
+                    <Modal
+                        title="新建测试会话"
+                        open={createModalVisible}
+                        onCancel={() => { setCreateModalVisible(false); form.resetFields(); }}
+                        maskClosable={false}
+                        onOk={() => {
+                            form.validateFields().then(values => {
+                                createSession(values);
+                            });
+                        }}
+                        okText="创建"
+                        cancelText="取消"
+                    >
+                        <Form form={form} layout="vertical" initialValues={{ profile: '生产方案-中英双语', preset: 'idle' }}>
+                            <Form.Item name="name" label="会话名称" rules={[{ required: true, message: '请输入会话名称' }]}>
+                                <Input placeholder="如：指令测试-烹饪控制" allowClear />
+                            </Form.Item>
+                            <Form.Item name="profile" label="关联方案">
+                                <Select>
+                                    <Option value="生产方案-中英双语">生产方案-中英双语</Option>
+                                    <Option value="开发方案-纯中文">开发方案-纯中文</Option>
+                                    <Option value="测试方案-英文专用">测试方案-英文专用</Option>
+                                </Select>
+                            </Form.Item>
+                            <Form.Item name="preset" label="设备上下文预设">
+                                <Select>
+                                    <Option value="idle">空闲-主页</Option>
+                                    <Option value="cooking">正在烹饪</Option>
+                                    <Option value="recipe">菜谱浏览</Option>
+                                    <Option value="custom">自定义</Option>
+                                </Select>
+                            </Form.Item>
+                            <Form.Item name="remark" label="备注">
+                                <TextArea placeholder="可选备注信息" allowClear rows={2} />
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    {/* Drawer */}
+                    <Drawer
+                        title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>手动测试 — 说明文档</span>
+                                <Button
+                                    size="small"
+                                    icon={<ColumnWidthOutlined />}
+                                    onClick={toggleDrawerWidth}
+                                >
+                                    {drawerWidth === 1200 ? '收窄' : '展开'}
+                                </Button>
+                            </div>
+                        }
+                        placement="right"
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                        maskClosable={false}
+                    >
+                        {renderDrawerContent()}
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

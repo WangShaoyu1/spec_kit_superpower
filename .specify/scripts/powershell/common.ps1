@@ -99,17 +99,19 @@ function Get-FeaturePathsEnv {
     $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
     
     [PSCustomObject]@{
-        REPO_ROOT     = $repoRoot
+        REPO_ROOT      = $repoRoot
         CURRENT_BRANCH = $currentBranch
-        HAS_GIT       = $hasGit
-        FEATURE_DIR   = $featureDir
-        FEATURE_SPEC  = Join-Path $featureDir 'spec.md'
-        IMPL_PLAN     = Join-Path $featureDir 'plan.md'
-        TASKS         = Join-Path $featureDir 'tasks.md'
-        RESEARCH      = Join-Path $featureDir 'research.md'
-        DATA_MODEL    = Join-Path $featureDir 'data-model.md'
-        QUICKSTART    = Join-Path $featureDir 'quickstart.md'
-        CONTRACTS_DIR = Join-Path $featureDir 'contracts'
+        HAS_GIT        = $hasGit
+        FEATURE_DIR    = $featureDir
+        FEATURE_SPEC   = Join-Path $featureDir 'spec.md'
+        IMPL_PLAN      = Join-Path $featureDir 'plan.md'
+        TASKS_DIR      = Join-Path $featureDir 'tasks'
+        TASKS_FILE     = Join-Path $featureDir 'tasks.md'
+        PD_ALL_DIR     = Join-Path $featureDir 'pd-all'
+        AD_DIR         = Join-Path $featureDir 'ad'
+        AD_FILE        = Join-Path $featureDir 'ad.md'
+        DD_DIR         = Join-Path $featureDir 'dd'
+        DD_FILE        = Join-Path $featureDir 'dd.md'
     }
 }
 

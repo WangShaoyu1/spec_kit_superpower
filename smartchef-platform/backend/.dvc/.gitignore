@@ -1,5 +1,0 @@
-# DVC 内部忽略规则
-# 以下目录/文件由 DVC 管理，不应提交到 Git
-cache
-tmp
-state

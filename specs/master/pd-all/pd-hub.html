@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartChef PD 交互原型 · 统一导航门户</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --sidebar-w: 300px;
+            --topbar-h: 48px;
+            --brand-primary: #0958d9;
+            --brand-soft: #e6f4ff;
+            --surface: #ffffff;
+            --surface-dim: #fafafa;
+            --border: #f0f0f0;
+            --text-primary: #141414;
+            --text-secondary: #595959;
+            --text-muted: #8c8c8c;
+            --shadow-sidebar: 2px 0 8px rgba(0,0,0,0.06);
+            --module-intent: #0958d9;
+            --module-dialog: #722ed1;
+            --module-knowledge: #08979c;
+            --module-monitoring: #d4380d;
+            --module-user: #c41d7f;
+            --module-batch: #d48806;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+        }
+
+        html, body, #root {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--surface-dim);
+            color: var(--text-primary);
+        }
+
+        .hub-layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* --- Sidebar --- */
+        .hub-sidebar {
+            width: var(--sidebar-w);
+            min-width: var(--sidebar-w);
+            background: var(--surface);
+            box-shadow: var(--shadow-sidebar);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s;
+            overflow: hidden;
+        }
+
+        .hub-sidebar.collapsed {
+            margin-left: calc(-1 * var(--sidebar-w));
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sidebar-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-brand-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--brand-primary), #36cfc9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand-text h1 {
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.3;
+            letter-spacing: -0.01em;
+        }
+
+        .sidebar-brand-text .subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .sidebar-version {
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--surface-dim);
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        /* --- Module Cards --- */
+        .module-cards {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .module-cards-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .module-card {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border-left: 3px solid transparent;
+        }
+
+        .module-card:hover {
+            background: var(--surface-dim);
+        }
+
+        .module-card .mc-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .module-card .mc-count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .module-cards-summary {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        /* --- Tree --- */
+        .sidebar-tree-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .sidebar-tree-area::-webkit-scrollbar { width: 4px; }
+        .sidebar-tree-area::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.1);
+            border-radius: 2px;
+        }
+
+        .tree-module {
+            margin-bottom: 2px;
+        }
+
+        .tree-module-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            transition: background 0.15s;
+        }
+
+        .tree-module-header:hover {
+            background: var(--surface-dim);
+        }
+
+        .tree-module-header .expand-icon {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+            width: 14px;
+            text-align: center;
+        }
+
+        .tree-module-header .expand-icon.open {
+            transform: rotate(90deg);
+        }
+
+        .tree-module-header .module-icon {
+            font-size: 14px;
+        }
+
+        .tree-module-header .page-count-badge {
+            margin-left: auto;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-muted);
+            background: var(--surface-dim);
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tree-children {
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+        }
+
+        .tree-page-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 16px 6px 44px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-secondary);
+            transition: background 0.15s, color 0.15s;
+            position: relative;
+        }
+
+        .tree-page-item::before {
+            content: '';
+            position: absolute;
+            left: 28px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .tree-page-item:hover {
+            background: var(--brand-soft);
+            color: var(--brand-primary);
+        }
+
+        .tree-page-item.active {
+            background: var(--brand-soft);
+            color: var(--brand-primary);
+            font-weight: 500;
+        }
+
+        .tree-page-item.active::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: var(--brand-primary);
+            border-radius: 3px 0 0 3px;
+        }
+
+        .tree-page-item .file-icon {
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .main-badge {
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--brand-primary);
+            background: var(--brand-soft);
+            border: 1px solid rgba(9, 88, 217, 0.2);
+            padding: 0 4px;
+            border-radius: 3px;
+            line-height: 16px;
+            flex-shrink: 0;
+        }
+
+        .tree-page-item.active .main-badge {
+            background: rgba(9, 88, 217, 0.15);
+        }
+
+        /* --- Cross-module Refs --- */
+        .sidebar-footer {
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .xref-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-muted);
+            user-select: none;
+            transition: color 0.15s;
+        }
+
+        .xref-toggle:hover { color: var(--text-secondary); }
+
+        .xref-body {
+            padding: 0 16px 12px;
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.2s;
+        }
+
+        .xref-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 3px 0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .xref-item .arrow { color: var(--brand-primary); font-weight: 600; }
+        .xref-item .label {
+            font-family: 'Noto Sans SC', sans-serif;
+            color: var(--text-secondary);
+            font-size: 11px;
+        }
+
+        /* --- Main Area --- */
+        .hub-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .hub-topbar {
+            height: var(--topbar-h);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .topbar-toggle {
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .topbar-toggle:hover { background: var(--surface-dim); }
+
+        .topbar-breadcrumb {
+            flex: 1;
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .topbar-breadcrumb .sep { color: var(--text-muted); font-size: 11px; }
+        .topbar-breadcrumb .current { color: var(--text-primary); font-weight: 500; }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .topbar-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: var(--surface-dim);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+
+        .topbar-btn:hover {
+            color: var(--brand-primary);
+            border-color: var(--brand-primary);
+            background: var(--brand-soft);
+        }
+
+        .hub-iframe-wrapper {
+            flex: 1;
+            background: var(--surface-dim);
+            position: relative;
+        }
+
+        .hub-iframe-wrapper iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: #fff;
+        }
+
+        .iframe-loading {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--surface-dim);
+            z-index: 5;
+            transition: opacity 0.3s;
+        }
+
+        .iframe-loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        const antd = window.antd;
+        const icons = window.icons;
+        const { useState, useRef, useCallback, useEffect, useMemo } = React;
+        const { Tooltip, Spin } = antd;
+        const {
+            DatabaseOutlined, RobotOutlined, BookOutlined, BarChartOutlined,
+            UserOutlined, ExperimentOutlined, FileTextOutlined, FolderOpenOutlined,
+            FolderOutlined, RightOutlined, ReloadOutlined, ExportOutlined,
+            MenuFoldOutlined, MenuUnfoldOutlined, LinkOutlined, DownOutlined,
+            AppstoreOutlined, CheckCircleFilled
+        } = icons;
+
+        const ICON_MAP = {
+            DatabaseOutlined: React.createElement(DatabaseOutlined),
+            RobotOutlined: React.createElement(RobotOutlined),
+            BookOutlined: React.createElement(BookOutlined),
+            BarChartOutlined: React.createElement(BarChartOutlined),
+            UserOutlined: React.createElement(UserOutlined),
+            ExperimentOutlined: React.createElement(ExperimentOutlined),
+        };
+
+        const MODULE_COLORS = {
+            'intent-library': 'var(--module-intent)',
+            'dialog-profile': 'var(--module-dialog)',
+            'knowledge-base': 'var(--module-knowledge)',
+            'monitoring': 'var(--module-monitoring)',
+            'user-mgmt': 'var(--module-user)',
+            'batch-test': 'var(--module-batch)',
+        };
+
+        const modules = [
+            {
+                key: 'intent-library', title: '指令库管理', icon: 'DatabaseOutlined',
+                status: 'completed', frCoverage: 'FR-002,003,039-054',
+                children: [
+                    { key: 'intent-library/index', title: '指令库列表', path: 'pd-intent-library/index.html', isMainNav: true },
+                    { key: 'intent-library/detail', title: '指令库详情', path: 'pd-intent-library/detail.html' },
+                    { key: 'intent-library/datasets', title: '数据集管理', path: 'pd-intent-library/datasets.html', isMainNav: true },
+                    { key: 'intent-library/dataset-detail', title: '数据集数据管理', path: 'pd-intent-library/dataset-detail.html' },
+                    { key: 'intent-library/test', title: '模型测试', path: 'pd-intent-library/test.html' },
+                ]
+            },
+            {
+                key: 'dialog-profile', title: '对话方案', icon: 'RobotOutlined',
+                status: 'completed', frCoverage: 'FR-007-011,015-016,040,047',
+                children: [
+                    { key: 'dialog-profile/index', title: '方案列表', path: 'pd-dialog-profile/index.html', isMainNav: true },
+                    { key: 'dialog-profile/detail', title: '方案详情', path: 'pd-dialog-profile/detail.html' },
+                    { key: 'dialog-profile/test-chat', title: '手动测试', path: 'pd-dialog-profile/test-chat.html' },
+                ]
+            },
+            {
+                key: 'knowledge-base', title: '知识库管理', icon: 'BookOutlined',
+                status: 'completed', frCoverage: 'FR-004-006',
+                children: [
+                    { key: 'knowledge-base/index', title: '知识库管理', path: 'pd-knowledge-base/index.html', isMainNav: true },
+                    { key: 'knowledge-base/detail', title: '文档详情', path: 'pd-knowledge-base/detail.html' },
+                ]
+            },
+            {
+                key: 'monitoring', title: '监控仪表盘', icon: 'BarChartOutlined',
+                status: 'completed', frCoverage: 'FR-030-032,034-035,038',
+                children: [
+                    { key: 'monitoring/index', title: '仪表盘主页', path: 'pd-monitoring/index.html', isMainNav: true },
+                    { key: 'monitoring/device-logs', title: '设备日志', path: 'pd-monitoring/device-logs.html' },
+                    { key: 'monitoring/alert-rules', title: '告警规则', path: 'pd-monitoring/alert-rules.html' },
+                ]
+            },
+            {
+                key: 'user-mgmt', title: '用户管理', icon: 'UserOutlined',
+                status: 'completed', frCoverage: 'FR-001',
+                children: [
+                    { key: 'user-mgmt/index', title: '用户管理', path: 'pd-user-mgmt/index.html', isMainNav: true },
+                ]
+            },
+            {
+                key: 'batch-test', title: '批量测试', icon: 'ExperimentOutlined',
+                status: 'completed', frCoverage: 'FR-012-014',
+                children: [
+                    { key: 'batch-test/index', title: '批量测试列表', path: 'pd-batch-test/index.html', isMainNav: true },
+                    { key: 'batch-test/detail', title: '测试详情', path: 'pd-batch-test/detail.html' },
+                ]
+            }
+        ];
+
+        const CROSS_REFS = [
+            { from: 'intent-library', to: 'dialog-profile', label: '发布门禁' },
+            { from: 'dialog-profile', to: 'intent-library', label: '绑定指令库' },
+            { from: 'intent-library', to: 'batch-test', label: '批量测试' },
+        ];
+
+        const DEFAULT_PAGE_KEY = 'intent-library/index';
+
+        function findPageByKey(key) {
+            for (const m of modules) {
+                for (const c of m.children) {
+                    if (c.key === key) return { module: m, page: c };
+                }
+            }
+            return null;
+        }
+
+        /* ─── Sidebar Header ─── */
+        function SidebarHeader() {
+            return React.createElement('div', { className: 'sidebar-header' },
+                React.createElement('div', { className: 'sidebar-brand' },
+                    React.createElement('div', { className: 'sidebar-brand-icon' }, 'SC'),
+                    React.createElement('div', { className: 'sidebar-brand-text' },
+                        React.createElement('h1', null, 'SmartChef PD 交互原型'),
+                        React.createElement('span', { className: 'subtitle' }, '统一导航门户')
+                    )
+                ),
+                React.createElement('span', { className: 'sidebar-version' }, '基于 spec.md v1.4')
+            );
+        }
+
+        /* ─── Module Overview Cards ─── */
+        function ModuleCards({ onModuleClick }) {
+            const totalPages = modules.reduce((s, m) => s + m.children.length, 0);
+            return React.createElement('div', { className: 'module-cards' },
+                React.createElement('div', { className: 'module-cards-grid' },
+                    modules.map(m =>
+                        React.createElement('div', {
+                            key: m.key,
+                            className: 'module-card',
+                            style: { borderLeftColor: MODULE_COLORS[m.key] },
+                            onClick: () => onModuleClick(m.key),
+                        },
+                            React.createElement(CheckCircleFilled, {
+                                style: { color: '#52c41a', fontSize: 11 }
+                            }),
+                            React.createElement('span', { className: 'mc-name' }, m.title),
+                            React.createElement('span', { className: 'mc-count' }, m.children.length + '页')
+                        )
+                    )
+                ),
+                React.createElement('div', { className: 'module-cards-summary' },
+                    modules.length + ' 模块 · ' + totalPages + ' 页 · 覆盖 FR-001~054 中所有 UI 类需求'
+                )
+            );
+        }
+
+        /* ─── Tree Navigation ─── */
+        function TreeNav({ activeKey, onSelect, expandedModules, onToggleModule }) {
+            return React.createElement('div', { className: 'sidebar-tree-area' },
+                modules.map(m => {
+                    const isOpen = expandedModules.includes(m.key);
+                    return React.createElement('div', { key: m.key, className: 'tree-module' },
+                        React.createElement('div', {
+                            className: 'tree-module-header',
+                            onClick: () => onToggleModule(m.key),
+                        },
+                            React.createElement('span', {
+                                className: 'expand-icon' + (isOpen ? ' open' : ''),
+                            }, React.createElement(RightOutlined)),
+                            React.createElement('span', {
+                                className: 'module-icon',
+                                style: { color: MODULE_COLORS[m.key] },
+                            }, ICON_MAP[m.icon]),
+                            React.createElement('span', null, m.title),
+                            React.createElement('span', { className: 'page-count-badge' }, m.children.length)
+                        ),
+                        React.createElement('div', {
+                            className: 'tree-children',
+                            style: { maxHeight: isOpen ? m.children.length * 36 + 'px' : '0px' },
+                        },
+                            m.children.map(page =>
+                                React.createElement('div', {
+                                    key: page.key,
+                                    className: 'tree-page-item' + (activeKey === page.key ? ' active' : ''),
+                                    onClick: () => onSelect(page.key),
+                                },
+                                    React.createElement(FileTextOutlined, {
+                                        className: 'file-icon',
+                                        style: { color: activeKey === page.key ? 'var(--brand-primary)' : 'var(--text-muted)' }
+                                    }),
+                                    React.createElement('span', { style: { flex: 1 } }, page.title),
+                                    page.isMainNav && React.createElement('span', { className: 'main-badge' }, '主')
+                                )
+                            )
+                        )
+                    );
+                })
+            );
+        }
+
+        /* ─── Cross-module References ─── */
+        function CrossRefs() {
+            const [open, setOpen] = useState(false);
+            return React.createElement('div', { className: 'sidebar-footer' },
+                React.createElement('div', {
+                    className: 'xref-toggle',
+                    onClick: () => setOpen(v => !v),
+                },
+                    React.createElement(LinkOutlined, { style: { fontSize: 12 } }),
+                    React.createElement('span', null, '跨模块引用'),
+                    React.createElement(DownOutlined, {
+                        style: {
+                            fontSize: 9,
+                            marginLeft: 'auto',
+                            transform: open ? 'rotate(180deg)' : 'rotate(0)',
+                            transition: 'transform 0.2s',
+                        }
+                    })
+                ),
+                React.createElement('div', {
+                    className: 'xref-body',
+                    style: { maxHeight: open ? '120px' : '0px', opacity: open ? 1 : 0 },
+                },
+                    CROSS_REFS.map((ref, i) =>
+                        React.createElement('div', { key: i, className: 'xref-item' },
+                            React.createElement('span', null, ref.from),
+                            React.createElement('span', { className: 'arrow' }, '→'),
+                            React.createElement('span', null, ref.to),
+                            React.createElement('span', { className: 'label' }, '(' + ref.label + ')')
+                        )
+                    )
+                )
+            );
+        }
+
+        /* ─── Top Bar ─── */
+        function TopBar({ moduleTitle, pageTitle, iframeSrc, onRefresh, sidebarOpen, onToggleSidebar }) {
+            const handleOpenNew = () => {
+                if (iframeSrc) window.open(iframeSrc, '_blank');
+            };
+            return React.createElement('div', { className: 'hub-topbar' },
+                React.createElement('div', {
+                    className: 'topbar-toggle',
+                    onClick: onToggleSidebar,
+                    title: sidebarOpen ? '收起侧栏' : '展开侧栏',
+                },
+                    sidebarOpen
+                        ? React.createElement(MenuFoldOutlined)
+                        : React.createElement(MenuUnfoldOutlined)
+                ),
+                React.createElement('div', { className: 'topbar-breadcrumb' },
+                    React.createElement('span', null, moduleTitle),
+                    React.createElement('span', { className: 'sep' }, '/'),
+                    React.createElement('span', { className: 'current' }, pageTitle)
+                ),
+                React.createElement('div', { className: 'topbar-actions' },
+                    React.createElement('button', {
+                        className: 'topbar-btn',
+                        onClick: onRefresh,
+                    },
+                        React.createElement(ReloadOutlined, { style: { fontSize: 12 } }),
+                        '刷新'
+                    ),
+                    React.createElement('button', {
+                        className: 'topbar-btn',
+                        onClick: handleOpenNew,
+                    },
+                        React.createElement(ExportOutlined, { style: { fontSize: 12 } }),
+                        '在新窗口打开'
+                    )
+                )
+            );
+        }
+
+        /* ─── App ─── */
+        function App() {
+            const [activeKey, setActiveKey] = useState(DEFAULT_PAGE_KEY);
+            const [sidebarOpen, setSidebarOpen] = useState(true);
+            const [expandedModules, setExpandedModules] = useState(
+                modules.map(m => m.key)
+            );
+            const [iframeLoading, setIframeLoading] = useState(true);
+            const iframeRef = useRef(null);
+
+            const current = useMemo(() => findPageByKey(activeKey), [activeKey]);
+
+            const handleSelect = useCallback((key) => {
+                if (key === activeKey) return;
+                setIframeLoading(true);
+                setActiveKey(key);
+            }, [activeKey]);
+
+            const handleModuleClick = useCallback((moduleKey) => {
+                const m = modules.find(mod => mod.key === moduleKey);
+                if (!m) return;
+                if (!expandedModules.includes(moduleKey)) {
+                    setExpandedModules(prev => [...prev, moduleKey]);
+                }
+                handleSelect(m.children[0].key);
+            }, [expandedModules, handleSelect]);
+
+            const handleToggleModule = useCallback((moduleKey) => {
+                setExpandedModules(prev =>
+                    prev.includes(moduleKey)
+                        ? prev.filter(k => k !== moduleKey)
+                        : [...prev, moduleKey]
+                );
+            }, []);
+
+            const handleRefresh = useCallback(() => {
+                if (iframeRef.current) {
+                    setIframeLoading(true);
+                    iframeRef.current.src = iframeRef.current.src;
+                }
+            }, []);
+
+            const iframeSrc = current ? current.page.path : '';
+
+            const handleIframeLoad = useCallback(() => {
+                setIframeLoading(false);
+            }, []);
+
+            return React.createElement('div', { className: 'hub-layout' },
+                React.createElement('div', {
+                    className: 'hub-sidebar' + (sidebarOpen ? '' : ' collapsed'),
+                },
+                    React.createElement(SidebarHeader),
+                    React.createElement(ModuleCards, { onModuleClick: handleModuleClick }),
+                    React.createElement(TreeNav, {
+                        activeKey,
+                        onSelect: handleSelect,
+                        expandedModules,
+                        onToggleModule: handleToggleModule,
+                    }),
+                    React.createElement(CrossRefs)
+                ),
+                React.createElement('div', { className: 'hub-main' },
+                    React.createElement(TopBar, {
+                        moduleTitle: current ? current.module.title : '',
+                        pageTitle: current ? current.page.title : '',
+                        iframeSrc,
+                        onRefresh: handleRefresh,
+                        sidebarOpen,
+                        onToggleSidebar: () => setSidebarOpen(v => !v),
+                    }),
+                    React.createElement('div', { className: 'hub-iframe-wrapper' },
+                        React.createElement('div', {
+                            className: 'iframe-loading' + (iframeLoading ? '' : ' hidden'),
+                        },
+                            React.createElement(Spin, { size: 'large' })
+                        ),
+                        React.createElement('iframe', {
+                            ref: iframeRef,
+                            src: iframeSrc,
+                            onLoad: handleIframeLoad,
+                            title: 'PD Preview',
+                        })
+                    )
+                )
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

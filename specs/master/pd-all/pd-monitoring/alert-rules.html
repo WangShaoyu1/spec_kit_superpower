@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>告警规则配置 | SmartChef PD</title>
+    <!-- React 18 - unpkg -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Dayjs -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <!-- Ant Design 6.3.1 - unpkg -->
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/reset.css">
+    <link rel="stylesheet" href="https://unpkg.com/antd@6.3.1/dist/antd.css">
+    <script src="https://unpkg.com/antd@6.3.1/dist/antd.min.js"></script>
+    <!-- Ant Design Icons -->
+    <script src="https://unpkg.com/@ant-design/icons@5.3.7/dist/index.umd.min.js"></script>
+    <!-- Mermaid -->
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
+
+        .page-layout { min-height: 100vh; }
+        .sidebar { background: #001529; color: #fff; position: fixed; height: 100vh; overflow: auto; }
+        .sidebar-header { padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-logo { font-size: 18px; font-weight: 600; }
+        .sidebar-subtitle { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+        .main-content { margin-left: 260px; padding: 24px 32px; }
+        .main-content-no-sider { margin-left: 0 !important; }
+        .page-header { background: #fff; padding: 24px 32px; margin: -24px -32px 24px; border-bottom: 1px solid #f0f0f0; }
+
+        .drawer-section { margin-bottom: 24px; }
+        .drawer-section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #262626; border-left: 4px solid #1890ff; padding-left: 12px; }
+
+        .pulse-hint { display: inline-block; width: 8px; height: 8px; background: #ff4d4f; border-radius: 50%; margin-left: 6px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: "default",
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" }
+        });
+
+        const { useState, useCallback, useEffect } = React;
+        const antd = window.antd;
+        const icons = window.icons;
+        const {
+            Layout, Menu, Button, Table, Tag, Card, Space, Drawer, Tabs, message, Statistic, Row, Col,
+            Tooltip, Modal, Form, Input, Select, InputNumber, Checkbox, Switch, Collapse, Alert
+        } = antd;
+        const {
+            SettingOutlined, DatabaseOutlined, FileTextOutlined, RobotOutlined, BarChartOutlined,
+            ArrowLeftOutlined, PlusOutlined, QuestionCircleOutlined, ColumnWidthOutlined,
+            EditOutlined, DeleteOutlined, UserOutlined, LockOutlined, RocketOutlined, BellOutlined
+        } = icons;
+
+        const { Sider, Content } = Layout;
+        const { Option } = Select;
+
+        const mockRules = [
+            { id: "rule_001", name: "意图准确率下降告警", metric: "intent_accuracy", condition: "drop > 5%", duration: "5分钟", notify: ["in-app", "email"], enabled: true, lastTriggered: "2026-03-17 14:30", status: "resolved" },
+            { id: "rule_002", name: "P99延迟超标告警", metric: "p99_latency", condition: "> 500ms", duration: "3分钟", notify: ["in-app"], enabled: true, lastTriggered: null, status: "idle" },
+            { id: "rule_003", name: "错误率突增告警", metric: "error_rate", condition: "> 5%", duration: "1分钟", notify: ["in-app", "email", "webhook"], enabled: true, lastTriggered: "2026-03-15 09:10", status: "resolved" },
+            { id: "rule_004", name: "低QPS告警", metric: "qps", condition: "< 0.1", duration: "10分钟", notify: ["email"], enabled: false, lastTriggered: null, status: "idle" }
+        ];
+
+        const mockAlerts = [
+            { id: "a1", time: "2026-03-18 10:15:33", ruleName: "意图准确率下降告警", metric: "intent_accuracy", value: "84.1%", threshold: "90%", duration: "5分钟", status: "firing" },
+            { id: "a2", time: "2026-03-17 14:30:22", ruleName: "意图准确率下降告警", metric: "intent_accuracy", value: "85.2%", threshold: "90%", duration: "5分钟", status: "resolved" }
+        ];
+
+        const METRIC_OPTIONS = [
+            { value: "intent_accuracy", label: "意图准确率" },
+            { value: "p99_latency", label: "P99延迟" },
+            { value: "p95_latency", label: "P95延迟" },
+            { value: "avg_latency", label: "平均延迟" },
+            { value: "error_rate", label: "错误率" },
+            { value: "qps", label: "QPS" }
+        ];
+
+        const METRIC_TAG = {
+            intent_accuracy: { color: "blue", text: "准确率" },
+            p99_latency: { color: "orange", text: "P99延迟" },
+            p95_latency: { color: "orange", text: "P95延迟" },
+            avg_latency: { color: "orange", text: "平均延迟" },
+            error_rate: { color: "red", text: "错误率" },
+            qps: { color: "cyan", text: "QPS" }
+        };
+
+        const NOTIFY_TAG = {
+            "in-app": { color: "blue", text: "站内通知" },
+            "email": { color: "green", text: "邮件" },
+            "webhook": { color: "purple", text: "Webhook" }
+        };
+
+        function App() {
+            const inIframe = typeof window !== "undefined" && window.self !== window.top;
+            const [selectedKeys, setSelectedKeys] = useState(["alert-rules"]);
+            const [openKeys, setOpenKeys] = useState(["monitoring"]);
+            const [drawerVisible, setDrawerVisible] = useState(false);
+            const [drawerWidth, setDrawerWidth] = useState(1200);
+            const [rules, setRules] = useState(mockRules);
+            const [ruleModalVisible, setRuleModalVisible] = useState(false);
+            const [editingRule, setEditingRule] = useState(null);
+            const [form] = Form.useForm();
+
+            const handleOpenChange = useCallback((keys) => {
+                setOpenKeys(keys);
+            }, []);
+
+            const goTo = (page) => {
+                if (page === "index") window.location.href = "index.html";
+            };
+
+            const toggleDrawerWidth = () => {
+                setDrawerWidth(prev => prev === 1200 ? 800 : 1200);
+            };
+
+            const openCreateModal = () => {
+                setEditingRule(null);
+                form.resetFields();
+                form.setFieldsValue({ notify: ["in-app"], durationUnit: "minute" });
+                setRuleModalVisible(true);
+            };
+
+            const openEditModal = (record) => {
+                setEditingRule(record);
+                form.setFieldsValue({
+                    name: record.name,
+                    metric: record.metric,
+                    conditionValue: record.condition.match(/\d+(\.\d+)?/)?.[0] || "",
+                    duration: record.duration.replace(/\D/g, "") || 5,
+                    durationUnit: record.duration.includes("小时") ? "hour" : record.duration.includes("秒") ? "second" : "minute",
+                    notify: record.notify,
+                    webhookUrl: ""
+                });
+                setRuleModalVisible(true);
+            };
+
+            const handleRuleOk = () => {
+                form.validateFields().then(values => {
+                    message.success(editingRule ? "规则更新成功" : "规则创建成功");
+                    setRuleModalVisible(false);
+                    form.resetFields();
+                }).catch(() => {});
+            };
+
+            const handleDelete = (record) => {
+                Modal.confirm({
+                    title: "删除确认",
+                    content: "确定删除告警规则「" + record.name + "」？",
+                    okType: "danger",
+                    onOk: () => {
+                        setRules(rules.filter(r => r.id !== record.id));
+                        message.success("已删除");
+                    }
+                });
+            };
+
+            const handleToggleEnabled = (record) => {
+                setRules(rules.map(r => r.id === record.id ? { ...r, enabled: !r.enabled } : r));
+                message.success(record.enabled ? "已禁用" : "已启用");
+            };
+
+            const stats = {
+                activeAlerts: 1,
+                totalRules: rules.length,
+                enabledCount: rules.filter(r => r.enabled).length,
+                disabledCount: rules.filter(r => !r.enabled).length
+            };
+
+            useEffect(() => {
+                if (drawerVisible) {
+                    setTimeout(() => {
+                        mermaid.init(undefined, document.querySelectorAll(".mermaid"));
+                    }, 500);
+                }
+            }, [drawerVisible]);
+
+            const ruleColumns = [
+                { title: "规则名称", dataIndex: "name", key: "name", width: 180 },
+                {
+                    title: "监控指标",
+                    key: "metric",
+                    width: 100,
+                    render: (_, r) => {
+                        const cfg = METRIC_TAG[r.metric] || { color: "default", text: r.metric };
+                        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                    }
+                },
+                { title: "条件", dataIndex: "condition", key: "condition", width: 120 },
+                { title: "持续时间", dataIndex: "duration", key: "duration", width: 90 },
+                {
+                    title: "通知方式",
+                    key: "notify",
+                    width: 180,
+                    render: (_, r) => (
+                        <Space size={[0, 4]} wrap>
+                            {r.notify.map(n => {
+                                const cfg = NOTIFY_TAG[n] || { color: "default", text: n };
+                                return <Tag key={n} color={cfg.color}>{cfg.text}</Tag>;
+                            })}
+                        </Space>
+                    )
+                },
+                {
+                    title: "状态",
+                    key: "enabled",
+                    width: 90,
+                    render: (_, r) => (
+                        <Switch
+                            checked={r.enabled}
+                            onChange={() => handleToggleEnabled(r)}
+                            checkedChildren="启用"
+                            unCheckedChildren="禁用"
+                        />
+                    )
+                },
+                {
+                    title: "上次触发",
+                    dataIndex: "lastTriggered",
+                    key: "lastTriggered",
+                    width: 140,
+                    render: (v) => v || "-"
+                },
+                {
+                    title: "操作",
+                    key: "action",
+                    width: 120,
+                    render: (_, r) => (
+                        <Space>
+                            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditModal(r)}>编辑</Button>
+                            <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(r)}>删除</Button>
+                        </Space>
+                    )
+                }
+            ];
+
+            const alertColumns = [
+                { title: "告警时间", dataIndex: "time", key: "time", width: 180 },
+                { title: "规则名称", dataIndex: "ruleName", key: "ruleName", width: 180 },
+                {
+                    title: "指标",
+                    key: "metric",
+                    width: 100,
+                    render: (_, r) => {
+                        const cfg = METRIC_TAG[r.metric] || { color: "default", text: r.metric };
+                        return <Tag color={cfg.color}>{cfg.text}</Tag>;
+                    }
+                },
+                { title: "触发值", dataIndex: "value", key: "value", width: 90 },
+                { title: "阈值", dataIndex: "threshold", key: "threshold", width: 90 },
+                { title: "持续时间", dataIndex: "duration", key: "duration", width: 90 },
+                {
+                    title: "状态",
+                    key: "status",
+                    width: 90,
+                    render: (_, r) => (
+                        <Tag color={r.status === "firing" ? "red" : "green"}>{r.status === "firing" ? "触发中" : "已恢复"}</Tag>
+                    )
+                }
+            ];
+
+            const menuItems = [
+                {
+                    key: "config",
+                    icon: <SettingOutlined />,
+                    label: "配置管理",
+                    children: [
+                        { key: "libraries", icon: <DatabaseOutlined />, label: "指令库管理" },
+                        { key: "datasets", icon: <FileTextOutlined />, label: "数据集管理" },
+                        { key: "profiles", icon: <RobotOutlined />, label: "对话方案" }
+                    ]
+                },
+                {
+                    key: "monitoring",
+                    icon: <BarChartOutlined />,
+                    label: "监控仪表盘",
+                    children: [
+                        { key: "dashboard", icon: <BarChartOutlined />, label: "监控仪表盘", onClick: () => goTo("index") },
+                        { key: "alert-rules", icon: <BellOutlined />, label: "告警规则配置" }
+                    ]
+                },
+                {
+                    key: "system",
+                    icon: <UserOutlined />,
+                    label: "系统管理",
+                    children: [
+                        { key: "versions", icon: <RocketOutlined />, label: "版本发布" },
+                        { key: "users", icon: <LockOutlined />, label: "用户管理" }
+                    ]
+                }
+            ];
+
+            const drawerTabs = [
+                {
+                    key: "flow",
+                    label: "数据流向",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">告警数据流向</div>
+                                <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 }}>
+{`Metric Stream → Threshold Check → Alert Engine → Notification
+    │                    │                  │
+    │ 实时指标采集        │ 条件匹配         │ 告警触发/恢复
+    │ (准确率/延迟/错误率) │ (持续时间窗口)   │ (站内/邮件/Webhook)`}
+                                </pre>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "state",
+                    label: "状态流转",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">规则状态流转</div>
+                                <pre style={{ background: "#f5f5f5", padding: 16, borderRadius: 4, overflow: "auto", fontSize: 13, lineHeight: 1.8 }}>
+{`idle → firing → resolved / acknowledged
+  │       │           │
+  │       │           └─ 指标恢复或人工确认
+  │       └─ 条件持续满足超过持续时间
+  └─ 规则启用，等待触发`}
+                                </pre>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "fields",
+                    label: "字段说明",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">规则配置字段</div>
+                                <Table
+                                    size="small"
+                                    pagination={false}
+                                    rowKey="field"
+                                    columns={[
+                                        { title: "字段", dataIndex: "field", width: 120 },
+                                        { title: "类型", dataIndex: "type", width: 100 },
+                                        { title: "说明", dataIndex: "desc" }
+                                    ]}
+                                    dataSource={[
+                                        { field: "规则名称", type: "string", desc: "告警规则显示名称，必填" },
+                                        { field: "监控指标", type: "enum", desc: "intent_accuracy / p99_latency / p95_latency / avg_latency / error_rate / qps" },
+                                        { field: "条件", type: "dynamic", desc: "根据指标类型：准确率下降%、延迟超过ms、错误率超过%、QPS低于" },
+                                        { field: "持续时间", type: "number+unit", desc: "条件持续满足多久后触发，单位：秒/分钟/小时" },
+                                        { field: "通知方式", type: "checkbox", desc: "站内通知、邮件、Webhook（选Webhook需填写URL）" }
+                                    ]}
+                                />
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "operations",
+                    label: "操作说明",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">新建规则流程</div>
+                                <div className="mermaid" key="op-create">
+{`flowchart TD
+    A[点击新建规则] --> B[打开弹窗]
+    B --> C[填写规则名称]
+    C --> D[选择监控指标]
+    D --> E[设置条件与持续时间]
+    E --> F[选择通知方式]
+    F --> G{校验通过?}
+    G -->|否| H[提示错误]
+    G -->|是| I[保存规则]
+    I --> J[刷新列表]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">编辑规则流程</div>
+                                <div className="mermaid" key="op-edit">
+{`flowchart TD
+    A[点击编辑] --> B[打开弹窗回填]
+    B --> C[修改字段]
+    C --> D{校验通过?}
+    D -->|否| E[提示错误]
+    D -->|是| F[保存更新]
+    F --> G[刷新列表]`}
+                                </div>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">启用/禁用流程</div>
+                                <div className="mermaid" key="op-toggle">
+{`flowchart TD
+    A[切换 Switch] --> B{当前状态}
+    B -->|启用| C[设为禁用]
+    B -->|禁用| D[设为启用]
+    C --> E[规则不再评估]
+    D --> F[规则开始评估]`}
+                                </div>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "logic",
+                    label: "业务逻辑",
+                    children: (
+                        <div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">阈值评估窗口</div>
+                                <p style={{ marginBottom: 8 }}>条件需在「持续时间」内持续满足才会触发告警，避免瞬时抖动误报。</p>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">告警去重</div>
+                                <p style={{ marginBottom: 8 }}>同一规则在 firing 期间不会重复发送通知，直到 resolved 或 acknowledged。</p>
+                            </div>
+                            <div className="drawer-section">
+                                <div className="drawer-section-title">通知限流</div>
+                                <p style={{ marginBottom: 8 }}>同一规则在短时间内（如 5 分钟）最多发送 N 次通知，防止告警风暴。</p>
+                            </div>
+                        </div>
+                    )
+                },
+                {
+                    key: "tips",
+                    label: "易错点",
+                    children: (
+                        <div>
+                            <Alert
+                                message="⚠️ 持续时间 vs 评估窗口"
+                                description="持续时间指条件需持续满足多久才触发；评估窗口指系统每多久评估一次。两者概念不同，配置时避免混淆。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ 误报管理"
+                                description="阈值过高或持续时间过短易导致误报；建议根据历史数据调优阈值，并设置合理的持续时间。"
+                                type="warning"
+                                style={{ marginBottom: 12 }}
+                            />
+                            <Alert
+                                message="⚠️ Webhook 安全"
+                                description="Webhook URL 可能包含敏感信息，请勿在公开环境暴露；建议使用 HTTPS 并配置鉴权。"
+                                type="error"
+                            />
+                        </div>
+                    )
+                }
+            ];
+
+            return (
+                <Layout className="page-layout">
+                    {!inIframe && (
+                    <Sider trigger={null} width={260} className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="sidebar-logo">SmartChef</div>
+                            <div className="sidebar-subtitle">监控仪表盘</div>
+                        </div>
+                        <Menu theme="dark" mode="inline" selectedKeys={selectedKeys} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => setSelectedKeys([key])} items={menuItems} />
+                    </Sider>
+                    )}
+
+                    <Content className={"main-content" + (inIframe ? " main-content-no-sider" : "")}>
+                        <div className="page-header">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                                    <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => goTo("index")}>返回</Button>
+                                    <div>
+                                        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>告警规则配置</h1>
+                                        <p style={{ color: "#8c8c8c", fontSize: 14 }}>FR-035: 意图准确率下降、P99延迟超标、错误率突增时自动告警</p>
+                                    </div>
+                                </div>
+                                <Space>
+                                    <Tooltip title="查看数据流向、状态流转、字段说明和业务逻辑">
+                                        <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
+                                    </Tooltip>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建规则</Button>
+                                </Space>
+                            </div>
+                        </div>
+
+                        <Row gutter={24} style={{ marginBottom: 24 }}>
+                            <Col span={8}>
+                                <Card>
+                                    <Statistic
+                                        title={<span>活跃告警<span className="pulse-hint" title="有告警触发中"></span></span>}
+                                        value={stats.activeAlerts}
+                                        valueStyle={{ color: "#ff4d4f" }}
+                                    />
+                                </Card>
+                            </Col>
+                            <Col span={8}>
+                                <Card>
+                                    <Statistic title="规则总数" value={stats.totalRules} />
+                                </Card>
+                            </Col>
+                            <Col span={8}>
+                                <Card>
+                                    <Statistic title="已启用" value={stats.enabledCount} valueStyle={{ color: "#52c41a" }} suffix={"/ 已禁用: " + stats.disabledCount} />
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        <Card style={{ marginBottom: 24 }}>
+                            <Collapse
+                                defaultActiveKey={["alerts"]}
+                                items={[{
+                                    key: "alerts",
+                                    label: <span>最近告警记录 <Tag>{mockAlerts.length}</Tag></span>,
+                                    children: (
+                                        <Table
+                                            columns={alertColumns}
+                                            dataSource={mockAlerts}
+                                            pagination={false}
+                                            rowKey="id"
+                                            size="small"
+                                        />
+                                    )
+                                }]}
+                            />
+                        </Card>
+
+                        <Card>
+                            <Table
+                                columns={ruleColumns}
+                                dataSource={rules}
+                                pagination={{ pageSize: 10, showTotal: (t) => "共 " + t + " 条" }}
+                                rowKey="id"
+                            />
+                        </Card>
+                    </Content>
+
+                    <Modal
+                        title={editingRule ? "编辑规则 - " + editingRule.name : "新建规则"}
+                        open={ruleModalVisible}
+                        onOk={handleRuleOk}
+                        onCancel={() => { setRuleModalVisible(false); form.resetFields(); }}
+                        width={560}
+                        maskClosable={false}
+                        okText={editingRule ? "保存" : "创建"}
+                        cancelText="取消"
+                    >
+                        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+                            <Form.Item name="name" label="规则名称" rules={[{ required: true, message: "请输入规则名称" }]}>
+                                <Input placeholder="请输入规则名称" allowClear />
+                            </Form.Item>
+
+                            <Form.Item name="metric" label="监控指标" rules={[{ required: true, message: "请选择监控指标" }]}>
+                                <Select placeholder="请选择监控指标" allowClear>
+                                    {METRIC_OPTIONS.map(m => (
+                                        <Option key={m.value} value={m.value}>{m.label}</Option>
+                                    ))}
+                                </Select>
+                            </Form.Item>
+
+                            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.metric !== curr.metric}>
+                                {({ getFieldValue }) => {
+                                    const metric = getFieldValue("metric");
+                                    if (!metric) return null;
+                                    if (metric === "intent_accuracy") {
+                                        return (
+                                            <Form.Item name="conditionValue" label="条件" rules={[{ required: true, message: "请输入" }]}>
+                                                <InputNumber min={1} max={100} style={{ width: "100%" }} addonBefore="下降超过" addonAfter="%" placeholder="5" />
+                                            </Form.Item>
+                                        );
+                                    }
+                                    if (metric === "qps") {
+                                        return (
+                                            <Form.Item name="conditionValue" label="条件" rules={[{ required: true, message: "请输入" }]}>
+                                                <InputNumber min={0} step={0.1} style={{ width: "100%" }} addonBefore="低于" placeholder="0.1" />
+                                            </Form.Item>
+                                        );
+                                    }
+                                    if (["p99_latency", "p95_latency", "avg_latency"].includes(metric)) {
+                                        return (
+                                            <Form.Item name="conditionValue" label="条件" rules={[{ required: true, message: "请输入" }]}>
+                                                <InputNumber min={1} style={{ width: "100%" }} addonBefore="超过" addonAfter="ms" placeholder="500" />
+                                            </Form.Item>
+                                        );
+                                    }
+                                    if (metric === "error_rate") {
+                                        return (
+                                            <Form.Item name="conditionValue" label="条件" rules={[{ required: true, message: "请输入" }]}>
+                                                <InputNumber min={1} max={100} style={{ width: "100%" }} addonBefore="超过" addonAfter="%" placeholder="5" />
+                                            </Form.Item>
+                                        );
+                                    }
+                                    return null;
+                                }}
+                            </Form.Item>
+
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item name="duration" label="持续时间" rules={[{ required: true, message: "请输入" }]}>
+                                        <InputNumber min={1} style={{ width: "100%" }} placeholder="5" />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item name="durationUnit" label="单位" rules={[{ required: true }]}>
+                                        <Select>
+                                            <Option value="second">秒</Option>
+                                            <Option value="minute">分钟</Option>
+                                            <Option value="hour">小时</Option>
+                                        </Select>
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+
+                            <Form.Item name="notify" label="通知方式">
+                                <Checkbox.Group options={[
+                                    { label: "站内通知", value: "in-app" },
+                                    { label: "邮件", value: "email" },
+                                    { label: "Webhook", value: "webhook" }
+                                ]} />
+                            </Form.Item>
+
+                            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.notify !== curr.notify}>
+                                {({ getFieldValue }) =>
+                                    getFieldValue("notify")?.includes("webhook") ? (
+                                        <Form.Item name="webhookUrl" label="Webhook URL" rules={[{ required: true, message: "请填写 Webhook URL" }]}>
+                                            <Input placeholder="https://..." allowClear />
+                                        </Form.Item>
+                                    ) : null
+                                }
+                            </Form.Item>
+                        </Form>
+                    </Modal>
+
+                    <Drawer
+                        title={
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>页面逻辑说明</span>
+                                <Tooltip title={drawerWidth === 1200 ? "切换到窄视图" : "切换到宽视图"}>
+                                    <Button type="text" icon={<ColumnWidthOutlined />} onClick={toggleDrawerWidth} size="small">
+                                        {drawerWidth === 1200 ? "800px" : "1200px"}
+                                    </Button>
+                                </Tooltip>
+                            </div>
+                        }
+                        width={drawerWidth}
+                        open={drawerVisible}
+                        onClose={() => setDrawerVisible(false)}
+                    >
+                        <Tabs items={drawerTabs} />
+                    </Drawer>
+                </Layout>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>
