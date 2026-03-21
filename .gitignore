@@ -34,3 +34,4 @@ __pycache__/
 
 # SmartChef v2：HuggingFace 缓存放项目内 data/hf_cache，不提交
 smartchef-v2/backend/data/hf_cache/
+smartchef-v2/backend/models/
