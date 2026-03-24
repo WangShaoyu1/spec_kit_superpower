@@ -1,12 +1,57 @@
 # 指令库管理 (Intent Library) 任务
 
-**PD 交互原型**: pd-all/pd-intent-library/ (6 pages: index, detail, datasets, dataset-detail, test)
+**PD 交互原型**: pd-all/pd-intent-library/ (5 pages: index, detail, datasets, dataset-detail, test)
 **架构设计**: ad/ad-intent-library.md
 **详细设计**: dd/dd-intent-library.md
 **优先级**: P1
 **依赖**: tasks-infra.md 必须先完成
 
-**进度**: 41/41 完成 (100%)
+**进度口径**: 基线重做中。历史 `41/41` 仅代表旧任务链记录，不作为当前完成证明。
+
+## 模块核心业务链路
+
+1. 创建指令库并维护基础信息
+2. 创建训练/评估数据集，并在 `dataset-detail.html` 维护意图、词槽、实体、相似问/排除问
+3. 基于训练集创建模型版本并推进 `draft -> training -> trained`
+4. 在 `test.html` 完成单条测试与批量测试，看到真实结果、真实进度和真实分析状态
+5. 设置 `testable` / `published`，下载模型，并被对话方案发布门禁正确消费
+
+## 本轮真实任务切片
+
+- [ ] R01 [DOC] 校正文档链口径：PD/AD/DD/plan/tasks 对齐 5 页边界、FR 追溯、假成功禁令
+  - 完成定义: `pd-all/pd-intent-library/README.md`、`ad/ad-intent-library.md`、`dd/dd-intent-library.md`、`plan.md`、本文件口径一致
+- [ ] R02 [T-CONTRACT] 补齐数据集与测试消费契约
+  - 范围: LLM 合成真实返回、消息列表包络/分页、批量测试分析空态、样本数展示口径
+  - 完成定义: 至少存在失败场景与成功场景契约测试，不再只验证 happy path
+- [ ] R03 [B/FIX] 修补后端闭环缺口
+  - 范围: 训练状态推进、LLM 合成错误透传、模型测试/分析真实状态源
+  - 完成定义: 核心写路径无 500 / 无伪成功返回
+- [ ] R04 [F/FIX] 修补前端消费与展示缺口
+  - 范围: 数据集样本数、LLM 合成反馈、测试会话/消息、批量测试结果与分析展示
+  - 完成定义: 前端严格按真实响应包络消费，不伪造进度、不硬编码结果
+- [ ] R05 [VERIFY] 跑通核心业务链路验证
+  - 范围: 建库 → 数据集 → 训练 → 测试 → 发布
+  - 完成定义: 形成可引用的测试/运行证据，失败点需记录为缺陷或延期项
+- [ ] R06 [REVIEW] 执行 review / smoke / 缺陷回灌
+  - 完成定义: 输出阻塞项、剩余风险、显式未完成声明
+
+## 显式未完成声明
+
+| 项目 | 当前状态 | 处理原则 |
+|------|---------|---------|
+| 数据集 Excel 导入/导出 | Deferred | 当前仅保留文件校验与延期提示；若未接入真实解析/导出服务，UI 不得伪装已完成 |
+| `FR-050` 阈值继承说明 UI | 部分覆盖 | 本轮至少补齐真实阈值快照和消费契约 |
+| 批量测试 / 智能分析闭环 | 已闭环 | `test.html` 已改为创建真实 `batch-tests` 任务并跳转详情页；结果与分析统一以 `/batch-test/{id}` 状态源为准 |
+| LLM 按意图子集定向生成 | Deferred | 当前仅支持按数据集关联的全部意图生成；UI 必须明确为只读预览，不得伪装为可选范围 |
+
+## 模块完成定义（Definition of Done）
+
+- 核心业务链路至少跑通 1 次，并保留验证证据
+- 关键缺陷对应链路无 `placeholder`、无“演示成功”、无硬编码假数据
+- `tasks` 中的完成状态、测试结果、显式未完成声明三者一致
+- 若存在延期项，必须写清 `Deferred / Out of Scope / Blocked By`
+
+## 历史任务记录（仅供对照，不作为当前完成证明）
 
 ## 测试任务（TDD: 先写测试, 确保红灯）
 
@@ -23,7 +68,7 @@
 - [x] T003 [P] [T-CONTRACT] 数据集 CRUD + 导入导出契约测试: GET/POST /intent-libraries/{lib_id}/datasets, GET/PUT/DELETE /datasets/{id}, POST /datasets/{id}/import, GET /datasets/{id}/export, POST /datasets/{id}/generate-training, /generate-evaluation
   - 文件: `backend/tests/contract/test_datasets_api.py`
   - 依据: ad/ad-intent-library.md §3.3
-  - ✅ 已实现: list-training/create-training/get/update/delete/list-eval/create-eval/update-eval/no-auth-401, 9 tests passed
+  - ⚠️ 历史记录：当前已补到 training/evaluation 的 get/update/delete + generate-training/generate-evaluation 契约覆盖；导入/导出仍待后续补齐
 - [x] T004 [P] [T-CONTRACT] 意图 CRUD 契约测试: GET/POST /datasets/{id}/intents, GET/PUT/DELETE /datasets/{id}/intents/{intent_id}
   - 文件: `backend/tests/contract/test_intents_api.py`
   - 依据: ad/ad-intent-library.md §3.4
@@ -32,10 +77,10 @@
   - 文件: `backend/tests/contract/test_slots_entities_api.py`
   - 依据: ad/ad-intent-library.md §3.5~§3.6
   - ✅ 已实现: slots(list/create/get/update/delete) + entities(list/create/update/delete) + sq(list/create/update/delete) + neg(list/create/delete) + no-auth-401, 17 tests passed
-- [x] T006 [P] [T-CONTRACT] 测试会话 + 单条测试 + 批量测试 契约测试: POST/GET/PUT/DELETE sessions, POST test/single, POST test/batch, GET test-runs/{id}, GET test-runs/{id}/analysis
+- [x] T006 [P] [T-CONTRACT] 测试会话 + 消息链路契约测试: POST/GET/PUT/DELETE sessions, POST /test-sessions/{sid}/messages, GET /test-sessions/{sid}/messages
   - 文件: `backend/tests/contract/test_intent_testing_api.py`
   - 依据: ad/ad-intent-library.md §3.7
-  - ✅ 已实现: create-session/list-sessions/update/delete/send-message/list-messages/no-auth-401, 7 tests passed
+  - ⚠️ 历史记录：当前已锁定 create-session/list-sessions/update/delete/send-message/list-messages/no-auth-401；标准批量测试/test-run/analysis 契约不在该文件内
 
 ### 集成测试（覆盖 AD 数据流）
 
@@ -148,10 +193,10 @@
   - 文件: `backend/app/api/v1/intents.py` (284 行)
   - 依据: ad/ad-intent-library.md §3.4~§3.6
   - ✅ 已实现: 全部 CRUD 端点
-- [x] T031 [B-API] 测试会话 + 单条测试 + 批量测试 API
+- [x] T031 [B-API] 测试会话与消息 API
   - 文件: `backend/app/api/v1/intent_testing.py` (88 行)
   - 依据: ad/ad-intent-library.md §3.7
-  - ✅ 已实现: sessions CRUD + send_message + list_messages
+  - ⚠️ 历史记录：当前文件仅覆盖 sessions CRUD + send_message + list_messages；标准批量测试/test-run/analysis 不在该文件内
 
 ## 前端任务
 
@@ -186,14 +231,14 @@
 - [x] T034 [F-PAGE] 数据集管理页: 数据集列表+训练集/评估集区分+导入导出+LLM生成
   - 文件: `frontend/src/pages/IntentLibrary/Placeholder.jsx` → DatasetsPage (≈ 行 83-419)
   - 依据: pd-all/pd-intent-library/datasets.html
-  - ✅ 已实现: 列表表格 + 筛选 + 创建/编辑/删除 + LLM 合成弹窗 (UI only)
+  - ⚠️ 历史记录：当前已补齐训练/评估集同页展示、按类型分流 CRUD、LLM 合成真实接口；筛选栏和 Excel 导入导出仍未闭环
   - PD UI Checklist:
-    - [x] 筛选栏: 名称/ID搜索、类型 Select、绑定状态 Select、查询/重置
+    - [ ] 筛选栏: 名称/ID搜索、类型 Select、绑定状态 Select、查询/重置
     - [x] 表格列: 名称/ID、类型 (Tag)、样本数 (Progress)、意图数、绑定模型、创建时间、操作
     - [x] 操作列: 管理数据 (跳转dataset-detail)、下载、删除 (绑定时disabled)
-    - [x] 页面头部按钮: LLM生成训练集、LLM生成评估集、导入训练集、导入评估集
-    - [x] LLM合成弹窗: 数据集类型Radio、LLM模型Select、样本数Slider、提示词TextArea
-    - [ ] 文件上传弹窗: ⚠️ Excel 上传 UI 存在但后端 import API 未对接
+    - [ ] 页面头部按钮: 仍未完全拆成训练/评估集双入口，当前为统一入口 + 类型化数据集选择
+    - [x] LLM合成弹窗: LLM模型Select、样本数Slider、提示词TextArea + 真实目标数据集选择
+    - [ ] 文件上传弹窗: Excel 上传/导出仍未闭环
 - [x] T035 [F-PAGE] 数据集详情页: 意图/词槽/实体/相似问/排除问 Tab管理+行内编辑
   - 文件: `frontend/src/pages/IntentLibrary/Placeholder.jsx` → DatasetDetailPage (≈ 行 436-1056)
   - 依据: pd-all/pd-intent-library/dataset-detail.html
@@ -210,7 +255,7 @@
 - [x] T036 [F-PAGE] 模型测试页: 单条测试(聊天界面)+批量测试任务+测试结果+智能分析报告
   - 文件: `frontend/src/pages/IntentLibrary/Placeholder.jsx` → ModelTestPage (≈ 行 1664-2310)
   - 依据: pd-all/pd-intent-library/test.html
-  - ✅ 已实现: SingleTestTab (会话面板+聊天UI+Debug面板) + BatchTestTab (测试列表+运行+结果)
+  - ⚠️ 历史记录：当前已补齐单条测试消息链路与 Debug 面板；BatchTestTab 仍是前端逐条会话校验，尚未对齐标准批量评估/智能分析闭环
   - PD UI Checklist:
     - [x] 顶级 Tabs: 单条测试 / 批量测试
     - [x] 单条测试-会话面板: 新建会话、会话列表、删除
@@ -218,9 +263,9 @@
     - [x] 单条测试-消息区: 用户消息+Bot消息+时间戳+空会话引导
     - [x] 单条测试-Debug面板: 意图Tag、置信度、槽位列表、耗时
     - [x] 单条测试-输入区: TextArea + 发送按钮
-    - [x] 批量测试表格: 任务名称、模型版本、评估数据集、状态、结果
-    - [x] 新建批量测试弹窗
-    - [ ] 智能分析报告弹窗 (width=900): ⚠️ 需确认是否完整实现
+    - [x] 批量测试任务入口: 真实 `batch-tests` 创建/导入/执行闭环
+    - [x] 批量测试跳转详情: `/batch-test/{id}` 读取真实状态 / runs / analysis
+    - [x] 智能分析报告入口: 详情页按真实分析接口展示空态或结果
 
 ### 组件（可复用）
 
@@ -240,14 +285,17 @@
   - 文件: `frontend/src/services/intentLibraryApi.js` (61 行)
   - ✅ 已实现: libraries/models/datasets/intents/slots/entities/similar-questions/negative-examples/test-sessions/messages
 
-## 检查点
+## 当前收口检查点
 
 **模块验收标准**（对照 PD 交互稿）:
-- [x] 所有测试通过（T001~T010 红灯→绿灯）— ✅ 全部完成: 契约 117 passed, 单元 86 passed, 集成 4 passed, E2E 13 specs
-- [x] 指令库列表页: 搜索/筛选/CRUD 全链路可用
-- [x] 模型生命周期: draft→training→trained→evaluating→testable→published→archived 状态流转正确
-- [x] 数据集管理: 训练集/评估集 LLM 生成可用 — ✅ LLM 生成已实现; ⚠️ Excel 导入导出后端未实现
+- [ ] 全量验收通过
+  - 当前仅有本轮局部证据：`test_datasets_api.py`、`test_model_lifecycle.py`、`test_intent_testing_api.py`、`src/pages/IntentLibrary/*.test.js`、登录后 smoke
+- [x] 指令库列表页: 搜索/筛选/CRUD 主链路可用
+- [x] 模型生命周期: 核心状态流转与评估集生成防串库已有验证证据
+- [ ] 数据集管理: 训练集/评估集 LLM 生成可用且导入导出闭环
+  - 当前状态：LLM 生成与统一列表已验证；Excel 导入/导出仍 `Deferred`
 - [x] 单条测试: 会话创建/消息发送/结果展示可用（调用真实 ONNX 推理）
 - [x] 模型上限 5 的约束生效
 - [x] testable/published 库内互斥正确
-- [x] 无回归（infra 测试仍通过）
+- [x] 批量测试 / 智能分析闭环可验
+  - 当前证据：`test_batch_tests_api.py`、`test_batch_service.py`、`test_batch_executor.py`、`test_case_service.py`、真实环境 smoke（创建 batch / 导入 cases / 执行 / `/batch-test/{id}` 打开详情页）

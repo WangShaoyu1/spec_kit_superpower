@@ -637,3 +637,10 @@ flowchart LR
 - 核心业务链路未闭环
 - 假成功、假进度、假统计
 - 前后端真实消费契约不一致
+
+### 9.6 指令库模块补充完成报告（2026-03-23）
+
+- `IntentLibrary/test.html` 的批量测试已从“前端逐条会话校验”改为真实 `batch-tests` 闭环：创建任务、导入 cases、执行、跳转 `/batch-test/{id}` 查看结果。
+- 后端已补 `model_id` 契约、执行器真实分支、数据库迁移与权限回填；真实 `admin` 登录后已具备 `batch_test_execute`，不再因权限缺口卡在 `403`。
+- 真实 smoke 已验证：`/batch-test/{id}` 详情页能加载 `cases / runs / analysis`，且当模型产物缺失时返回真实错误记录而非假成功。
+- 当前剩余显式未完成项仍为 Excel 导入/导出、LLM 按意图子集定向生成；它们必须继续保留 `Deferred` 口径，不得被这轮闭环掩盖。

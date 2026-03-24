@@ -13,6 +13,7 @@ import {
   Form,
   Input,
   Select,
+  AutoComplete,
   Progress,
   Skeleton,
   message,
@@ -24,6 +25,7 @@ import {
   Row,
   Col,
   Divider,
+  Popconfirm,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -36,6 +38,8 @@ import {
   UndoOutlined,
   DownloadOutlined,
   DatabaseOutlined,
+  StopOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useIntentLibraryStore from '../../stores/intentLibraryStore';
@@ -46,7 +50,7 @@ const { Title, Text } = Typography;
 
 const MAX_MODELS = 5;
 
-// 须为 Hugging Face 上真实存在的 model id（transformers AutoTokenizer/AutoModel 可加载）
+// 默认 Hub id；也可填本机目录（须含 config.json），见 README「离线预训练模型」
 const BASE_MODEL_OPTIONS = [
   { value: 'bert-base-chinese', label: 'bert-base-chinese（中文推荐）' },
   { value: 'distilbert-base-uncased', label: 'distilbert-base-uncased（英文）' },
@@ -130,7 +134,31 @@ function ModelActions({ record, onAction }) {
   }, [status]);
 
   return (
-    <Space size={4}>
+    <Space size={4} wrap>
+      {status === 'training' && (
+        <Popconfirm
+          title="确定停止训练？进度将丢失。"
+          okText="停止"
+          cancelText="取消"
+          onConfirm={() => onAction('cancelTraining', record)}
+        >
+          <Button type="link" size="small" danger icon={<StopOutlined />}>
+            停止训练
+          </Button>
+        </Popconfirm>
+      )}
+      {['draft', 'failed', 'archived'].includes(status) && (
+        <Popconfirm
+          title="确定删除该版本记录？不可恢复。"
+          okText="删除"
+          cancelText="取消"
+          onConfirm={() => onAction('deleteModel', record)}
+        >
+          <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+            删除
+          </Button>
+        </Popconfirm>
+      )}
       {buttons.map((btn) => (
         <Button
           key={btn.key}
@@ -188,6 +216,8 @@ export default function IntentLibraryDetail() {
     setTestable,
     publishModel,
     archiveModel,
+    cancelTraining,
+    deleteModel,
     restoreModel,
     createModel,
     clearDetail,
@@ -286,7 +316,12 @@ export default function IntentLibraryDetail() {
         if (result.ok) {
           message.success('训练完成，可下载模型包');
         } else if (result.ok === false) {
-          message.error(result.error || '训练失败');
+          const errText = result.error || result.model?.notes || '';
+          if (String(errText).includes('取消')) {
+            message.warning('训练已取消');
+          } else {
+            message.error(errText || '训练失败');
+          }
         } else if (result.timeout) {
           message.warning('训练耗时较长，请稍后刷新页面查看状态');
         }
@@ -366,6 +401,14 @@ export default function IntentLibraryDetail() {
             URL.revokeObjectURL(url);
             break;
           }
+          case 'cancelTraining':
+            await cancelTraining(modelId);
+            message.success('已请求停止训练');
+            break;
+          case 'deleteModel':
+            await deleteModel(modelId);
+            message.success('已删除该版本');
+            break;
           default:
             break;
         }
@@ -375,7 +418,16 @@ export default function IntentLibraryDetail() {
         setActionLoading(null);
       }
     },
-    [trainForm, evaluateModel, setTestable, archiveModel, restoreModel],
+    [
+      trainForm,
+      evaluateModel,
+      setTestable,
+      archiveModel,
+      restoreModel,
+      cancelTraining,
+      deleteModel,
+      id,
+    ],
   );
 
   const modelColumns = useMemo(
@@ -408,11 +460,18 @@ export default function IntentLibraryDetail() {
         render: (_, record) => {
           if (record.status === 'training') {
             const pct = record.training_progress ?? record.progress ?? 0;
-            // progress=0 常见于：准备阶段（下载/加载预训练模型），并非「卡死」
+            // progress=0：准备阶段；1–19：已进入 PyTorch 线程，加载 BERT 权重或首个 epoch 结束前可能停留较久
             if (pct === 0) {
               return (
                 <Tooltip title="准备中：加载数据或首次下载预训练模型（可能较慢，请稍候）">
                   <Progress percent={0} status="active" size="small" format={() => '准备中'} />
+                </Tooltip>
+              );
+            }
+            if (pct > 0 && pct < 20) {
+              return (
+                <Tooltip title="训练中：加载预训练编码器或跑首个 epoch（无 epoch 日志属正常；CPU 上可能需数分钟）">
+                  <Progress percent={pct} status="active" size="small" />
                 </Tooltip>
               );
             }
@@ -694,9 +753,18 @@ export default function IntentLibraryDetail() {
           <Form.Item
             name="base_model"
             label="基础模型"
-            rules={[{ required: true, message: '请选择基础模型' }]}
+            rules={[{ required: true, message: '请选择或输入基础模型' }]}
+            extra="可选 Hub 名称（如 bert-base-chinese），或本机路径：绝对路径，或相对 backend 的目录（内含 config.json）。离线请预置到 data/hf_cache 或 data/models/pretrained/ 并设 HF_LOCAL_FILES_ONLY=1。"
           >
-            <Select options={BASE_MODEL_OPTIONS} />
+            <AutoComplete
+              options={BASE_MODEL_OPTIONS}
+              placeholder="选择或输入 Hub id / 本机模型目录"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase()) ||
+                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: '100%' }}
+            />
           </Form.Item>
           <Row gutter={16}>
             <Col span={8}>

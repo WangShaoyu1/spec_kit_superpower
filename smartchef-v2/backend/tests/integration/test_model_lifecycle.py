@@ -189,3 +189,33 @@ async def test_eval_dataset_crud(client):
     )
     assert update_resp.status_code == 200
     assert update_resp.json()["data"]["sample_count"] == 2
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_generate_evaluation_dataset_rejects_library_mismatch(client):
+    """Wrong library id must not generate against another library's eval dataset."""
+    headers = await _auth(client)
+
+    lib_resp = await client.post(PREFIX, json={
+        "library_key": f"evsrc_{_uid()}", "name": "Eval Src", "language": "en",
+    }, headers=headers)
+    src_lib_id = lib_resp.json()["data"]["id"]
+
+    other_lib_resp = await client.post(PREFIX, json={
+        "library_key": f"evother_{_uid()}", "name": "Eval Other", "language": "en",
+    }, headers=headers)
+    other_lib_id = other_lib_resp.json()["data"]["id"]
+
+    eval_resp = await client.post(f"{PREFIX}/{src_lib_id}/eval-datasets", json={
+        "name": "Eval DS", "source_type": "manual",
+    }, headers=headers)
+    assert eval_resp.status_code == 201
+    eval_ds_id = eval_resp.json()["data"]["id"]
+
+    resp = await client.post(
+        f"{PREFIX}/{other_lib_id}/eval-datasets/{eval_ds_id}/generate",
+        json={"model_name": "gpt-4o", "samples_per_intent": 20},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "E50502"

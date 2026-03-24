@@ -7,7 +7,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_response import BusinessException
+from app.schemas.batch_test import BatchTestCreate
 from app.services.testing.batch_service import (
+    create_batch,
     delete_batch,
     get_batch,
     refresh_case_count,
@@ -125,3 +127,37 @@ class TestRefreshCaseCount:
 
         assert result.total_cases == 0
         assert result.status == "draft"
+
+
+class TestCreateBatch:
+    async def test_create_batch_accepts_model_id_target(self):
+        db = AsyncMock(spec=AsyncSession)
+        payload = BatchTestCreate(name="Model Batch", model_id=uuid.uuid4())
+
+        batch = await create_batch(db, payload)
+
+        assert batch.name == "Model Batch"
+        assert batch.model_id == payload.model_id
+        assert batch.profile_id is None
+
+    async def test_create_batch_rejects_missing_target(self):
+        db = AsyncMock(spec=AsyncSession)
+        payload = BatchTestCreate(name="Invalid Batch")
+
+        with pytest.raises(BusinessException) as exc_info:
+            await create_batch(db, payload)
+
+        assert exc_info.value.error_code == "E50104"
+
+    async def test_create_batch_rejects_ambiguous_target(self):
+        db = AsyncMock(spec=AsyncSession)
+        payload = BatchTestCreate(
+            name="Invalid Batch",
+            model_id=uuid.uuid4(),
+            profile_id=uuid.uuid4(),
+        )
+
+        with pytest.raises(BusinessException) as exc_info:
+            await create_batch(db, payload)
+
+        assert exc_info.value.error_code == "E50105"

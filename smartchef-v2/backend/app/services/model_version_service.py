@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -184,6 +185,38 @@ async def archive_model(db: AsyncSession, model_id: UUID) -> dict:
     model.is_published = False
     await db.flush()
     return _model_to_dict(await _get_model(db, model_id))
+
+
+async def cancel_training(db: AsyncSession, model_id: UUID) -> dict:
+    """将训练中状态标记为失败（训练线程会在下一检查点退出）。"""
+    model = await _get_model(db, model_id)
+    if model.status != "training":
+        raise BusinessException("E50203", "当前不在训练中，无法取消")
+
+    model.status = "failed"
+    model.notes = "用户已取消训练"
+    model.progress = 0
+    await db.flush()
+    return _model_to_dict(await _get_model(db, model_id))
+
+
+async def delete_model_version(db: AsyncSession, model_id: UUID) -> None:
+    """删除模型版本记录（草稿 / 失败 / 已归档 / 训练中）。成功态需先归档。"""
+    model = await _get_model(db, model_id)
+    if model.status in ("trained", "evaluating", "testable", "published"):
+        raise BusinessException(
+            "E50203",
+            "无法删除该状态版本，请先归档后再删除，或仅删除草稿/失败/已归档记录",
+        )
+    try:
+        await db.delete(model)
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise BusinessException(
+            "E50203",
+            "无法删除：仍存在关联数据（如批量测试引用该模型），请先解除关联",
+        ) from None
 
 
 async def restore_model(db: AsyncSession, model_id: UUID) -> dict:

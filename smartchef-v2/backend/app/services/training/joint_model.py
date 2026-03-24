@@ -6,10 +6,13 @@ from transformers import AutoModel, BertModel
 
 def _load_encoder(name: str):
     """Load a pretrained encoder, falling back to BertModel for repos missing model_type."""
+    from app.core.hf_pretrained import resolve_pretrained_for_model
+
+    resolved, kwargs = resolve_pretrained_for_model(name)
     try:
-        return AutoModel.from_pretrained(name)
+        return AutoModel.from_pretrained(resolved, **kwargs)
     except ValueError:
-        return BertModel.from_pretrained(name)
+        return BertModel.from_pretrained(resolved, **kwargs)
 
 
 class IntentSlotModel(nn.Module):

@@ -22,6 +22,7 @@ def _fake_batch(**kw):
         name="Batch-1",
         description=None,
         profile_id=None,
+        model_id=None,
         status="pending",
         total_cases=0,
         completed_cases=0,
@@ -71,6 +72,23 @@ async def test_create_batch_200(client):
 
 
 @pytest.mark.asyncio
+async def test_create_batch_with_model_id_200(client):
+    model_id = uuid.uuid4()
+    batch = _fake_batch(model_id=model_id)
+    with patch("app.api.v1.batch_tests.batch_service") as svc:
+        svc.create_batch = AsyncMock(return_value=batch)
+        resp = await client.post(
+            "/api/v1/batch-tests",
+            json={"name": "Model Batch", "model_id": str(model_id)},
+            headers=_WRITE,
+        )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["code"] == "000000"
+    assert body["data"]["model_id"] == str(model_id)
+
+
+@pytest.mark.asyncio
 async def test_get_batch_200(client):
     batch = _fake_batch()
     bid = str(batch.id)
@@ -81,6 +99,20 @@ async def test_get_batch_200(client):
     body = resp.json()
     assert body["code"] == "000000"
     assert body["data"]["id"] == bid
+
+
+@pytest.mark.asyncio
+async def test_get_batch_with_model_id_200(client):
+    model_id = uuid.uuid4()
+    batch = _fake_batch(model_id=model_id)
+    bid = str(batch.id)
+    with patch("app.api.v1.batch_tests.batch_service") as svc:
+        svc.get_batch = AsyncMock(return_value=batch)
+        resp = await client.get(f"/api/v1/batch-tests/{bid}", headers=_READ)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == "000000"
+    assert body["data"]["model_id"] == str(model_id)
 
 
 @pytest.mark.asyncio
@@ -119,6 +151,32 @@ async def test_execute_batch_200(client):
     body = resp.json()
     assert body["code"] == "000000"
     assert body["data"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_list_cases_200(client):
+    case_id = uuid.uuid4()
+    batch_id = uuid.uuid4()
+    with patch("app.api.v1.batch_tests.case_service") as case_svc:
+        case_svc.list_cases = AsyncMock(return_value=(
+            [{
+                "id": str(case_id),
+                "batch_id": str(batch_id),
+                "input_text": "打开烤箱",
+                "expected_intent": "device.on",
+                "expected_slots": {},
+                "expected_domain": "command",
+                "sort_order": 0,
+                "created_at": "2026-03-23T00:00:00Z",
+            }],
+            1,
+        ))
+        resp = await client.get(f"/api/v1/batch-tests/{batch_id}/cases", headers=_READ)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == "000000"
+    assert body["data"]["items"][0]["id"] == str(case_id)
+    assert body["data"]["items"][0]["batch_id"] == str(batch_id)
 
 
 @pytest.mark.asyncio

@@ -187,6 +187,38 @@ async def test_download_model_200(client, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_cancel_training_200(client):
+    headers = make_auth_header(["intent_library_write"])
+    with patch(PATCH_SVC) as svc:
+        svc.cancel_training = AsyncMock(return_value={
+            "id": MODEL_ID, "status": "failed", "notes": "用户已取消训练",
+        })
+        resp = await client.post(
+            f"/api/v1/models/{MODEL_ID}/cancel-training",
+            headers=headers,
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == "000000"
+    assert body["data"]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_delete_model_200(client):
+    headers = make_auth_header(["intent_library_write"])
+    with patch(PATCH_SVC) as svc:
+        svc.delete_model_version = AsyncMock(return_value=None)
+        resp = await client.delete(
+            f"/api/v1/models/{MODEL_ID}",
+            headers=headers,
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["code"] == "000000"
+    assert body["data"]["id"] == MODEL_ID
+
+
+@pytest.mark.asyncio
 async def test_no_auth_401(client):
     resp = await client.get(f"/api/v1/intent-libraries/{LIB_ID}/models")
     assert resp.status_code == 401

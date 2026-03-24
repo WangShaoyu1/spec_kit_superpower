@@ -30,7 +30,8 @@ PERMISSIONS = [
     ("knowledge_write", "编辑知识库", "知识库"),
     # 批量测试域
     ("batch_test_read", "查看批量测试", "批量测试"),
-    ("batch_test_write", "执行批量测试", "批量测试"),
+    ("batch_test_write", "管理批量测试", "批量测试"),
+    ("batch_test_execute", "执行批量测试", "批量测试"),
     # 监控域
     ("monitoring_read", "查看监控数据", "监控"),
     ("monitoring_manage", "管理告警规则", "监控"),
@@ -51,7 +52,7 @@ ROLES = {
             "model_train", "model_evaluate", "model_test", "model_publish", "model_download",
             "profile_read", "profile_write", "profile_publish",
             "knowledge_read", "knowledge_write",
-            "batch_test_read", "batch_test_write",
+            "batch_test_read", "batch_test_write", "batch_test_execute",
             "monitoring_read",
             "version_read",
         ],
@@ -64,7 +65,7 @@ ROLES = {
             "model_test",
             "profile_read",
             "knowledge_read",
-            "batch_test_read", "batch_test_write",
+            "batch_test_read", "batch_test_write", "batch_test_execute",
             "monitoring_read",
             "version_read",
         ],

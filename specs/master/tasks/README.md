@@ -22,7 +22,7 @@
 | 顺序 | 模块 | 优先级 | 文件 | 任务数 | 测试 | 后端 | 前端 | 依赖 | 状态 |
 |------|------|--------|------|--------|------|------|------|------|------|
 | 0 | 基础设施 | 阻塞 | [tasks-infra.md](tasks-infra.md) | 26 | 4 | 17 | 5 | 无 | 🔲 |
-| 1 | 指令库管理 | P1 | [tasks-intent-library.md](tasks-intent-library.md) | 41 | 10 | 21 | 10 | infra | ✅ 100% |
+| 1 | 指令库管理 | P1 | [tasks-intent-library.md](tasks-intent-library.md) | 重做中 | 重做中 | 重做中 | 重做中 | infra | ⚠️ 基线重做中 |
 | 2 | 知识库管理 | P1 | [tasks-knowledge-base.md](tasks-knowledge-base.md) | 27 | 7 | 14 | 6 | infra | 🔲 |
 | 3 | 对话方案 | P1 | [tasks-dialog-profile.md](tasks-dialog-profile.md) | 38 | 9 | 22 | 7 | infra, intent-library(弱) | 🔲 |
 | 4 | 批量测试 | P2 | [tasks-batch-test.md](tasks-batch-test.md) | 25 | 6 | 13 | 6 | infra, dialog-profile | 🔲 |
@@ -30,7 +30,7 @@
 | 6 | 用户管理 | P3 | [tasks-user-mgmt.md](tasks-user-mgmt.md) | 15 | 5 | 5 | 5 | infra (User/Role 已创建) | 🔲 |
 | 7 | 横切/完善 | 收尾 | [tasks-refinement.md](tasks-refinement.md) | 19 | 4 | 11 | 4 | 所有模块基本完成 | 🔲 |
 
-**状态枚举**: 🔲 待开始 / 🚧 进行中 / ✅ 已完成 / ⏸️ 暂缓
+**状态枚举**: 🔲 待开始 / 🚧 进行中 / ✅ 已完成 / ⚠️ 基线重做中 / ⏸️ 暂缓
 
 ## 跨模块依赖关系
 
@@ -86,23 +86,29 @@ infra → intent-library → dialog-profile → batch-test → refinement
 | 模块 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
 | 基础设施 | 26 | - | 待核查 |
-| 指令库管理 | 41 | 41 | **100%** |
+| 指令库管理 | 重算中 | 重算中 | **基线重做中** |
 | 知识库管理 | 27 | - | 待核查 |
 | 对话方案 | 38 | - | 待核查 |
 | 批量测试 | 25 | - | 待核查 |
 | 监控仪表盘 | 27 | - | 待核查 |
 | 用户管理 | 15 | - | 待核查 |
 | 横切/完善 | 19 | - | 待核查 |
-| **合计** | **218** | **41+** | **待全量核查** |
+| **合计** | **待重算** | **待重算** | **待全量核查** |
+
+## 进度口径
+
+- `tasks-intent-library.md` 已进入基线重做，旧的 `41/41 完成` 仅代表上一轮任务链记录，不再作为当前完成证明
+- 自本轮起，模块状态必须同时满足：任务勾选、验证证据、未完成声明三者一致
+- 若任务文件中仍保留历史记录，应显式标注“仅供对照，不作为当前完成证明”
 
 ## MVP 建议
 
 **最小可行产品范围** (infra + P1 模块):
 - tasks-infra.md: 26 任务
-- tasks-intent-library.md: 41 任务
+- tasks-intent-library.md: 历史口径 41 任务（当前以 `tasks-intent-library.md` 的重做切片与验证证据为准）
 - tasks-knowledge-base.md: 27 任务
 - tasks-dialog-profile.md: 38 任务
-- **MVP 合计: 132 任务**
+- **MVP 合计: 132 任务（含 intent-library 历史统计口径）**
 
 完成 MVP 后即可进行首轮人工验收 (对照 PD 交互稿 + spec.md)。
 
@@ -110,5 +116,5 @@ infra → intent-library → dialog-profile → batch-test → refinement
 
 **创建时间**: 2026-03-18
 **基于 spec.md**: v1.4
-**基于 plan.md**: v2.0
+**基于 plan.md**: v2.1
 **基于 tasks-template.md**: v1.0

@@ -1,10 +1,10 @@
 ---
-version: 2.0
-updated: 2026-03-18
+version: 2.1
+updated: 2026-03-22
 scope: 指令库域 (intent-library)
 covers_fr: FR-002,003,025,039~054
 based_on:
-  - ad/ad-intent-library.md@v2.0
+  - ad/ad-intent-library.md@v2.1
   - dd-global.md@v2.0
   - spec.md@v1.4
 ---
@@ -34,6 +34,7 @@ based_on:
 - **一对一可编码**: 实体 → SQLAlchemy Model; 状态机 → 枚举 + 转移方法; 错误码 → BusinessException 子类
 - **约束显式化**: VARCHAR 全标 max_length; 数值全标 range; 枚举全列合法值; 无 "适当/合理" 等模糊词
 - **向后兼容**: 字段新增不移除; 枚举新增不删除; Alembic migration 遵循 dd-global.md §3.8 规范
+- **证据优先**: 对外接口返回必须能支撑前端展示真实状态; 未完成能力返回明确错误或延期态, 不允许“已提交/演示成功”式假成功
 
 ---
 
@@ -327,6 +328,7 @@ based_on:
 - 训练集与模型版本 1:1 绑定 (FR-048): 一个训练集只能绑定到一个模型版本的 train_dataset_id
 - 删除数据集前校验: 无 LibraryModelVersion.train_dataset_id 引用, 否则返回 E50520
 - sample_count 和 intent_count 为反范式字段, 在 Intent/SimilarQuestion CRUD 时同步更新
+- `config.sample_target` 为可选展示字段; 仅当其存在时前端才展示进度条, 否则展示真实 `sample_count`
 
 ---
 
@@ -557,7 +559,7 @@ based_on:
 | 索引名 | 字段 | 类型 | 用途 |
 |--------|------|------|------|
 | idx_itm_session_id | (session_id) | B-Tree | 按会话筛选 |
-| idx_itm_created_at | (session_id, created_at DESC) | B-Tree | 游标分页: 按会话+时间倒序 |
+| idx_itm_created_at | (session_id, created_at DESC) | B-Tree | 页码分页: 按会话+时间倒序取最新消息窗口 |
 
 #### 关系
 
@@ -569,9 +571,9 @@ based_on:
 
 - user 消息: text 长度 1~500 字符; intent/confidence/slots/latency_ms/debug_info 均为 NULL
 - assistant 消息: 由系统自动生成, 与 user 消息成对出现
-- 列表查询: 按 created_at DESC 排序 (最新在前), 游标分页支持向上滚动加载历史
-- 游标: 使用 message_id 作为游标, 查询 created_at < cursor_message.created_at
-- 每次查询 limit 默认 10, 最大 50
+- 列表查询: 先按 created_at DESC 选取分页窗口, 再按时间正序返回当前页消息
+- 分页参数: 使用 `page/page_size`, 默认 `page=1/page_size=10`
+- `page_size` 当前上限为 200, 以适配测试页单次拉取最近消息
 
 ---
 
@@ -1216,6 +1218,8 @@ async def _execute_training(model_id: UUID, dataset: TrainingDataset, config: di
 | 输入 | custom_prompt | string | NULL, max 2000 | 用户自定义 prompt 模板 |
 | 输出 | generated_count | int | ≥ 0 | 实际生成的样本数 |
 | 输出 | skipped_count | int | ≥ 0 | 重复跳过的样本数 |
+| 输出 | failed_intents | list[str] | ≥ 0 | 生成失败的意图 key 列表 |
+| 输出 | warnings | list[str] | ≥ 0 | 部分成功时返回的警告信息 |
 
 #### 伪代码
 
@@ -1224,67 +1228,81 @@ async def generate_data_with_llm(
     dataset_id: UUID, intent_keys: list[str], mode: str,
     count_per_intent: int = 20, custom_prompt: str = None
 ) -> GenerateResult:
+    ensure_llm_configured()
     dataset = await db.get_dataset(dataset_id)
     intents = await db.list_intents(dataset_id, intent_keys)
     if not intents:
-        raise BusinessError("E50201", "指定的意图不存在")
+        raise BusinessError("E50201", "数据集无可生成意图，请先添加意图")
 
     generated_count = 0
     skipped_count = 0
+    failed_intents = []
+    warnings = []
 
     for intent in intents:
-        existing_texts = await db.get_existing_texts(dataset_id, intent.intent_key)
+        try:
+            existing_texts = await db.get_existing_texts(dataset_id, intent.intent_key)
 
-        if mode == "translate":
-            zh_samples = await db.get_similar_questions(
-                dataset_id, intent.intent_key, language="zh"
-            )
-            prompt = build_translation_prompt(zh_samples, custom_prompt)
-        elif mode == "training":
-            prompt = build_training_generation_prompt(
-                intent, count_per_intent, custom_prompt
-            )
-        elif mode == "evaluation":
-            slots = await db.get_intent_slots(dataset_id, intent.intent_key)
-            prompt = build_evaluation_generation_prompt(
-                intent, slots, count_per_intent, custom_prompt
-            )
-
-        llm_response = await zenmux_client.chat_completion(
-            model=LLM_GENERATION_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.8,
-            max_tokens=4096,
-            timeout=LLM_TIMEOUT_SECONDS
-        )
-
-        samples = parse_llm_output(llm_response.content, mode)
-
-        for sample in samples:
-            if sample["text"] in existing_texts:
-                skipped_count += 1
-                continue
-            if mode == "training" or mode == "translate":
-                await db.insert_similar_question(
-                    dataset_id=dataset_id, intent_key=intent.intent_key,
-                    text=sample["text"],
-                    language="en" if mode == "translate" else dataset.language,
-                    source="llm",
-                    slot_annotations=sample.get("slot_annotations")
+            if mode == "translate":
+                zh_samples = await db.get_similar_questions(
+                    dataset_id, intent.intent_key, language="zh"
+                )
+                prompt = build_translation_prompt(zh_samples, custom_prompt)
+            elif mode == "training":
+                prompt = build_training_generation_prompt(
+                    intent, count_per_intent, custom_prompt
                 )
             elif mode == "evaluation":
-                await db.insert_eval_sample(
-                    dataset_id=dataset_id, intent_key=intent.intent_key,
-                    utterance=sample["text"], language=dataset.language,
-                    source="llm",
-                    expected_result=intent.intent_key,
-                    expected_slots=sample.get("expected_slots", {})
+                slots = await db.get_intent_slots(dataset_id, intent.intent_key)
+                prompt = build_evaluation_generation_prompt(
+                    intent, slots, count_per_intent, custom_prompt
                 )
-            generated_count += 1
-            existing_texts.add(sample["text"])
 
+            llm_response = await zenmux_client.chat_completion(
+                model=LLM_GENERATION_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+                max_tokens=4096,
+                timeout=LLM_TIMEOUT_SECONDS
+            )
+
+            samples = parse_llm_output(llm_response.content, mode)
+
+            for sample in samples:
+                if sample["text"] in existing_texts:
+                    skipped_count += 1
+                    continue
+                if mode == "training" or mode == "translate":
+                    await db.insert_similar_question(
+                        dataset_id=dataset_id, intent_key=intent.intent_key,
+                        text=sample["text"],
+                        language="en" if mode == "translate" else dataset.language,
+                        source="llm",
+                        slot_annotations=sample.get("slot_annotations")
+                    )
+                elif mode == "evaluation":
+                    await db.insert_eval_sample(
+                        dataset_id=dataset_id, intent_key=intent.intent_key,
+                        utterance=sample["text"], language=dataset.language,
+                        source="llm",
+                        expected_result=intent.intent_key,
+                        expected_slots=sample.get("expected_slots", {})
+                    )
+                generated_count += 1
+                existing_texts.add(sample["text"])
+        except Exception as e:
+            failed_intents.append(intent.intent_key)
+            warnings.append(f"{intent.intent_key}: {str(e)}")
+
+    if generated_count == 0 and failed_intents:
+        raise BusinessError("E50580", "LLM 数据生成失败，请检查配置或外部服务状态")
     await db.update_dataset_counts(dataset_id)
-    return GenerateResult(generated_count=generated_count, skipped_count=skipped_count)
+    return GenerateResult(
+        generated_count=generated_count,
+        skipped_count=skipped_count,
+        failed_intents=failed_intents,
+        warnings=warnings
+    )
 
 
 def build_training_generation_prompt(intent, count: int, custom: str = None) -> str:
@@ -1306,10 +1324,13 @@ def build_training_generation_prompt(intent, count: int, custom: str = None) -> 
 
 | 边界场景 | 处理方式 | 错误码 |
 |---------|---------|--------|
-| LLM 超时 (> 30s) | 返回已生成的部分结果 | E50580 |
+| LLM 未配置 | 调用前立即失败, 返回明确错误 | - (业务异常) |
+| 数据集无意图 | 调用前立即失败, 提示先添加意图 | E50201 |
+| LLM 超时 (> 30s) | 当前请求失败; 若已有部分成功结果, 一并返回 warnings + 实际条数 | E50580 |
 | LLM 输出格式解析失败 | 跳过无法解析的行, 记录 warning | - (降级) |
 | 生成的文本与已有重复 | 跳过, skipped_count++ | - |
-| intent_keys 中有不存在的 key | 跳过该 key, 继续处理其他 | - (日志) |
+| 单个意图生成失败 | 记录 failed_intents, 继续处理其他意图 | - (warning) |
+| 全部意图生成失败 | 请求失败, 不返回伪成功 | E50580 |
 | custom_prompt 中未包含 {base_prompt} | 整段作为 prompt 使用 | - |
 
 ---
@@ -1597,7 +1618,7 @@ HTTP 状态映射: seq 01~19 → 400; seq 20~49 → 409/422; seq 50~59 → 404; 
 |--------|------|------|---------|------|
 | E50601 | 400 | 测试 text 为空或超过 500 字符 | 测试文本不能为空, 且不超过 500 字符 | 否 |
 | E50602 | 400 | session name 超过 100 字符 | 会话名称不能超过 100 字符 | 否 |
-| E50603 | 400 | cursor/limit 参数不合法 | 分页参数格式错误 | 否 |
+| E50603 | 400 | page/page_size 参数不合法 | 分页参数格式错误 | 否 |
 | E50620 | 422 | 模型非 testable/published 状态进行测试 | 仅可测试和已发布状态的模型可进行测试 | 否 |
 | E50621 | 422 | 批量测试 eval_dataset_id 无效 | 请选择有效的评估数据集 | 否 |
 | E50650 | 404 | session_id 不存在 | 测试会话不存在 | 否 |
@@ -1706,8 +1727,8 @@ HTTP 状态映射: seq 01~19 → 400; seq 20~49 → 409/422; seq 50~59 → 404; 
 | `DELETE /datasets/{id}` | DatasetService.delete | - | - | §6.5 E50520: 训练集被绑定时拒绝 | - |
 | `POST /datasets/{id}/import` | DatasetService.import_data | Multipart(file, type, overwrite) | ImportResult | §6.5 E50502/E50503 格式校验 | imported_count, skipped_count |
 | `GET /datasets/{id}/export` | DatasetService.export_data | Query(format, scope) | FileResponse | - | - |
-| `POST /datasets/{id}/generate-training` | DatasetService.generate_training | LLMGenerateRequest | GenerateResult | §5.4 LLM 数据生成 (mode=training) | generated_count, skipped_count |
-| `POST /datasets/{id}/generate-evaluation` | DatasetService.generate_evaluation | LLMGenerateRequest | GenerateResult | §5.4 LLM 数据生成 (mode=evaluation) | generated_count, skipped_count |
+| `POST /datasets/{id}/generate-training` | DatasetService.generate_training | LLMGenerateRequest | GenerateResult | §5.4 LLM 数据生成 (mode=training) | generated_count, skipped_count, failed_intents, warnings |
+| `POST /datasets/{id}/generate-evaluation` | DatasetService.generate_evaluation | LLMGenerateRequest | GenerateResult | §5.4 LLM 数据生成 (mode=evaluation) | generated_count, skipped_count, failed_intents, warnings |
 
 ### 9.4 意图管理 (→ AD §3.4)
 
@@ -1750,21 +1771,22 @@ HTTP 状态映射: seq 01~19 → 400; seq 20~49 → 409/422; seq 50~59 → 404; 
 
 | API 端点 | 服务方法 | 入参 Schema | 出参 Schema | 核心逻辑 (→ DD §x) | 计算/派生字段 |
 |----------|---------|-------------|-------------|---------------------|-------------|
-| `POST /models/{id}/test/sessions` | TestSessionService.create | CreateSessionRequest | TestSessionDetail | §3.8 自动生成名称 | message_count=0 |
-| `GET /models/{id}/test/sessions` | TestSessionService.list | Query(page) | Page[TestSessionSummary] | 按 updated_at DESC | message_count |
-| `PUT /models/{id}/test/sessions/{sid}` | TestSessionService.rename | RenameSessionRequest | TestSessionDetail | - | - |
-| `DELETE /models/{id}/test/sessions/{sid}` | TestSessionService.delete | - | - | 级联删除 IntentTestMessage | - |
-| `POST /models/{id}/test/single` | TestService.single_test | SingleTestRequest | SingleTestResponse | §5.1 意图分类 + §5.2 槽位提取; §3.9 插入 user+assistant 消息对 | session_id (auto-create if null), debug_info |
-| `GET /models/{id}/test/sessions/{sid}/messages` | TestMessageService.list | Query(cursor, limit) | CursorPage[TestMessageItem] | §3.9 游标分页, created_at DESC | has_more, next_cursor |
-| `DELETE /models/{id}/test/sessions/{sid}/messages/{mid}` | TestMessageService.delete | - | - | - | - |
+| `POST /models/{id}/test-sessions` | TestSessionService.create | CreateSessionRequest | TestSessionDetail | §3.8 自动生成名称 | message_count=0 |
+| `GET /models/{id}/test-sessions` | TestSessionService.list | - | list[TestSessionSummary] | 按 updated_at DESC 全量返回 | message_count |
+| `PUT /test-sessions/{sid}` | TestSessionService.rename | RenameSessionRequest | TestSessionDetail | - | - |
+| `DELETE /test-sessions/{sid}` | TestSessionService.delete | - | - | 级联删除 IntentTestMessage | - |
+| `POST /test-sessions/{sid}/messages` | TestSessionService.send_message | SendMessageRequest | list[TestMessageItem] | §3.9 插入 user+assistant 消息对并返回两条记录 | assistant.result(intent/confidence/slots/latency_ms) |
+| `GET /test-sessions/{sid}/messages` | TestMessageService.list | Query(page, page_size) | Page[TestMessageItem] | §3.9 页码分页; 查询窗口倒序、返回顺序正序 | total, page, page_size, pages |
 
 ### 9.8 批量测试与分析 (→ AD §3.7.4)
 
 | API 端点 | 服务方法 | 入参 Schema | 出参 Schema | 核心逻辑 (→ DD §x) | 计算/派生字段 |
 |----------|---------|-------------|-------------|---------------------|-------------|
-| `POST /models/{id}/test/batch` | TestService.create_batch_run | BatchTestRequest | EvaluationRunDetail | §5.5 模型评估; §4.2 EvaluationRun 状态 | run_id (异步, 202) |
-| `GET /test-runs/{run_id}` | TestService.get_run | - | EvaluationRunDetail | §3.7 + §4.2 状态 | pass/fail 由阈值比对派生; progress: completed_samples/total_samples |
-| `GET /test-runs/{run_id}/analysis` | TestService.get_analysis | - | AnalysisResult | §3.7 analysis JSONB; §5.5 generate_smart_analysis | LLM 异步生成 |
+| `POST /batch-tests` | BatchService.create_batch | BatchTestCreate(`model_id` required for intent-library entry) | BatchTestOut | 创建标准批量评估任务; `model_id/profile_id` 二选一且互斥 | 初始 `status=draft` |
+| `POST /batch-tests/{id}/import-cases` | CaseService.create_cases_bulk | ImportCasesRequest | CountResponse | 导入测试行, 保留 `expected_intent/expected_domain/expected_slots` | 自动写入 `sort_order` |
+| `POST /batch-tests/{id}/execute` | BatchExecutor.execute_batch | - | BatchTestOut | 触发真实执行; 若为 `model_id` 任务则直接加载模型产物推理 | 更新 `completed_cases/accuracy/p99_latency_ms` |
+| `GET /batch-tests/{id}/runs` | BatchRunService.list_runs | Query(page, page_size) | Page[TestRunOut] | 读取逐条执行结果, 供 `/batch-test/{id}` 详情页展示 | 失败样本保留 `error_message` |
+| `GET /batch-tests/{id}/analysis` | BatchAnalysisService.get_analysis | - | TestRunAnalysisOut | 读取批量分析结果 | 空态允许, 不得伪造已生成 |
 
 ---
 
@@ -2000,14 +2022,14 @@ HTTP 状态映射: seq 01~19 → 400; seq 20~49 → 409/422; seq 50~59 → 404; 
 | PD 页面 | 按钮/入口 | 触发行为 | 组件类型 | 对应 API | 备注 |
 |---------|---------|---------|---------|---------|------|
 | test 页面头部 | 返回 | 返回详情页 | `Button` + ArrowLeftOutlined | — | goTo('detail') |
-| test 单条测试 | 新建会话 | 创建新测试会话 | `Button type="primary"` + PlusOutlined | POST /models/{id}/test/sessions | — |
-| test 单条测试 | 发送 | 发送测试消息 | `Button type="primary"` + SendOutlined | POST /models/{id}/test/single | Enter 快捷键 |
+| test 单条测试 | 新建会话 | 创建新测试会话 | `Button type="primary"` + PlusOutlined | POST /models/{id}/test-sessions | — |
+| test 单条测试 | 发送 | 向当前会话发送测试消息 | `Button type="primary"` + SendOutlined | POST /test-sessions/{sid}/messages | Enter 快捷键 |
 | test 单条测试 | 清空全部 | 清空所有会话 | `Button type="text" danger` + ClearOutlined | 逐个 DELETE sessions | Modal.confirm 二次确认 |
-| test 单条测试 | 删除会话 | 删除单个会话 | `Button type="text" danger` + DeleteOutlined | DELETE /models/{id}/test/sessions/{sid} | Popconfirm; hover 时显示 |
-| test 单条测试 | 删除消息 | 删除单条消息 | `Button type="text"` + DeleteOutlined | DELETE /.../messages/{mid} | hover 消息时间戳旁显示 |
-| test 批量测试 | 新建测试任务 | 打开新建弹窗 | `Button type="primary"` + PlusOutlined | POST /models/{id}/test/batch | — |
-| test 批量测试 | 智能分析 | 打开分析报告弹窗 | `Button type="primary"` + ThunderboltFilled | GET /test-runs/{run_id}/analysis | 仅 completed + hasAnalysis |
-| test 批量测试 | 查看 | 查看测试详情 | `Button size="small"` + EyeOutlined | GET /test-runs/{run_id} | — |
+| test 单条测试 | 删除会话 | 删除单个会话 | `Button type="text" danger` + DeleteOutlined | DELETE /test-sessions/{sid} | Popconfirm; hover 时显示 |
+| test 单条测试 | 删除消息 | 未落地 | — | — | 当前实现未提供单条消息删除能力 |
+| test 批量测试 | 创建并执行真实批量测试 | 创建 batch → 导入 cases → 触发 execute → 跳转详情页 | `Button type="primary"` + ThunderboltOutlined | POST /batch-tests + POST /batch-tests/{id}/import-cases + POST /batch-tests/{id}/execute | 必须先选择 `model_id`; 无有效输入时阻断 |
+| test 批量测试 | 智能分析 | 跳转后在 `/batch-test/{id}` 详情页查看 | 详情页 `TabPane` + `Button` | GET /batch-tests/{id}/analysis | 空态允许; 不得伪装为已生成 |
+| test 批量测试 | 查看 | 由创建成功后自动跳转到批量测试详情页 | `navigate('/batch-test/{id}')` | `GET /batch-tests/{id}` / `GET /batch-tests/{id}/runs` | 结果页以真实状态源为准 |
 
 ### 11.5 特殊交互组件
 

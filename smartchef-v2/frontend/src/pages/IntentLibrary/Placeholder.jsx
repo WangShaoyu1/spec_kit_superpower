@@ -54,7 +54,20 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { intentLibraryApi } from '../../services/intentLibraryApi';
+import { batchTestApi } from '../../services/batchTestApi';
 import DangerConfirmModal from '../../components/DangerConfirmModal';
+import {
+  getCoverageDatasetId,
+  isEvaluationDataset,
+  normalizeDatasetCollections,
+} from './datasetPageUtils';
+import {
+  buildIntentLibraryBatchCreatePayload,
+  buildIntentLibraryBatchImportPayload,
+} from './batchTestBridge';
+import { shouldLoadTrainingDatasetChildren } from './datasetDetailUtils';
+import { getExcelImportFeedback, getLlmGenerationFeedback } from './feedbackUtils';
+import { getDebugInfoFromMessage, getPaginatedMessageItems, removeTemporaryMessage } from './testMessageUtils';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -78,8 +91,6 @@ const LLM_MODEL_OPTIONS = [
   { value: 'qwen-max', label: 'Qwen-Max' },
 ];
 
-const SAMPLE_TARGET_MAX = 500;
-
 export const DatasetsPage = memo(function DatasetsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -98,14 +109,27 @@ export const DatasetsPage = memo(function DatasetsPage() {
   const [synthesisForm] = Form.useForm();
   const [excelFileList, setExcelFileList] = useState([]);
   const [coverageOptions, setCoverageOptions] = useState([]);
+  const [generationDatasets, setGenerationDatasets] = useState([]);
   const [sampleCount, setSampleCount] = useState(120);
 
   const fetchDatasets = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await intentLibraryApi.listDatasets(id);
-      const payload = res.data?.data ?? res.data;
-      setDatasets(Array.isArray(payload) ? payload : payload?.items ?? []);
+      const [trainingRes, evaluationRes] = await Promise.all([
+        intentLibraryApi.listDatasets(id, { page: 1, page_size: 100 }),
+        intentLibraryApi.listEvalDatasets(id, { page: 1, page_size: 100 }),
+      ]);
+      const trainingPayload = trainingRes.data?.data ?? trainingRes.data;
+      const evaluationPayload = evaluationRes.data?.data ?? evaluationRes.data;
+      const trainingItems = Array.isArray(trainingPayload)
+        ? trainingPayload
+        : trainingPayload?.items ?? [];
+      const evaluationItems = Array.isArray(evaluationPayload)
+        ? evaluationPayload
+        : evaluationPayload?.items ?? [];
+      const mergedDatasets = normalizeDatasetCollections(trainingItems, evaluationItems);
+      setDatasets(mergedDatasets);
+      setGenerationDatasets(mergedDatasets);
     } catch {
       message.error('获取数据集列表失败');
     } finally {
@@ -127,7 +151,7 @@ export const DatasetsPage = memo(function DatasetsPage() {
   const openCreate = useCallback(() => {
     setEditingDataset(null);
     form.resetFields();
-    form.setFieldsValue({ source_type: 'manual' });
+    form.setFieldsValue({ dataset_kind: 'training', source_type: 'manual' });
     setModalOpen(true);
   }, [form]);
 
@@ -135,6 +159,7 @@ export const DatasetsPage = memo(function DatasetsPage() {
     (record) => {
       setEditingDataset(record);
       form.setFieldsValue({
+        dataset_kind: record.dataset_kind || 'training',
         name: record.name,
         description: record.description,
         source_type: record.source_type || record.type || 'manual',
@@ -153,11 +178,20 @@ export const DatasetsPage = memo(function DatasetsPage() {
         description: values.description,
         source_type: values.source_type || values.type || 'manual',
       };
+      const isEval = values.dataset_kind === 'evaluation';
       if (editingDataset) {
-        await intentLibraryApi.updateDataset(editingDataset.id, payload);
+        if (isEval) {
+          await intentLibraryApi.updateEvalDataset(editingDataset.id, payload);
+        } else {
+          await intentLibraryApi.updateDataset(editingDataset.id, payload);
+        }
         message.success('更新成功');
       } else {
-        await intentLibraryApi.createDataset(id, payload);
+        if (isEval) {
+          await intentLibraryApi.createEvalDataset(id, payload);
+        } else {
+          await intentLibraryApi.createDataset(id, payload);
+        }
         message.success('创建成功');
       }
       setModalOpen(false);
@@ -174,7 +208,11 @@ export const DatasetsPage = memo(function DatasetsPage() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      await intentLibraryApi.deleteDataset(deleteTarget.id);
+      if (isEvaluationDataset(deleteTarget)) {
+        await intentLibraryApi.deleteEvalDataset(deleteTarget.id);
+      } else {
+        await intentLibraryApi.deleteDataset(deleteTarget.id);
+      }
       message.success('删除成功');
       setDeleteTarget(null);
       fetchDatasets();
@@ -190,8 +228,14 @@ export const DatasetsPage = memo(function DatasetsPage() {
       setCoverageOptions([]);
       return;
     }
+    const selectedDataset = generationDatasets.find((dataset) => dataset.id === datasetId);
+    const coverageDatasetId = getCoverageDatasetId(selectedDataset);
+    if (!coverageDatasetId) {
+      setCoverageOptions([]);
+      return;
+    }
     try {
-      const res = await intentLibraryApi.listIntents(datasetId, {});
+      const res = await intentLibraryApi.listIntents(coverageDatasetId, {});
       const raw = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
       setCoverageOptions(
         raw.map((i) => ({ label: i.name_zh || i.intent_key, value: i.intent_key })),
@@ -199,7 +243,7 @@ export const DatasetsPage = memo(function DatasetsPage() {
     } catch {
       setCoverageOptions([]);
     }
-  }, []);
+  }, [generationDatasets]);
 
   const llmModelWatch = Form.useWatch('llm_model', synthesisForm);
 
@@ -215,12 +259,14 @@ export const DatasetsPage = memo(function DatasetsPage() {
       },
       {
         title: '类型',
-        dataIndex: 'source_type',
-        key: 'source_type',
+        dataIndex: 'dataset_kind',
+        key: 'dataset_kind',
         width: 100,
-        render: (source_type, record) => {
-          const t = source_type || record.type;
-          const cfg = TYPE_TAG_CONFIG[t] || { color: 'default', label: t || '-' };
+        render: (_, record) => {
+          const cfg =
+            record.dataset_kind === 'evaluation'
+              ? TYPE_TAG_CONFIG.evaluation
+              : TYPE_TAG_CONFIG.training;
           return <Tag color={cfg.color}>{cfg.label}</Tag>;
         },
       },
@@ -329,6 +375,7 @@ export const DatasetsPage = memo(function DatasetsPage() {
               type="link"
               size="small"
               icon={<EyeOutlined />}
+              disabled={isEvaluationDataset(record)}
               onClick={() => navigate(`/intent-library/${id}/datasets/${record.id}`)}
             >
               详情
@@ -403,7 +450,6 @@ export const DatasetsPage = memo(function DatasetsPage() {
                 synthesisForm.resetFields();
                 synthesisForm.setFieldsValue({
                   llm_model: 'gpt-4o',
-                  coverage: [],
                   prompt_template:
                     '基于下列意图集合，为用户语料生成多样化口语化表述，保持领域一致：\n{intent_list}',
                 });
@@ -473,6 +519,19 @@ export const DatasetsPage = memo(function DatasetsPage() {
         >
           <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
             <Form.Item
+              name="dataset_kind"
+              label="数据集类型"
+              rules={[{ required: true, message: '请选择数据集类型' }]}
+            >
+              <Select
+                disabled={!!editingDataset}
+                options={[
+                  { value: 'training', label: '训练集' },
+                  { value: 'evaluation', label: '评估集' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item
               name="name"
               label="名称"
               rules={[{ required: true, message: '请输入数据集名称' }]}
@@ -509,23 +568,56 @@ export const DatasetsPage = memo(function DatasetsPage() {
                 samples_per_intent: sampleCount,
                 prompt_template: values.prompt_template,
               };
-              const ds = datasets.find((d) => d.id === values.dataset_id);
-              const isEval = ds?.source_type === 'evaluation';
-              let res;
+              const ds = generationDatasets.find((d) => d.id === values.dataset_id);
+              const isEval = isEvaluationDataset(ds);
+              let data;
               if (isEval) {
-                res = await intentLibraryApi.generateEvaluationData(id, values.dataset_id, payload);
+                const res = await intentLibraryApi.generateEvaluationData(values.dataset_id, payload);
+                data = res.data;
               } else {
-                res = await intentLibraryApi.generateTrainingData(values.dataset_id, payload);
+                const startRes = await intentLibraryApi.startTrainingGenerationJob(
+                  values.dataset_id,
+                  payload,
+                );
+                const jobId = startRes.data?.job_id;
+                const pollMs = (startRes.data?.poll_interval_sec ?? 6) * 1000;
+                message.loading({
+                  content: '已提交相似问生成任务…',
+                  duration: 0,
+                  key: 'llm-train-job',
+                });
+                let status = null;
+                try {
+                  for (;;) {
+                    const stRes = await intentLibraryApi.getTrainingGenerationJob(
+                      values.dataset_id,
+                      jobId,
+                    );
+                    status = stRes.data;
+                    const idx = status.intent_index ?? 0;
+                    const total = status.intent_total ?? 0;
+                    const gen = status.generated_count ?? 0;
+                    message.loading({
+                      content: `相似问生成中：意图 ${idx}/${total || '…'}，已写入 ${gen} 条`,
+                      duration: 0,
+                      key: 'llm-train-job',
+                    });
+                    if (status.status === 'completed' || status.status === 'failed') {
+                      break;
+                    }
+                    await new Promise((r) => setTimeout(r, pollMs));
+                  }
+                } finally {
+                  message.destroy('llm-train-job');
+                }
+                if (!status || status.status === 'failed') {
+                  message.error(status?.error || status?.message || '生成失败');
+                  return;
+                }
+                data = status;
               }
-              const data = res.data?.data ?? res.data;
-              const count = data?.generated_count ?? 0;
-              const errs = data?.errors;
-              if (count > 0) {
-                message.success(`成功生成 ${count} 条样本（覆盖 ${data?.intent_count ?? '-'} 个意图）`);
-              }
-              if (errs?.length) {
-                message.warning(`部分意图生成失败: ${errs.join('；')}`, 8);
-              }
+              const feedback = getLlmGenerationFeedback(data);
+              message[feedback.level](feedback.text, feedback.level === 'warning' ? 8 : undefined);
               setLlmModalOpen(false);
               fetchDatasets();
             } catch (e) {
@@ -540,12 +632,15 @@ export const DatasetsPage = memo(function DatasetsPage() {
           <Form form={synthesisForm} layout="vertical">
             <Form.Item
               name="dataset_id"
-              label="目标数据集（用于意图覆盖选项）"
+              label="目标数据集"
               rules={[{ required: true, message: '请选择数据集' }]}
             >
               <Select
                 placeholder="选择已有数据集"
-                options={datasets.map((d) => ({ value: d.id, label: d.name }))}
+                options={generationDatasets.map((d) => ({
+                  value: d.id,
+                  label: `${d.name}（${isEvaluationDataset(d) ? '评估集' : '训练集'}）`,
+                }))}
                 onChange={(v) => loadCoverageForDataset(v)}
               />
             </Form.Item>
@@ -572,10 +667,22 @@ export const DatasetsPage = memo(function DatasetsPage() {
             >
               <TextArea rows={5} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-sm)' }} />
             </Form.Item>
-            <Form.Item name="coverage" label="意图覆盖">
-              <Checkbox.Group
-                options={coverageOptions}
-                style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            <Form.Item label="涉及意图预览">
+              <Alert
+                type="info"
+                showIcon
+                message="当前版本会对所选数据集关联的全部意图执行生成。按意图子集定向生成尚未接入，已显式延期。"
+                description={
+                  coverageOptions.length ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                      {coverageOptions.map((option) => (
+                        <Tag key={option.value}>{option.label}</Tag>
+                      ))}
+                    </div>
+                  ) : (
+                    '当前数据集暂无可预览意图。'
+                  )
+                }
               />
             </Form.Item>
             <Card
@@ -614,7 +721,8 @@ export const DatasetsPage = memo(function DatasetsPage() {
               message.error('仅支持 Excel 文件');
               return;
             }
-            message.success('文件已通过校验，导入任务演示已记录（待接入解析服务）');
+            const feedback = getExcelImportFeedback({ fileName: f.name });
+            message[feedback.level](feedback.text, 6);
             setExcelModalOpen(false);
             setExcelFileList([]);
           }}
@@ -681,6 +789,7 @@ export const DatasetDetailPage = memo(function DatasetDetailPage() {
   const [drawerForm] = Form.useForm();
 
   const [dataset, setDataset] = useState(null);
+  const [datasetKind, setDatasetKind] = useState(null);
   const [datasetLoading, setDatasetLoading] = useState(true);
   const [intents, setIntents] = useState([]);
   const [intentsLoading, setIntentsLoading] = useState(false);
@@ -704,8 +813,16 @@ export const DatasetDetailPage = memo(function DatasetDetailPage() {
     try {
       const res = await intentLibraryApi.getDataset(datasetId);
       setDataset(res.data?.data ?? res.data);
+      setDatasetKind('training');
     } catch {
-      setDataset(null);
+      try {
+        const evalRes = await intentLibraryApi.getEvalDataset(datasetId);
+        setDataset(evalRes.data?.data ?? evalRes.data);
+        setDatasetKind('evaluation');
+      } catch {
+        setDataset(null);
+        setDatasetKind(null);
+      }
     } finally {
       setDatasetLoading(false);
     }
@@ -754,13 +871,28 @@ export const DatasetDetailPage = memo(function DatasetDetailPage() {
 
   useEffect(() => {
     fetchDataset();
-    fetchIntents();
-    if (datasetId) fetchSlotsMeta();
-  }, [fetchDataset, fetchIntents, fetchSlotsMeta, datasetId]);
+  }, [fetchDataset]);
+
+  const canLoadTrainingChildren = shouldLoadTrainingDatasetChildren({
+    datasetId,
+    datasetKind,
+    datasetLoading,
+  });
 
   useEffect(() => {
-    if (mainTab === 'slots' && datasetId) fetchSlotsMeta();
-  }, [mainTab, datasetId, fetchSlotsMeta]);
+    if (canLoadTrainingChildren) {
+      fetchIntents();
+      if (datasetId) fetchSlotsMeta();
+    } else {
+      setIntents([]);
+      setSlots([]);
+      setEntityTotal(0);
+    }
+  }, [canLoadTrainingChildren, fetchIntents, fetchSlotsMeta, datasetId]);
+
+  useEffect(() => {
+    if (canLoadTrainingChildren && mainTab === 'slots' && datasetId) fetchSlotsMeta();
+  }, [mainTab, datasetId, fetchSlotsMeta, canLoadTrainingChildren]);
 
   const openCreateModal = useCallback(() => {
     setEditingIntent(null);
@@ -954,6 +1086,7 @@ export const DatasetDetailPage = memo(function DatasetDetailPage() {
         title: '中文名',
         dataIndex: 'name_zh',
         key: 'name_zh',
+        width: 300,
         render: (text) => <Text strong>{text}</Text>,
       },
       {
@@ -1045,6 +1178,21 @@ export const DatasetDetailPage = memo(function DatasetDetailPage() {
           返回数据集列表
         </Button>
       </Empty>
+    );
+  }
+
+  if (datasetKind === 'evaluation') {
+    return (
+      <Result
+        status="info"
+        title="评估集暂无数据明细编辑页"
+        subTitle="当前页面仅支持训练集的意图、词槽、实体与相似问维护。评估集可在数据集列表中进行查看、生成和删除。"
+        extra={
+          <Button type="primary" onClick={() => navigate(`/intent-library/${id}/datasets`)}>
+            返回数据集列表
+          </Button>
+        }
+      />
     );
   }
 
@@ -1642,6 +1790,10 @@ function SingleTestTab({ libId }) {
   const [selectedMsg, setSelectedMsg] = useState(null);
   const [creatingSession, setCreatingSession] = useState(false);
   const chatEndRef = useRef(null);
+  const selectedDebug = useMemo(
+    () => (selectedMsg ? getDebugInfoFromMessage(selectedMsg) : null),
+    [selectedMsg],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1690,9 +1842,7 @@ function SingleTestTab({ libId }) {
     intentLibraryApi
       .getTestMessages(sessionId, { page: 1, page_size: 200 })
       .then((res) => {
-        const payload = res.data ?? res ?? {};
-        const list = Array.isArray(payload) ? payload : payload.items ?? [];
-        setMessages(Array.isArray(list) ? list : []);
+        setMessages(getPaginatedMessageItems(res.data));
       })
       .catch(() => setMessages([]))
       .finally(() => setMessagesLoading(false));
@@ -1732,8 +1882,9 @@ function SingleTestTab({ libId }) {
     const text = inputText.trim();
     if (!text || !activeSessionId) return;
     setInputText('');
+    const tempId = `temp-${Date.now()}`;
     const userMsg = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       role: 'user',
       text,
       created_at: new Date().toISOString(),
@@ -1747,11 +1898,12 @@ function SingleTestTab({ libId }) {
       const incoming = Array.isArray(payload) ? payload : payload ? [payload] : [];
       if (incoming.length) {
         setMessages((prev) => {
-          const withoutTemp = prev.filter((m) => !String(m.id).startsWith('temp-'));
+          const withoutTemp = removeTemporaryMessage(prev, tempId);
           return [...withoutTemp, ...incoming];
         });
       }
     } catch {
+      setMessages((prev) => removeTemporaryMessage(prev, tempId));
       message.error('发送失败');
     } finally {
       setSending(false);
@@ -1949,25 +2101,25 @@ function SingleTestTab({ libId }) {
           <Text strong style={{ fontSize: 'var(--font-size-sm)' }}>调试信息</Text>
         </div>
         <div style={{ padding: 'var(--space-3)' }}>
-          {selectedMsg ? (
+          {selectedMsg && selectedDebug ? (
             <Descriptions
               column={1}
               size="small"
               styles={{ label: { color: 'var(--color-text-secondary)', fontWeight: 500, width: 80 } }}
             >
               <Descriptions.Item label="领域">
-                {selectedMsg.domain || selectedMsg.nlu?.domain ? (
+                {selectedDebug.domain ? (
                   <Tag color="geekblue" style={{ margin: 0 }}>
-                    {selectedMsg.domain || selectedMsg.nlu?.domain}
+                    {selectedDebug.domain}
                   </Tag>
                 ) : (
                   <Text type="secondary">-</Text>
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="意图">
-                {(selectedMsg.intent || selectedMsg.nlu?.intent) ? (
+                {selectedDebug.intent ? (
                   <Tag color="blue" style={{ margin: 0 }}>
-                    {selectedMsg.intent || selectedMsg.nlu?.intent}
+                    {selectedDebug.intent}
                   </Tag>
                 ) : (
                   <Text type="secondary">-</Text>
@@ -1975,8 +2127,8 @@ function SingleTestTab({ libId }) {
               </Descriptions.Item>
               <Descriptions.Item label="置信度">
                 <Space size={8}>
-                  {confidenceTag(selectedMsg.confidence ?? selectedMsg.nlu?.confidence)}
-                  {(selectedMsg.confidence ?? selectedMsg.nlu?.confidence) != null && (
+                  {confidenceTag(selectedDebug.confidence)}
+                  {selectedDebug.confidence != null && (
                     <div
                       style={{
                         width: 60,
@@ -1988,12 +2140,10 @@ function SingleTestTab({ libId }) {
                     >
                       <div
                         style={{
-                          width: `${((selectedMsg.confidence ?? selectedMsg.nlu?.confidence ?? 0) * 100).toFixed(0)}%`,
+                          width: `${((selectedDebug.confidence ?? 0) * 100).toFixed(0)}%`,
                           height: '100%',
                           borderRadius: 3,
-                          background: confidenceColor(
-                            selectedMsg.confidence ?? selectedMsg.nlu?.confidence,
-                          ),
+                          background: confidenceColor(selectedDebug.confidence),
                           transition: 'width 0.3s',
                         }}
                       />
@@ -2002,10 +2152,9 @@ function SingleTestTab({ libId }) {
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="槽位">
-                {(selectedMsg.slots && Object.keys(selectedMsg.slots).length > 0) ||
-                (selectedMsg.nlu?.slots && Object.keys(selectedMsg.nlu.slots).length > 0) ? (
+                {selectedDebug.slots && Object.keys(selectedDebug.slots).length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {Object.entries(selectedMsg.slots || selectedMsg.nlu?.slots || {}).map(([k, v]) => (
+                    {Object.entries(selectedDebug.slots).map(([k, v]) => (
                       <Tag key={k} style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: 'var(--font-size-xs)' }}>
                         {k}: {String(v)}
                       </Tag>
@@ -2016,22 +2165,22 @@ function SingleTestTab({ libId }) {
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="延迟">
-                {selectedMsg.latency_ms != null ? (
+                {selectedDebug.latency_ms != null ? (
                   <Text style={{ fontFamily: 'var(--font-mono)' }}>
-                    {selectedMsg.latency_ms} ms
+                    {selectedDebug.latency_ms} ms
                   </Text>
                 ) : (
                   <Text type="secondary">-</Text>
                 )}
               </Descriptions.Item>
-              {selectedMsg.fallback != null && (
+              {selectedDebug.fallback != null && (
                 <Descriptions.Item label="兜底">
-                  <Tag color={selectedMsg.fallback ? 'orange' : 'green'} style={{ margin: 0 }}>
-                    {selectedMsg.fallback ? '是' : '否'}
+                  <Tag color={selectedDebug.fallback ? 'orange' : 'green'} style={{ margin: 0 }}>
+                    {selectedDebug.fallback ? '是' : '否'}
                   </Tag>
                 </Descriptions.Item>
               )}
-              {selectedMsg.raw && (
+              {selectedDebug.raw && (
                 <Descriptions.Item label="原始响应">
                   <pre
                     style={{
@@ -2047,9 +2196,9 @@ function SingleTestTab({ libId }) {
                       borderRadius: 'var(--radius-sm)',
                     }}
                   >
-                    {typeof selectedMsg.raw === 'string'
-                      ? selectedMsg.raw
-                      : JSON.stringify(selectedMsg.raw, null, 2)}
+                    {typeof selectedDebug.raw === 'string'
+                      ? selectedDebug.raw
+                      : JSON.stringify(selectedDebug.raw, null, 2)}
                   </pre>
                 </Descriptions.Item>
               )}
@@ -2067,22 +2216,8 @@ function SingleTestTab({ libId }) {
   );
 }
 
-/* ─── Batch Test Tab ─── */
-function parseBotNlu(botMsg) {
-  if (Array.isArray(botMsg)) {
-    const assistant = botMsg.find((m) => m?.role === 'assistant') || botMsg[botMsg.length - 1];
-    return parseBotNlu(assistant);
-  }
-  if (!botMsg || typeof botMsg !== 'object') return { intent: null, confidence: null };
-  const r = botMsg.result || {};
-  return {
-    intent: r.intent ?? botMsg.intent ?? botMsg.nlu?.intent ?? botMsg.parsed?.intent ?? null,
-    confidence:
-      r.confidence ?? botMsg.confidence ?? botMsg.nlu?.confidence ?? botMsg.parsed?.confidence ?? null,
-  };
-}
-
 function BatchTestTab({ libId }) {
+  const navigate = useNavigate();
   const [models, setModels] = useState([]);
   const [selectedModelId, setSelectedModelId] = useState(null);
   const [rows, setRows] = useState([]);
@@ -2123,55 +2258,29 @@ function BatchTestTab({ libId }) {
   }, []);
 
   const runBatch = useCallback(async () => {
-    if (!selectedModelId) {
-      message.warning('请选择模型');
-      return;
-    }
-    const tests = rows.filter((x) => x.input?.trim());
-    if (!tests.length) {
-      message.warning('请填写至少一条输入');
-      return;
-    }
     setRunning(true);
     try {
-      const sessionRes = await intentLibraryApi.createTestSession(selectedModelId, {
-        name: `batch-${Date.now()}`,
+      const createPayload = buildIntentLibraryBatchCreatePayload({
+        modelId: selectedModelId,
+        libraryId: libId,
       });
-      const session = sessionRes.data ?? sessionRes;
-      const sid = session?.id;
-      if (!sid) throw new Error('无法创建测试会话');
+      const importPayload = buildIntentLibraryBatchImportPayload(rows);
+      const batchRes = await batchTestApi.create(createPayload);
+      const batch = batchRes.data ?? batchRes;
+      const batchId = batch?.id;
+      if (!batchId) throw new Error('创建批量测试失败，缺少 batch id');
 
-      const next = [...rows];
-      for (const t of tests) {
-        const idx = next.findIndex((x) => x.id === t.id);
-        if (idx < 0) continue;
-        try {
-          const msgRes = await intentLibraryApi.sendTestMessage(sid, {
-            content: t.input.trim(),
-          });
-          const bot = msgRes.data ?? msgRes;
-          const { intent: actual, confidence } = parseBotNlu(bot);
-          const exp = (t.expected || '').trim();
-          const match =
-            exp === '' ? null : exp === (actual || '');
-          next[idx] = {
-            ...next[idx],
-            actual: actual || '-',
-            confidence,
-            match,
-          };
-        } catch {
-          next[idx] = { ...next[idx], actual: '(错误)', confidence: null, match: false };
-        }
-        setRows([...next]);
-      }
-      message.success('批量测试完成');
+      await batchTestApi.importCases(batchId, importPayload.cases);
+      await batchTestApi.execute(batchId);
+
+      message.success('已创建真实批量测试并开始执行');
+      navigate(`/batch-test/${batchId}`);
     } catch (e) {
-      message.error(e?.message || '批量测试失败');
+      message.error(e?.message || '创建批量测试失败');
     } finally {
       setRunning(false);
     }
-  }, [selectedModelId, rows]);
+  }, [selectedModelId, libId, rows, navigate]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -2191,14 +2300,14 @@ function BatchTestTab({ libId }) {
             添加用例
           </Button>
           <Button type="primary" icon={<ThunderboltOutlined />} loading={running} onClick={runBatch}>
-            运行批量测试
+            创建并执行真实批量测试
           </Button>
         </Space>
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="基于测试会话逐条调用推理；期望意图留空则仅记录实际结果。"
+          message="当前会基于所选模型创建真实 batch-test、导入测试用例并跳转到结果详情页；批量结果与分析以后端状态源为准。"
         />
         <Table
           rowKey="id"
@@ -2240,39 +2349,6 @@ function BatchTestTab({ libId }) {
                   }
                 />
               ),
-            },
-            {
-              title: '实际意图',
-              dataIndex: 'actual',
-              width: 140,
-              ellipsis: true,
-              render: (t) =>
-                t ? (
-                  <Tag color="blue" style={{ fontFamily: 'var(--font-mono)', margin: 0 }}>
-                    {t}
-                  </Tag>
-                ) : (
-                  <Text type="secondary">-</Text>
-                ),
-            },
-            {
-              title: '置信度',
-              dataIndex: 'confidence',
-              width: 110,
-              render: (c) => confidenceTag(c),
-            },
-            {
-              title: '匹配',
-              dataIndex: 'match',
-              width: 100,
-              render: (m, record) => {
-                if (record.expected == null || record.expected === '') {
-                  return <Tag>跳过</Tag>;
-                }
-                if (m === true) return <Tag color="success">一致</Tag>;
-                if (m === false) return <Tag color="error">不一致</Tag>;
-                return <Tag color="default">待测</Tag>;
-              },
             },
             {
               title: '操作',

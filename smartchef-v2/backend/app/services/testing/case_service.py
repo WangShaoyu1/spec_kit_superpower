@@ -35,7 +35,7 @@ async def list_cases(
     )
     result = await db.execute(query)
     cases = result.scalars().all()
-    items = [TestCaseOut.model_validate(c).model_dump() for c in cases]
+    items = [TestCaseOut.model_validate(c).model_dump(mode="json") for c in cases]
     return items, total
 
 

@@ -92,11 +92,15 @@ class IntentSlotInferenceEngine:
 
         tokenizer_path = os.path.join(model_dir, "tokenizer")
         base = tokenizer_path if os.path.isdir(tokenizer_path) else cfg.get("base_model", "bert-base-chinese")
+        from app.core.hf_pretrained import resolve_pretrained_for_model
+
+        resolved, kw = resolve_pretrained_for_model(base)
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(base)
+            self.tokenizer = AutoTokenizer.from_pretrained(resolved, **kw)
         except (ValueError, OSError):
             from transformers import BertTokenizer
-            self.tokenizer = BertTokenizer.from_pretrained(base)
+
+            self.tokenizer = BertTokenizer.from_pretrained(resolved, **kw)
 
     def classify_intent(self, text: str, max_seq_length: int | None = None) -> IntentResult:
         """DD §5.1: Intent classification via ONNX Runtime."""

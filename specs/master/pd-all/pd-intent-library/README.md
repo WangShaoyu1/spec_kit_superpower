@@ -2,13 +2,40 @@
 
 ## 项目概述
 
-本交互原型基于 `pd-template.md` v4.0 规范，完整实现指令库管理模块的全链路交互设计（指令库 CRUD → 模型训练 → 评估 → 测试 → 发布）。
+本交互原型基于 `pd-template.md` v4.0 规范，定义指令库管理模块的目标交互链路（指令库 CRUD → 数据集管理 → 模型训练/评估/测试/发布）。
 
 **技术栈**: React 18 + Ant Design 6.x (CDN UMD, 无脚手架) + Babel Standalone + Dayjs
 
 **对应规范**: `specs/master/spec.md` v1.4，覆盖 FR: FR-002, FR-003, FR-039~FR-054
 
-**PD 模块 Key**: `intent-library`（参见 `specs/master/pd-index.md`）
+**PD 模块 Key**: `intent-library`（参见 `specs/master/pd-all/pd-index.md`）
+
+## 本轮真实交付口径
+
+本次重走 `intent-library` 的目标不是继续把当前原型视为“天然已完成”，而是把它收敛成后续 `AD/DD/plan/tasks/code` 的产品真相源。
+
+本 README 采用以下口径：
+
+- `PD 覆盖状态` 只回答“交互稿是否定义了该能力”
+- `实现风险` 由下游 `plan/tasks/implement/smoke` 继续承接，不允许因为原型里有入口就默认视为实现已闭环
+- `下载模型` 是 `detail.html` 上的动作入口，不是独立页面
+- `FR-050` 当前仍为**部分覆盖**
+
+## 当前页面边界
+
+本模块当前仅包含 5 个页面：
+
+1. `index.html`
+2. `detail.html`
+3. `datasets.html`
+4. `dataset-detail.html`
+5. `test.html`
+
+其中：
+
+- `download model` 为 `detail.html` 的操作，不单独拆页面
+- `批量测试` 作为 `test.html` 的一个 Tab 出现，不改变该页的页面边界
+- `FR-040/041/042` 继续属于跨模块或非 UI 设计，不在本模块 PD 内展开
 
 ## 文件结构与页面层级
 
@@ -40,10 +67,12 @@ datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (
 
 ## 需求追溯矩阵 (FR → PD)
 
-基于 `spec.md` v1.3 中 D016 相关的功能需求：
+基于 `spec.md` v1.4 中 `intent-library` 相关功能需求：
 
 | FR 编号 | 需求摘要 | PD 页面 | 交互组件 | 覆盖状态 |
 |---------|---------|---------|---------|---------|
+| FR-002 | 指令配置管理（意图/词槽/追问/命中/未命中话术） | dataset-detail.html | 意图表格 + 配置抽屉 + 相似问/排除问管理 | ✅ 完整 |
+| FR-003 | 训练数据维护（相似问/排除问/实体值/词槽） | dataset-detail.html | 词槽卡片 + 实体值 + 相似问/排除问抽屉 | ✅ 完整 |
 | FR-039 | 指令库管理，library_key 全局唯一不可改 | index.html | Table + 新建弹窗(Key 字段) | ✅ 完整 |
 | FR-043 | 单库模型上限 5 | index.html | Progress 进度条 + Alert | ✅ 完整 |
 | FR-043 | 超限禁止新建训练 | detail.html | 训练弹窗 Alert 提示 | ✅ 完整 |
@@ -67,7 +96,17 @@ datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (
 | FR-041 | 运行时语言检测 + 英文不回退中文 | 🔲 属于 API 设计 |
 | FR-042 | 存量迁移策略 | 🔲 属于运维设计 |
 
-## 产出物合规检查表 (vs pd-template.md v3.0)
+## 本轮必须显式下传的实现风险
+
+以下项目不属于“PD 缺页”，但已经被缺陷证明是本模块最容易失真的链路，下游 `plan/tasks/implement/smoke` 必须显式承接：
+
+1. **LLM 合成不能假成功**：提交后必须展示真实结果或明确失败原因，不能用演示文案替代
+2. **训练链路必须是真实异步闭环**：`draft -> training -> trained` 不能只停留在状态文案
+3. **单条测试和测试消息列表必须按真实契约消费**：请求体、分页结构、数组/对象返回都要有验证
+4. **数据集样本数展示不能伪造分母**：只有存在目标值时才展示进度，否则展示真实数量
+5. **Excel 导入导出若未实现，必须在 tasks 中显式标为未完成或延期**
+
+## 产出物合规检查表 (vs pd-template.md v4.0)
 
 | 模板条款 | 状态 | 说明 |
 |---------|------|------|
@@ -155,13 +194,13 @@ datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (
 直接在浏览器打开任意 HTML 文件（如 `index.html`），或使用本地 HTTP 服务器：
 ```bash
 python -m http.server 8080
-# 访问 http://localhost:8080/specs/master/pd-D016-react/index.html
+# 访问 http://localhost:8080/specs/master/pd-all/pd-intent-library/index.html
 ```
 
 ---
 
 **创建时间**: 2026-03-13
-**最后更新**: 2026-03-16 (v3.3 术语修正 + 批量导入)
+**最后更新**: 2026-03-22 (v3.4 基线重做：页面边界/FR 追溯/风险口径对齐)
 **基于模板**: pd-template.md v4.0
 **PD 模块**: intent-library
 **对应 spec.md**: v1.4 (FR-002, FR-003, FR-039~FR-054)

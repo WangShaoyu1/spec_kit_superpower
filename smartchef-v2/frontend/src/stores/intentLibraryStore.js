@@ -201,6 +201,18 @@ const useIntentLibraryStore = create((set, get) => ({
     if (lib) get().fetchModels(lib.id);
   },
 
+  cancelTraining: async (modelId) => {
+    await intentLibraryApi.cancelTraining(modelId);
+    const lib = get().currentLibrary;
+    if (lib) await get().fetchModels(lib.id, { silent: true });
+  },
+
+  deleteModel: async (modelId) => {
+    await intentLibraryApi.deleteModel(modelId);
+    const lib = get().currentLibrary;
+    if (lib) get().fetchModels(lib.id);
+  },
+
   restoreModel: async (modelId) => {
     await intentLibraryApi.restoreModel(modelId);
     const lib = get().currentLibrary;

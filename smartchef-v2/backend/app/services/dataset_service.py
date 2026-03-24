@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_response import BusinessException
 from app.models.dataset import EvaluationDataset, TrainingDataset
+from app.models.evaluation import EvaluationRun
 from app.models.model_version import LibraryModelVersion
 from app.schemas.intent_library import CreateDatasetRequest, UpdateDatasetRequest
 
@@ -155,6 +156,33 @@ async def update_evaluation_dataset(
     await db.flush()
     await db.refresh(ds)
     return _ed_to_dict(ds)
+
+
+async def get_evaluation_dataset(db: AsyncSession, dataset_id: UUID) -> dict:
+    ds = await db.get(EvaluationDataset, dataset_id)
+    if not ds:
+        raise BusinessException("E50501", "评测数据集不存在")
+    return _ed_to_dict(ds)
+
+
+async def delete_evaluation_dataset(db: AsyncSession, dataset_id: UUID) -> None:
+    ds = await db.get(EvaluationDataset, dataset_id)
+    if not ds:
+        raise BusinessException("E50501", "评测数据集不存在")
+
+    run_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(EvaluationRun)
+            .where(EvaluationRun.dataset_id == dataset_id)
+        )
+    ).scalar() or 0
+
+    if run_count > 0:
+        raise BusinessException("E50520", "评测数据集已关联评测记录，无法删除")
+
+    await db.delete(ds)
+    await db.flush()
 
 
 # ---------------------------------------------------------------------------

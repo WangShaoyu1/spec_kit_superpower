@@ -55,6 +55,32 @@ async def create_model_version(
     return success_response(data, status_code=201)
 
 
+@router.post("/models/{model_id}/cancel-training")
+@require_capability("intent_library_write")
+async def cancel_training(
+    request: Request,
+    model_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """停止训练：将状态置为失败，训练线程在 epoch 边界退出。"""
+    data = await model_version_service.cancel_training(db, model_id)
+    await db.commit()
+    return success_response(data)
+
+
+@router.delete("/models/{model_id}")
+@require_capability("intent_library_write")
+async def delete_model_version(
+    request: Request,
+    model_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """删除模型版本（草稿/失败/已归档/训练中；成功态需先归档）。"""
+    await model_version_service.delete_model_version(db, model_id)
+    await db.commit()
+    return success_response({"id": str(model_id)})
+
+
 @router.post("/models/{model_id}/train")
 @require_capability("intent_library_write")
 async def start_training(

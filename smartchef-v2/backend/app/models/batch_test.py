@@ -15,12 +15,16 @@ class BatchTest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __table_args__ = (
         Index("idx_batch_tests_status", "status"),
         Index("idx_batch_tests_created_at", "created_at"),
+        Index("idx_batch_tests_model_id", "model_id"),
     )
 
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     profile_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("dialog_profiles.id"), nullable=True,
+    )
+    model_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("library_model_versions.id"), nullable=True,
     )
     status: Mapped[str] = mapped_column(String(16), default="draft", nullable=False)
     total_cases: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -45,6 +49,7 @@ class BatchTest(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "TestRunAnalysis", back_populates="batch", cascade="all, delete-orphan",
     )
     profile: Mapped["DialogProfile"] = relationship("DialogProfile", lazy="joined")
+    model_version: Mapped["LibraryModelVersion | None"] = relationship("LibraryModelVersion", lazy="joined")
 
 
 class TestCase(Base, UUIDPrimaryKeyMixin):

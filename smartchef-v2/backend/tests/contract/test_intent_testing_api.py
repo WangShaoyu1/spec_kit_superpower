@@ -124,7 +124,11 @@ async def test_list_test_messages_200(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == "000000"
+    assert body["data"]["items"] == [{"id": MSG_ID, "role": "user", "content": "hello"}]
     assert body["data"]["total"] == 1
+    assert body["data"]["page"] == 1
+    assert body["data"]["page_size"] == 10
+    assert body["data"]["pages"] == 1
 
 
 @pytest.mark.asyncio

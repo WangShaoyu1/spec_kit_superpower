@@ -80,11 +80,17 @@ async def get_stats(db: AsyncSession) -> dict:
 
 
 async def create_batch(db: AsyncSession, data: BatchTestCreate, user_id: str | None = None) -> BatchTest:
+    if data.model_id is None and data.profile_id is None:
+        raise BusinessException("E50104", "批量测试必须绑定 model_id 或 profile_id")
+    if data.model_id is not None and data.profile_id is not None:
+        raise BusinessException("E50105", "批量测试不能同时绑定 model_id 和 profile_id")
+
     batch = BatchTest(
         id=uuid.uuid4(),
         name=data.name,
         description=data.description,
         profile_id=data.profile_id,
+        model_id=data.model_id,
         accuracy_threshold=data.accuracy_threshold,
         latency_threshold_ms=data.latency_threshold_ms,
         created_by=uuid.UUID(user_id) if user_id else None,

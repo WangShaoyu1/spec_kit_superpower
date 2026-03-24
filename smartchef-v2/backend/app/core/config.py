@@ -58,6 +58,8 @@ class Settings(BaseSettings):
 
     # HuggingFace：留空则使用 <backend>/data/hf_cache；同一 base 模型只下载一次后本地复用
     HF_HOME: str = ""
+    # True：from_pretrained 仅使用本地（HF_HOME 缓存或本机目录），不联网；内网/离线部署请配合 prefetch 或手工拷贝缓存后开启
+    HF_LOCAL_FILES_ONLY: bool = False
 
     # Pipeline
     PIPELINE_CHAT_TIMEOUT_SECONDS: int = 15

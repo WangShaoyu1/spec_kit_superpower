@@ -6,6 +6,7 @@
 |------|------|
 | **`hf_cache/`** | Hugging Face Hub / Transformers 预训练模型与 tokenizer 缓存（`HF_HOME` 默认指向此处）。**同机多次训练复用**，体积大，**已在 `backend/.gitignore` 与仓库根 `.gitignore` 中忽略，勿提交。** |
 | **`models/`** | 训练产出的 ONNX、`package.zip`、标签映射等（路径常写在 `artifact_uri` / `package_uri`）。 |
+| **`models/pretrained/`** | （可选）手工放入的**完整**预训练模型目录，训练时 `base_model` 填子目录名或绝对路径；见仓库根 `README`「离线 / 预置预训练模型」。 |
 
 **预下载（推荐训练前执行一次）**（在 `backend` 目录）：
 

@@ -14,6 +14,7 @@ class BatchTestCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str | None = Field(None, max_length=500)
     profile_id: UUID | None = None
+    model_id: UUID | None = None
     accuracy_threshold: float = Field(default=0.95, ge=0, le=1)
     latency_threshold_ms: int = Field(default=2000, ge=0)
 
@@ -23,6 +24,7 @@ class BatchTestOut(BaseModel):
     name: str
     description: str | None = None
     profile_id: UUID | None = None
+    model_id: UUID | None = None
     profile_name: str | None = None
     status: str
     total_cases: int

@@ -1,12 +1,13 @@
 ---
-version: 2.0
-updated: 2026-03-18
+version: 2.1
+updated: 2026-03-22
 module: intent-library
 covers_fr: FR-002,003,039~054
 based_on:
   - spec.md@v1.4
-  - pd-all/pd-intent-library/ (v3.3, 6 pages)
+  - pd-all/pd-intent-library/ (v3.4, 5 pages)
 changelog: |
+  2.1: 对齐 PD 基线重做，收紧页面边界、LLM 合成反馈与测试消费契约
   2.0: 从 ad.md 拆分为独立模块文档
   1.1: 补充测试流程; 数据集/意图/词槽/实体完整API; 新增小模型训练推理架构
   1.0: 初始版本 (模型生命周期、基础CRUD)
@@ -36,7 +37,13 @@ changelog: |
 - 归档后可恢复为 draft（FR-044），恢复时也受 5 个版本上限约束
 - 评估可多轮执行：evaluating → trained（回写评估结果），再可进入下一轮评估或晋升为 testable
 
-**PD 页面**: detail.html, datasets.html, dataset-detail.html, test.html, index.html, model-download.html
+**PD 页面**: index.html, detail.html, datasets.html, dataset-detail.html, test.html
+
+**本轮治理约束**:
+- `detail.html` 中的“下载模型”是页面动作，不再视为独立页面
+- `generate-training` / `generate-evaluation` 的默认交互是“请求内返回真实结果或明确错误”，不得返回伪成功文案
+- `POST /datasets/{id}/import`、`GET /datasets/{id}/export` 属于目标能力；若本轮未落地，必须在 `plan/tasks` 中显式声明 `Deferred`
+- 单条测试、消息历史、批量测试分析的前后端消费必须按真实包络与分页契约实现，禁止前端自行猜测返回结构
 
 ---
 
@@ -134,14 +141,18 @@ sequenceDiagram
     participant LLM as ZenMux (分析)
 
     Note over PM, LLM: 单条测试 (对话式, FR-051)
-    PM->>API: POST /api/v1/models/{id}/test/single {text, session_id?}
-    API->>IL: get_model(model_id, status in [testable, published])
+    PM->>API: POST /api/v1/models/{id}/test-sessions (创建会话)
+    API->>TS: create_session(model_id, name)
+    TS->>DB: INSERT intent_test_session
+    API-->>PM: 201 {session_id}
+    PM->>API: POST /api/v1/test-sessions/{session_id}/messages {content}
+    API->>IL: get_model(session.model_id, status in [testable, published])
     IL-->>API: model + intent_config
-    API->>TS: single_test(text, model, session)
+    API->>TS: send_message(content, session)
     TS->>NLU: process(text, model_version) — 使用指定模型推理
     NLU-->>TS: {intent, confidence, slots, latency_ms}
-    TS->>DB: INSERT test_message (会话级存储, 支持历史滚动)
-    TS-->>PM: 200 {intent, confidence, slots, reply, debug_info}
+    TS->>DB: INSERT user_message + assistant_message (会话级存储, 支持历史滚动)
+    TS-->>PM: 200 [user_message, assistant_message]
 
     Note over PM, LLM: 批量测试 (评估任务, FR-051)
     PM->>API: POST /api/v1/models/{id}/test/batch {eval_dataset_id, threshold?}
@@ -247,6 +258,11 @@ sequenceDiagram
 | format | string | 否 | 导出格式: excel/json, 默认 excel |
 | scope | string | 否 | 导出范围: all/intents_only/slots_only, 默认 all |
 
+**实现约束**:
+- `POST /generate-training` / `POST /generate-evaluation` 默认同步执行，用于向前端直接返回 `generated_count / skipped_count / warnings`
+- 若出现 `LLM 未配置`、`数据集无意图`、`外部调用失败` 等前置或执行错误，接口直接返回明确业务错误，不使用 `202 accepted` 掩盖失败
+- 若导入/导出在当前迭代未交付，前端必须展示“未接入/延期”状态，不能展示“导入成功”或假进度
+
 ### 3.4 意图管理 (数据集内)
 
 | 方法 | 路径 | 说明 | 对应 FR |
@@ -346,10 +362,10 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 
 | 方法 | 路径 | 说明 | 对应 FR |
 |------|------|------|---------|
-| POST | /api/v1/models/{id}/test/sessions | 创建测试会话 | FR-051 |
-| GET | /api/v1/models/{id}/test/sessions | 测试会话列表 | FR-051 |
-| PUT | /api/v1/models/{id}/test/sessions/{sid} | 重命名会话 | FR-051 |
-| DELETE | /api/v1/models/{id}/test/sessions/{sid} | 删除会话 (级联删除消息) | FR-051 |
+| POST | /api/v1/models/{id}/test-sessions | 创建测试会话 | FR-051 |
+| GET | /api/v1/models/{id}/test-sessions | 测试会话列表 | FR-051 |
+| PUT | /api/v1/test-sessions/{sid} | 重命名会话 | FR-051 |
+| DELETE | /api/v1/test-sessions/{sid} | 删除会话 (级联删除消息) | FR-051 |
 
 **创建会话请求**:
 
@@ -365,7 +381,7 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 {
   "code": "000000",
   "data": {
-    "session_id": "uuid",
+    "id": "uuid",
     "name": "测试会话 3",
     "model_id": "uuid",
     "created_at": "2026-03-18T10:00:00+08:00",
@@ -375,7 +391,7 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 }
 ```
 
-**会话列表响应**: 按 `updated_at desc` 排序，分页。
+**会话列表响应**: 按 `updated_at desc` 排序，当前实现为全量返回（不分页）。
 
 **重命名请求**:
 
@@ -389,14 +405,13 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 
 | 方法 | 路径 | 说明 | 对应 FR |
 |------|------|------|---------|
-| POST | /api/v1/models/{id}/test/single | 发送测试消息 | FR-051 |
+| POST | /api/v1/test-sessions/{sid}/messages | 向已创建会话发送测试消息 | FR-051 |
 
 **请求**:
 
 ```json
 {
-  "text": "string, 必填, 1~500 字符",
-  "session_id": "uuid, 可选, 不传则自动创建新会话"
+  "content": "string, 必填, 1~500 字符"
 }
 ```
 
@@ -405,20 +420,31 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 ```json
 {
   "code": "000000",
-  "data": {
-    "session_id": "uuid",
-    "message_id": "uuid",
-    "intent": "set_cooking_temp",
-    "confidence": 0.94,
-    "slots": [{"name": "number", "value": "180", "type": "temperature"}],
-    "reply": "好的，已识别为设置烹饪温度 180°C。",
-    "debug_info": {
-      "latency_ms": 45,
-      "model_version": "v1.2",
-      "threshold": 0.7,
-      "above_threshold": true
+  "data": [
+    {
+      "id": "uuid",
+      "session_id": "uuid",
+      "role": "user",
+      "content": "设置温度180度",
+      "result": {},
+      "created_at": "2026-03-18T10:05:00+08:00"
+    },
+    {
+      "id": "uuid",
+      "session_id": "uuid",
+      "role": "assistant",
+      "content": "意图: set_cooking_temp (置信度: 94.00%)",
+      "result": {
+        "intent": "set_cooking_temp",
+        "confidence": 0.94,
+        "slots": {
+          "number": "180"
+        },
+        "latency_ms": 45
+      },
+      "created_at": "2026-03-18T10:05:00+08:00"
     }
-  },
+  ],
   "msg": "success"
 }
 ```
@@ -427,17 +453,20 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 
 | 方法 | 路径 | 说明 | 对应 FR |
 |------|------|------|---------|
-| GET | /api/v1/models/{id}/test/sessions/{sid}/messages | 消息列表 (游标分页) | FR-051 |
-| DELETE | /api/v1/models/{id}/test/sessions/{sid}/messages/{mid} | 删除单条消息 | FR-051 |
+| GET | /api/v1/test-sessions/{sid}/messages | 消息列表 (页码分页) | FR-051 |
 
 **消息列表请求** (Query):
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| cursor | string | 否 | - | 游标 (上一页最后一条 message_id)，不传返回最新消息 |
-| limit | int | 否 | 10 | 每次加载条数, max=50 |
+| page | int | 否 | 1 | 页码，从 1 开始 |
+| page_size | int | 否 | 10 | 每页条数，当前该接口 max=200 |
 
-**消息列表响应**: 按 `created_at desc` 排序（最新在前），游标分页支持向上滚动加载历史。
+**消息列表响应**: 服务端按 `created_at desc` 选取分页窗口，返回时按时间正序排列当前页消息，便于聊天窗口直接渲染。
+
+**消费约束**:
+- 前端必须按统一响应包络读取 `data.items / total / page / page_size / pages`
+- 不允许把消息历史假定为“纯数组一次性返回”，也不允许自行虚构游标字段
 
 ```json
 {
@@ -445,24 +474,30 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
   "data": {
     "items": [
       {
-        "message_id": "uuid",
+        "id": "uuid",
         "role": "user",
-        "text": "设置温度180度",
+        "content": "设置温度180度",
         "created_at": "2026-03-18T10:05:00+08:00"
       },
       {
-        "message_id": "uuid",
+        "id": "uuid",
         "role": "assistant",
-        "text": "好的，已识别为设置烹饪温度 180°C。",
-        "intent": "set_cooking_temp",
-        "confidence": 0.94,
-        "slots": [{"name": "number", "value": "180"}],
-        "latency_ms": 45,
+        "content": "意图: set_cooking_temp (置信度: 94.00%)",
+        "result": {
+          "intent": "set_cooking_temp",
+          "confidence": 0.94,
+          "slots": {
+            "number": "180"
+          },
+          "latency_ms": 45
+        },
         "created_at": "2026-03-18T10:05:00+08:00"
       }
     ],
-    "has_more": true,
-    "next_cursor": "msg_xxx"
+    "total": 2,
+    "page": 1,
+    "page_size": 10,
+    "pages": 1
   },
   "msg": "success"
 }
@@ -470,11 +505,12 @@ Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔�
 
 #### 3.7.4 批量测试 (评估任务)
 
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| POST | /api/v1/models/{id}/test/batch | 创建批量测试任务 | FR-051 |
-| GET | /api/v1/test-runs/{run_id} | 测试任务结果 | FR-052 |
-| GET | /api/v1/test-runs/{run_id}/analysis | 智能分析报告 | FR-052 |
+当前 `test.html` 中的“批量测试”已改为真实 `batch-tests` 闭环：前端选择 `model_id`、录入测试行后，直接创建批量测试任务、导入 cases、触发执行，并跳转到 `/batch-test/{id}` 查看结果与分析。
+
+**本轮真实口径**:
+- `IntentLibrary/test.html` 只负责发起任务与跳转；标准批量评估状态、逐条结果、智能分析统一以 `batch-tests` 模块接口与页面为准
+- 创建任务时必须绑定 `model_id`；后端同时兼容历史 `profile_id` 批量测试，但两者互斥
+- 若模型产物缺失、权限不足或执行失败，必须回传真实错误；前端不得伪造“执行成功 / 智能分析已生成 / 可回放 test-run”状态
 
 ---
 

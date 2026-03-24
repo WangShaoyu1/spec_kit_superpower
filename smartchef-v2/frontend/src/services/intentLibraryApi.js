@@ -21,6 +21,8 @@ export const intentLibraryApi = {
   createModel: (libId, data) => api.post(`/intent-libraries/${libId}/models`, data),
   trainModel: (modelId, data) =>
     api.post(`/models/${modelId}/train`, data ?? {}, { timeout: LONG_RUNNING_MS }),
+  cancelTraining: (modelId) => api.post(`/models/${modelId}/cancel-training`),
+  deleteModel: (modelId) => api.delete(`/models/${modelId}`),
   evaluateModel: (modelId, data) =>
     api.post(`/models/${modelId}/evaluate`, data, { timeout: LONG_RUNNING_MS }),
   setTestable: (modelId) => api.post(`/models/${modelId}/set-testable`),
@@ -32,6 +34,7 @@ export const intentLibraryApi = {
   listDatasets: (libId, params) => api.get(`/intent-libraries/${libId}/datasets`, { params }),
   createDataset: (libId, data) => api.post(`/intent-libraries/${libId}/datasets`, data),
   getDataset: (id) => api.get(`/datasets/${id}`),
+  getEvalDataset: (id) => api.get(`/eval-datasets/${id}`),
   updateDataset: (id, data) => api.put(`/datasets/${id}`, data),
   deleteDataset: (id) => api.delete(`/datasets/${id}`),
 
@@ -55,15 +58,24 @@ export const intentLibraryApi = {
   updateSimilarQuestion: (sqId, data) => api.put(`/similar-questions/${sqId}`, data),
   deleteSimilarQuestion: (sqId) => api.delete(`/similar-questions/${sqId}`),
 
+  /** 异步任务：立即返回 job_id，请轮询 getTrainingGenerationJob（推荐，避免长连接超时） */
+  startTrainingGenerationJob: (datasetId, data) =>
+    api.post(`/datasets/${datasetId}/generate-training/jobs`, data, { timeout: 30000 }),
+  getTrainingGenerationJob: (datasetId, jobId) =>
+    api.get(`/datasets/${datasetId}/generate-training/jobs/${jobId}`, { timeout: 15000 }),
+  /** 同步：整次生成在一个请求内完成（易触发前端/代理超时） */
   generateTrainingData: (datasetId, data) =>
-    api.post(`/datasets/${datasetId}/generate-training`, data),
-  generateEvaluationData: (libraryId, datasetId, data) =>
-    api.post(`/intent-libraries/${libraryId}/eval-datasets/${datasetId}/generate`, data),
+    api.post(`/datasets/${datasetId}/generate-training`, data, { timeout: LONG_RUNNING_MS }),
+  generateEvaluationData: (datasetId, data) =>
+    api.post(`/datasets/${datasetId}/generate-evaluation`, data, { timeout: LONG_RUNNING_MS }),
 
   listEvalDatasets: (libId, params) =>
     api.get(`/intent-libraries/${libId}/eval-datasets`, { params }),
   createEvalDataset: (libId, data) =>
     api.post(`/intent-libraries/${libId}/eval-datasets`, data),
+  updateEvalDataset: (datasetId, data) =>
+    api.put(`/eval-datasets/${datasetId}`, data),
+  deleteEvalDataset: (datasetId) => api.delete(`/eval-datasets/${datasetId}`),
 
   listNegativeExamples: (intentId) => api.get(`/intents/${intentId}/negative-examples`),
   createNegativeExample: (intentId, data) =>

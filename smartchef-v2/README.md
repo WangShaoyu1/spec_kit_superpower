@@ -132,6 +132,26 @@ docker compose up --build
 | `ADMIN_PASSWORD` | 种子管理员密码 | `admin123456` |
 | `DEBUG` | 调试模式（启用 API 文档） | `true` |
 | `DEVICE_API_KEY` | 设备端对话接口 API Key（空=不校验） | 空 |
+| `ZENMUX_API_KEY` / `ZENMUX_BASE_URL` | LLM 合成相似问（训练集） | 见 `app.core.config` |
+| `HF_HOME` | Hugging Face 缓存根目录（留空则 `backend/data/hf_cache`） | 空 |
+| `HF_LOCAL_FILES_ONLY` | `true` 时训练/推理加载预训练**仅读本地**（缓存或本机目录），**不发起 Hub 下载**；内网/离线请先 prefetch 或拷贝缓存后再开 | `false` |
+
+**训练集「LLM 合成相似问」**：前端默认走异步任务（`POST .../generate-training/jobs` 返回 `202` + `job_id`，再每 **6s** 轮询 `GET .../generate-training/jobs/{job_id}`）；后台由 **`asyncio.create_task`** 执行（避免直接 `return JSONResponse` 时 `BackgroundTasks` 未挂载导致任务永远不跑、状态一直 `queued`）。任务状态存 **Redis**，需本地 Redis 可用。仍保留同步接口 `POST .../generate-training`（长耗时易超时，仅供调试）。
+
+**意图模型训练进度**：`POST /models/{id}/train` 后，`progress` 在准备阶段为 **0–5%**（读库、分词等），进入 PyTorch 线程后为 **10%**；**加载 BERT 整模与跑完第 1 个 epoch 之前**进度可能长时间停在 **10–19%**（CPU 上更慢），控制台 **epoch 日志只在每个 epoch 结束后**打印。若本地 `HF_HOME` 下**已有** Hub 缓存，则**不会**再联网拉取。
+
+**停止训练 / 删除版本**：`POST /api/v1/models/{id}/cancel-training` 将训练中任务标记为失败，后台在 **epoch 边界**退出；`DELETE /api/v1/models/{id}` 可删除草稿/失败/已归档/训练中记录（已训练未归档的请先归档）。指令库详情页「模型版本」表操作列提供 **停止训练**、**删除**。
+
+**离线 / 预置预训练模型（推荐内网）**：
+
+1. **方式 A：只填 Hub 名，但文件只存在本机**  
+   在可联网机器执行一次 `python -m app.scripts.prefetch_hf_cache`（或 `--migrate-user-cache`），把整个 `backend/data/hf_cache` 拷到内网；内网 `.env` 设 `HF_LOCAL_FILES_ONLY=true`（或 `HF_HUB_OFFLINE=1`）。  
+   此时 `bert-base-chinese` 仍从**缓存**读取，**不访问外网**。
+
+2. **方式 B：你手上有完整模型目录**（含 `config.json`、tokenizer、`pytorch_model.bin` 或 `model.safetensors` 等）  
+   放到 `backend/data/models/pretrained/<任意文件夹名>/`，训练配置里「基础模型」填 **`<文件夹名>`**（或填绝对路径）。后端会识别为本地目录并 `local_files_only=True`。
+
+3. **不要把**数 GB 权重提交进 git；`data/hf_cache/` 已在 `.gitignore`。
 
 ---
 

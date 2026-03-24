@@ -781,9 +781,13 @@ export default function BatchTest() {
               <Form.Item name="description" label="描述">
                 <Input.TextArea rows={3} placeholder="测试目的描述..." maxLength={500} />
               </Form.Item>
-              <Form.Item name="profile_id" label="关联对话方案">
+              <Form.Item
+                name="profile_id"
+                label="关联对话方案"
+                rules={[{ required: true, message: '请选择关联对话方案' }]}
+              >
                 <Select
-                  placeholder="选择方案（可选）"
+                  placeholder="选择方案"
                   allowClear
                   options={profiles.map((p) => ({ value: p.id, label: p.name }))}
                 />
