@@ -3,7 +3,7 @@
 **分支**: `[###-feature-name]` | **日期**: [DATE] | **规范**: [link]
 **输入**: 来自 `/specs/[###-feature-name]/` 的完整设计文档链
 
-**注意**: 此模板由 `/speckit.plan` 命令填充。plan.md 定位为"**实施规划桥梁**"——承上（设计文档）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与规划。
+**注意**: 此模板由 `/speckit.plan` 命令填充。模块 plan (`plans/plan-<module>.md`) 定位为"**实施规划桥梁**"——承上（设计文档）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与规划。
 
 ## 摘要
 
@@ -66,7 +66,9 @@ specs/[###-feature]/
 │   ├── README.md        # DD 模块索引
 │   ├── dd-global.md     # 全局详设（共享实体/错误码/权限/配置）
 │   └── dd-<module>.md   # 各模块详细设计
-├── plan.md              # 此文件 (/speckit.plan 输出)
+├── plans/
+│   ├── README.md
+│   └── plan-<module>.md # 此文件 (/speckit.plan 输出)
 └── tasks/               # 任务目录 (/speckit.tasks 输出)
     ├── README.md        # 索引(模块列表/统计/依赖/策略/进度)
     ├── tasks-infra.md   # 设置 + 基础设施
@@ -128,7 +130,7 @@ ios/ 或 android/
 ## 阶段规划
 
 <!--
-  plan.md 的核心——将 PD 模块按依赖关系编排为可执行的实施阶段.
+  模块 plan 的核心——将 PD 模块按依赖关系编排为可执行的实施阶段.
   每个阶段有明确的目标、交付物和验收检查点.
   详细的数据模型、API 契约、状态机等在 AD/DD 中已定义，此处仅做阶段性引用.
 

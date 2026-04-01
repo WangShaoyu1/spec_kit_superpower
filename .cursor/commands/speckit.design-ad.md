@@ -10,6 +10,14 @@
 - `specs/{branch}/pd-all/` - 模块化产品交互设计（pd-hub.html 统一入口 + pd-index.md 索引 + pd-<module>/ 各模块原型）
 - `specs/_template/ad-template.md` - AD 设计规范 (框架级模板)
 
+## 前置 Gate（MUST）
+
+1. 从仓库根目录运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json`，解析 `FEATURE_DIR`
+2. 若当前采用模块级 rollout，先运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认 `MasterAgent` 选中的目标模块
+3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage ad -Module <target-module> -Json`（非模块模式可省略 `-Module`）
+4. 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须先修上游制品，不得继续生成 AD
+5. 若返回 `WARNING`，必须在 AD 文档中显式继承风险，不得把条件准入能力默认视为已闭环
+
 ## 执行流程
 
 ### Phase 1: 领域与子域划分

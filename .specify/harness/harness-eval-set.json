@@ -1,0 +1,164 @@
+[
+  {
+    "id": "EVAL-001",
+    "fixture": "current-workspace",
+    "stage": "ad",
+    "title": "master workspace ad warning",
+    "scenario": "Current repository enters AD with global conditional-admission PD still present.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-PD-002"]
+  },
+  {
+    "id": "EVAL-002",
+    "fixture": "current-workspace",
+    "stage": "dd",
+    "title": "user-mgmt dd warning",
+    "scenario": "Current repository enters DD after the user-mgmt pilot documents are created.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-PD-002"]
+  },
+  {
+    "id": "EVAL-003",
+    "fixture": "current-workspace",
+    "stage": "tasks",
+    "title": "user-mgmt tasks warning",
+    "scenario": "Current repository enters tasks after plan inherits the global conditional-admission risk.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-PD-002"]
+  },
+  {
+    "id": "EVAL-004",
+    "fixture": "current-workspace",
+    "stage": "implement",
+    "title": "user-mgmt implement warning",
+    "scenario": "Current repository enters implement with explicit unfinished declarations but no real blocker row.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-PD-002", "GATE-IMPL-003"]
+  },
+  {
+    "id": "EVAL-005",
+    "fixture": "future-fixture",
+    "stage": "ad",
+    "title": "missing spec",
+    "scenario": "Feature workspace is missing spec.md.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-COMMON-001"]
+  },
+  {
+    "id": "EVAL-006",
+    "fixture": "future-fixture",
+    "stage": "ad",
+    "title": "missing pd-all",
+    "scenario": "Feature workspace is missing pd-all/.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-COMMON-002"]
+  },
+  {
+    "id": "EVAL-007",
+    "fixture": "future-fixture",
+    "stage": "ad",
+    "title": "stale rule reference",
+    "scenario": "Rule file still references a deleted source document.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-COMMON-004"]
+  },
+  {
+    "id": "EVAL-008",
+    "fixture": "future-fixture",
+    "stage": "ad",
+    "title": "partial pd without admission",
+    "scenario": "PD README contains partial coverage markers but no AD/DD admission statement.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-PD-001"]
+  },
+  {
+    "id": "EVAL-009",
+    "fixture": "future-fixture",
+    "stage": "dd",
+    "title": "missing ad",
+    "scenario": "DD stage starts without ad.md or ad/.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-DD-001"]
+  },
+  {
+    "id": "EVAL-010",
+    "fixture": "future-fixture",
+    "stage": "tasks",
+    "title": "plan missing core chains",
+    "scenario": "plan.md does not define core business chains or real success signals.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-TASKS-001"]
+  },
+  {
+    "id": "EVAL-011",
+    "fixture": "future-fixture",
+    "stage": "tasks",
+    "title": "plan missing pd handoff",
+    "scenario": "Conditional-admission PD risk is not inherited into plan.md.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-TASKS-002"]
+  },
+  {
+    "id": "EVAL-012",
+    "fixture": "future-fixture",
+    "stage": "implement",
+    "title": "missing tasks",
+    "scenario": "Implement stage starts without tasks/ or tasks.md.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-IMPL-001"]
+  },
+  {
+    "id": "EVAL-013",
+    "fixture": "future-fixture",
+    "stage": "implement",
+    "title": "real blocker row present",
+    "scenario": "plan/tasks contains an actual BLOCKER status row or blocker field.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-IMPL-002"]
+  },
+  {
+    "id": "EVAL-014",
+    "fixture": "future-fixture",
+    "stage": "implement",
+    "title": "unfinished declarations only",
+    "scenario": "plan/tasks contains Deferred or Out of Scope but no real blocker row.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-IMPL-003"]
+  },
+  {
+    "id": "EVAL-015",
+    "fixture": "future-fixture",
+    "stage": "implement",
+    "title": "module missing from rollout and state",
+    "scenario": "Target module is missing from both module-rollout.json and module-state.json.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-MODULE-001", "GATE-MODULE-002"]
+  },
+  {
+    "id": "EVAL-016",
+    "fixture": "future-fixture",
+    "stage": "implement",
+    "title": "dependency not browser verified",
+    "scenario": "Target module dependencies are not yet browser_verified or done.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-MODULE-004"]
+  },
+  {
+    "id": "EVAL-017",
+    "fixture": "future-fixture",
+    "stage": "browser",
+    "title": "browser stage without valid module",
+    "scenario": "Browser gate runs without a target module or from an invalid module state.",
+    "expected_status": "blocked",
+    "expected_codes": ["GATE-BROWSER-001"]
+  },
+  {
+    "id": "EVAL-018",
+    "fixture": "future-fixture",
+    "stage": "browser",
+    "title": "critical performance target missing",
+    "scenario": "Critical module has browser quality probes but is missing performance targets.",
+    "expected_status": "warning",
+    "expected_codes": ["GATE-BROWSER-003"]
+  }
+]

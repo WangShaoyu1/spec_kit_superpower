@@ -21,6 +21,13 @@
 - `下载模型` 是 `detail.html` 上的动作入口，不是独立页面
 - `FR-050` 当前仍为**部分覆盖**
 
+## AD/DD 准入声明
+
+- 本模块允许进入 `AD / DD / plan / tasks`，但仅以**条件准入**方式进入
+- 条件准入的唯一显式例外是 `FR-050`：当前仍为**部分覆盖**，因为页面尚未展示“库级默认值如何被任务级覆盖/继承”的交互
+- 下游阶段不得把 `FR-050` 当作“已设计完成”处理，必须显式标注为 `Partial / Deferred / Blocked By / 待补齐`
+- 若下游文档未继承上述限制，则不得宣称 `intent-library` 已达到无风险实现条件
+
 ## 当前页面边界
 
 本模块当前仅包含 5 个页面：
@@ -34,8 +41,14 @@
 其中：
 
 - `download model` 为 `detail.html` 的操作，不单独拆页面
-- `批量测试` 作为 `test.html` 的一个 Tab 出现，不改变该页的页面边界
+- `批量测试` 作为 `test.html` 的一个 Tab 出现，表示当前指令库模型的库内批量评估，不改变该页的页面边界
 - `FR-040/041/042` 继续属于跨模块或非 UI 设计，不在本模块 PD 内展开
+
+## 与 `pd-batch-test` 的边界
+
+- `test.html` 的 `批量测试` Tab 用于当前指令库模型版本的评估、F1 对比和智能分析
+- `pd-batch-test/` 用于不同对话方案的批量测试、回归验证和横向比较
+- 两者同时保留：前者属于指令库研发入口，后者属于对话方案验证入口
 
 ## 文件结构与页面层级
 
@@ -60,7 +73,7 @@ pd-intent-library/
 **导航逻辑**：
 ```
 index.html (列表) → 点击行 → detail.html (详情)
-detail.html (详情) → 点击测试 → test.html (模型测试: 单条对话 + 批量评估)
+detail.html (详情) → 点击测试 → test.html (模型测试: 单条对话 + 指令库内批量评估)
 detail.html (详情) → 点击数据集 → datasets.html (数据集)
 datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (意图数据管理)
 ```
@@ -83,7 +96,7 @@ datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (
 | FR-048 | 训练集 1:1、评估集非 1:1 | datasets.html | Tag 展示绑定状态 + Alert 说明 | ✅ 完整 |
 | FR-049 | 训练集最小字段 / 评估集全字段 | datasets.html + dataset-detail.html | 导入弹窗 Tab 切换 + 意图数据 CRUD（实体/话术/追问） | ✅ 完整 |
 | FR-050 | 阈值"库级默认 + 任务级覆盖" | test.html | 新建任务弹窗 InputNumber | ⚠️ 部分（未展示继承逻辑） |
-| FR-051 | 测试入口：单条+批量 | test.html | Tab切换: 单条对话式测试 + 批量评估任务列表 | ✅ 完整 |
+| FR-051 | 测试入口：单条+批量 | test.html | Tab切换: 单条对话式测试 + 指令库内批量评估任务列表 | ✅ 完整 |
 | FR-052 | 智能分析（结论/混淆/槽位/低分/建议） | test.html | Collapse 面板 + 分析报告弹窗 | ✅ 完整 |
 | FR-053 | model_publish / model_test_manage 权限 | index.html + detail.html | 权限函数 + Tooltip 禁用 | ✅ 完整 |
 | FR-054 | 模型产物平台无关下载 | detail.html | 下载模型按钮 + 操作说明流程 | ✅ 完整 |

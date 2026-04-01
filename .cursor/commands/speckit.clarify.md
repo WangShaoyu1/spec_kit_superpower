@@ -4,9 +4,6 @@ handoffs:
   - label: 产品交互设计
     agent: speckit.design-pd
     prompt: 基于澄清后的 spec.md 生成产品交互设计。
-  - label: 构建技术计划
-    agent: speckit.plan
-    prompt: 为规范创建计划。我正在构建...
 ---
 
 ## 用户输入
@@ -173,8 +170,8 @@ $ARGUMENTS
    - 更新规范的路径.
    - 涉及的部分(列出名称).
    - 覆盖范围摘要表, 列出每个分类类别及状态: 已解决(曾是部分 / 缺失并已处理)、已推迟(超过问题配额或更适合规划)、清晰(已足够)、未完成(仍是部分 / 缺失但影响低).
-   - 如果有任何未完成或已推迟的剩余, 建议是继续到 `/speckit.plan` 还是在规划后再次运行 `/speckit.clarify`.
-   - 建议的下一个命令.
+   - 如果有任何未完成或已推迟的剩余, 建议是继续到 `/speckit.design-pd` 还是先再次运行 `/speckit.clarify`.
+   - 建议的下一个命令（默认应为 `/speckit.design-pd`，除非用户明确跳过 PD）.
 
 行为规则: 
 - 如果没有发现有意义的模糊性(或所有潜在问题都是低影响的), 回应: "No critical ambiguities detected worth formal clarification." 并建议继续.

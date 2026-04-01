@@ -192,8 +192,13 @@
             }, []);
 
             const goTo = (page) => {
-                if (page === 'index') window.location.href = 'index.html';
-                else if (page === 'test-chat') window.location.href = 'test-chat.html';
+                if (page === 'index' || page === 'profiles') window.location.href = 'index.html';
+                else if (page === 'test-chat' || page === 'manual-test') window.location.href = 'test-chat.html';
+                else if (page === 'libraries') window.location.href = '../pd-intent-library/index.html';
+                else if (page === 'datasets') window.location.href = '../pd-intent-library/datasets.html';
+                else if (page === 'batch-test') window.location.href = '../pd-batch-test/index.html';
+                else if (page === 'monitoring') window.location.href = '../pd-monitoring/index.html';
+                else if (page === 'users') window.location.href = '../pd-user-mgmt/index.html';
             };
 
             const openPublishModal = () => {
@@ -246,7 +251,7 @@
                     key: 'testing', icon: <ExperimentOutlined />, label: '测试验证',
                     children: [
                         { key: 'manual-test', icon: <MessageOutlined />, label: '手动测试' },
-                        { key: 'batch-test', icon: <ExperimentOutlined />, label: '批量测试' }
+                        { key: 'batch-test', icon: <ExperimentOutlined />, label: '批量测试（方案）' }
                     ]
                 },
                 {
@@ -336,7 +341,7 @@
                             <div className="sidebar-logo">SmartChef</div>
                             <div className="sidebar-subtitle">智能对话管理平台</div>
                         </div>
-                        <Menu theme="dark" mode="inline" selectedKeys={['profiles']} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => { if (key === 'profiles') goTo('index'); }} items={menuItems} />
+                        <Menu theme="dark" mode="inline" selectedKeys={['profiles']} openKeys={openKeys} onOpenChange={handleOpenChange} onSelect={({ key }) => goTo(key)} items={menuItems} />
                     </Sider>
                     )}
 
@@ -357,6 +362,7 @@
                                 <Space>
                                     <Button icon={<QuestionCircleOutlined />} onClick={() => setDrawerVisible(true)}>说明</Button>
                                     <Button icon={<MessageOutlined />} onClick={() => goTo('test-chat')}>手动测试</Button>
+                                    <Button icon={<ExperimentOutlined />} onClick={() => goTo('batch-test')}>平台级批量测试</Button>
                                     <Tooltip title={!hasPermission ? '您没有 profile_publish 权限，请联系管理员' : ''}>
                                         <Button
                                             type="primary"

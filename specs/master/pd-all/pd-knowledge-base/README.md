@@ -8,7 +8,13 @@
 
 **对应规范**: `specs/master/spec.md` v1.4，覆盖 FR: FR-004, FR-005, FR-006
 
-**PD 模块 Key**: `knowledge-base`（参见 `specs/master/pd-index.md`）
+**PD 模块 Key**: `knowledge-base`（参见 `specs/master/pd-all/pd-index.md`）
+
+## 模块定位
+
+- 本模块用于知识文档、分类和检索验证的统一管理
+- 本模块关注被管理对象是“知识文档及其索引结果”，不是对话方案或指令配置
+- 本模块是知识问答链路进入研发实现前的产品入口
 
 ## 文件结构与页面层级
 
@@ -44,6 +50,13 @@ index.html (知识库列表) → 点击文档行 → detail.html (文档详情/�
 | FR-021 | 知识域检索匹配（API 层） | 🔲 属于 AD/DD |
 | FR-007 | 对话方案引用知识库 | 🔗 跨模块: pd-dialog-profile |
 
+**跨模块引用**：
+
+| 引用方向 | 说明 |
+|---------|------|
+| pd-dialog-profile/detail.html → index.html | 对话方案配置时需要引用知识库能力与分类信息 |
+| index.html → detail.html | 从文档列表进入文档详情与检索验证 |
+
 ## 产出物合规检查表 (vs pd-template.md v4.1)
 
 | 模板条款 | 状态 | 说明 |
@@ -67,6 +80,22 @@ index.html (知识库列表) → 点击文档行 → detail.html (文档详情/�
   1. 创建分类 → 上传菜谱 JSON → 系统自动解析过滤 → 验证检索结果
   2. 上传公司信息文档 → 归类管理 → 确认索引质量
 - **成功标准**：文档上传后可被知识问答检索命中
+
+## 技术约束
+
+1. 无脚手架：纯 CDN 引入，无 build 步骤
+2. 显式 window 访问：`const antd = window.antd; const icons = window.icons;`
+3. 完整解构：所有使用的组件/图标都在顶部显式解构
+4. Mock 数据：全部使用静态 mock 数据，无真实 API
+5. 文档上传、解析和检索验证在原型层只表达交互链路，不宣称真实索引后端已闭环
+
+## 查看方式
+
+直接在浏览器打开任意 HTML 文件（如 `index.html`），或使用本地 HTTP 服务器：
+```bash
+python -m http.server 8080
+# 访问 http://localhost:8080/specs/master/pd-all/pd-knowledge-base/index.html
+```
 
 ---
 

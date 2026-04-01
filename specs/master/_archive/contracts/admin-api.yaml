@@ -9,7 +9,7 @@ info:
 servers:
   - url: https://admin.smartchef.example.com/api/v1
     description: Production
-  - url: http://localhost:8000/api/v1
+  - url: http://localhost:8005/api/v1
     description: Development
 
 tags:

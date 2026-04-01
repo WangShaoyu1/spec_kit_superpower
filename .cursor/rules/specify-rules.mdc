@@ -12,13 +12,13 @@
 
 | 需要了解什么 | 读哪个文件 |
 |-------------|-----------|
-| 项目定位、用户故事、功能需求、模块映射 | `specs/master/spec.md` |
-| PD 交互设计覆盖状态、模块索引 | `specs/master/pd-all/pd-index.md` |
-| 某个模块的交互原型 | `specs/master/pd-all/pd-<module>/` |
-| 实施计划、技术栈、阶段规划 | `specs/master/plan.md` |
-| 架构设计（模块结构、API 契约、数据流） | `specs/master/ad/` (README.md → 索引) |
-| 详细设计（数据模型、状态机、算法、错误码） | `specs/master/dd/` (README.md → 索引) |
-| 任务目录与执行进度 | `specs/master/tasks/` (README.md → 索引) |
+| 项目定位、用户故事、功能需求、模块映射 | `specs/<feature-branch>/spec.md` |
+| PD 交互设计覆盖状态、模块索引 | `specs/<feature-branch>/pd-all/pd-index.md` |
+| 某个模块的交互原型 | `specs/<feature-branch>/pd-all/pd-<module>/` |
+| 实施计划、技术栈、阶段规划 | `specs/<feature-branch>/plans/plan-<module>.md` |
+| 架构设计（模块结构、API 契约、数据流） | `specs/<feature-branch>/ad/` (README.md → 索引) |
+| 详细设计（数据模型、状态机、算法、错误码） | `specs/<feature-branch>/dd/` (README.md → 索引) |
+| 任务目录与执行进度 | `specs/<feature-branch>/tasks/` (README.md → 索引) |
 | 缺陷状态概览（轻量入口） | `specs/master/defects/INDEX.md` |
 
 ## 技术栈速查
@@ -58,7 +58,7 @@
 
 ## 实施工作流
 
-运行 `/implement` 自动执行任务. 采用**指挥官+子代理工人**模式:
+运行 `/speckit.implement` 自动执行任务. 采用**指挥官+子代理工人**模式:
 - 指挥官(主对话): 读 tasks/README.md → 按模块调度 → 派发子代理 → 验证 → 标记进度
 - 子代理(工人): 每个工人有独立上下文, 只读取所需的模块任务文件和设计文档, 完成具体任务
 - 断点续传: 各模块任务文件中的 `[X]` 标记即进度, tasks/README.md 汇总全局, 新对话 `/implement continue` 自动接续
@@ -86,7 +86,7 @@
 
 ## PD-前端 UI 规格制度（防止 PD 功能缺失）
 
-> 来源: PD 功能缺失根因分析报告 (docs/PD_FEATURE_GAP_ROOT_CAUSE_ANALYSIS.md)
+> 来源: D031-D036 缺陷复盘结论，已固化为当前规则；执行口径以本规则与 `docs/DEFECT_WORKFLOW_DESIGN.md` 为准。
 > 涉及缺陷: D031-D036（6 个模块共 40+ 项前端功能缺失）
 
 **核心规则**:
@@ -109,11 +109,11 @@
 1. 同一业务规则在 `spec`、`PD`、`AD`、`DD`、`plan` 中出现多套口径时，必须在生成 `tasks` 前回到上游文档消解冲突。
 2. 下游阶段不得自行挑选一个“更合理”的版本继续实施；若存在冲突，必须标记为 `BLOCKER`。
 3. `AD` 引用的 PD 页面、`DD` 引用的 AD 契约、`plan` 引用的源码路径都必须真实存在且可追溯。
-4. `plan.md`、`tasks/`、实现说明、缺陷 `fix_ref` 中引用的源码根路径必须一致；出现多套工程路径时，必须在 `plan` 阶段统一。
+4. 当前模块 plan、`tasks/`、实现说明、缺陷 `fix_ref` 中引用的源码根路径必须一致；出现多套工程路径时，必须在 `plan` 阶段统一。
 
 ### PD 部分覆盖必须显式下传
 
-1. `PD README`、页面备注或设计结论中若出现“部分覆盖 / 暂不覆盖 / 待补充 / 待确认”，必须在 `plan.md` 和 `tasks/` 中显式继承。
+1. `PD README`、页面备注或设计结论中若出现“部分覆盖 / 暂不覆盖 / 待补充 / 待确认”，必须在当前模块 plan 和 `tasks/` 中显式继承。
 2. 被标记为“部分覆盖”的能力不得在 `tasks/README.md` 中显示为 100% 完成，也不得在 `implement` 阶段默认为已设计完成。
 3. `tasks` 必须为该类能力显式标注 `Deferred`、`Out of Scope`、`Blocked By` 或 `Stub`，不得把未完成事实隐藏在备注文本中。
 
@@ -134,7 +134,7 @@
 
 ### 核心业务链路强制定义
 
-1. 每个 UI 模块必须定义 1-3 条“创建 / 执行 / 验证”闭环链路，并在 `plan.md`、`tasks/`、`smoke` 中持续引用。
+1. 每个 UI 模块必须定义 1-3 条“创建 / 执行 / 验证”闭环链路，并在当前模块 plan、`tasks/`、`smoke` 中持续引用。
 2. 核心链路测试不得只覆盖第一步；必须验证关键状态转换、最终结果以及失败分支。
 3. 没有核心链路定义的模块，不得进入 `implement`；没有核心链路验证证据的模块，不得进入完成态。
 

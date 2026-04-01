@@ -1,0 +1,242 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(255, 178, 64, 0.12), transparent 32%),
+    linear-gradient(180deg, #0b1220 0%, #101826 42%, #141d2b 100%);
+  color: #e6edf7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 1280px;
+  background: #0f1723;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.shell-layout {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.shell-sider {
+  background:
+    linear-gradient(180deg, rgba(8, 14, 24, 0.98) 0%, rgba(12, 19, 31, 0.98) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand-block {
+  padding: 24px 20px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand-kicker {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 199, 111, 0.72);
+}
+
+.brand-title {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #f7fafc;
+}
+
+.brand-copy {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(214, 224, 236, 0.68);
+}
+
+.shell-menu {
+  background: transparent;
+  color: #ced7e3;
+  border-inline-end: none !important;
+  padding: 14px 10px 18px;
+}
+
+.shell-menu .ant-menu-item-selected {
+  background: linear-gradient(90deg, rgba(255, 176, 62, 0.18), rgba(255, 176, 62, 0.06)) !important;
+}
+
+.shell-content {
+  padding: 28px;
+  background: transparent;
+}
+
+.hero-panel {
+  padding: 28px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(135deg, rgba(25, 33, 49, 0.95), rgba(16, 24, 38, 0.88));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 18px;
+}
+
+.hero-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 190, 96, 0.8);
+}
+
+.hero-title {
+  margin: 14px 0 10px;
+  font-size: 40px;
+  line-height: 1.05;
+  color: #f8fbff;
+}
+
+.hero-paragraph {
+  max-width: 720px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: rgba(223, 231, 241, 0.78);
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.metric-card {
+  border-radius: 20px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metric-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(190, 203, 219, 0.68);
+}
+
+.metric-value {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fbfdff;
+}
+
+.spotlight-card {
+  height: 100%;
+  border-radius: 24px;
+  padding: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 184, 77, 0.16), rgba(255, 184, 77, 0.03));
+  border: 1px solid rgba(255, 184, 77, 0.24);
+}
+
+.page-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.auth-card {
+  width: min(100%, 520px);
+  border-radius: 28px !important;
+  background: rgba(14, 21, 32, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-label {
+  color: rgba(223, 231, 241, 0.82);
+  font-size: 13px;
+}
+
+.module-card {
+  border-radius: 22px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(14, 21, 32, 0.82) !important;
+  box-shadow: none !important;
+}
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(233, 240, 247, 0.82);
+  font-size: 12px;
+}
+
+.directory-table-wrap {
+  overflow-x: auto;
+}
+
+.directory-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.directory-table th,
+.directory-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.directory-table th {
+  color: rgba(203, 214, 229, 0.7);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.directory-table td {
+  color: #f3f7fb;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.preview-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -76,5 +76,5 @@ dependencies: []  # 依赖的其他 spec
 - [ ] 关键术语已定义（实体/状态/角色）
 
 ## 下一步
-spec.md 完成后，**必须**进入 `/speckit.design-pd`（产品交互设计）阶段，而非直接到 plan.md。
+spec.md 完成后，**必须**进入 `/speckit.design-pd`（产品交互设计）阶段，而非直接到模块 plan。
 PD 阶段将基于模块映射表, 按 `pd-template.md` 规范为每个 UI 模块生成交互原型。

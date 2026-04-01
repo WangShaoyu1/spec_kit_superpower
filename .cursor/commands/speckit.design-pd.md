@@ -51,17 +51,20 @@ spec.md 模块映射表
 
 每个模块的产出目录结构:
 ```
-specs/{branch}/pd-<module-key>/
-├── README.md          # 模块说明 + FR追溯矩阵 + 合规检查表
-├── index.html         # 列表页 (主导航页面)
-├── detail.html        # 详情页 (下级页面)
-├── [其他页面].html    # 根据模块复杂度增加
-└── ...
+specs/{branch}/pd-all/
+├── pd-hub.html                 # 统一查看入口
+├── pd-index.md                 # 全局 PD 覆盖索引
+└── pd-<module-key>/
+    ├── README.md               # 模块说明 + FR追溯矩阵 + 合规检查表
+    ├── index.html              # 列表页 (主导航页面)
+    ├── detail.html             # 详情页 (下级页面)
+    ├── [其他页面].html         # 根据模块复杂度增加
+    └── ...
 ```
 
 ### Phase 3: 维护 pd-index.md
 
-在 `specs/{branch}/` 下创建/更新 `pd-index.md` (§7.2):
+在 `specs/{branch}/pd-all/` 下创建/更新 `pd-index.md` (§7.2)，并维护 `pd-hub.html` 统一入口:
 - 列出所有 PD 模块的覆盖状态
 - 列出非 UI 类 FR (不需要 PD)
 - 标注跨模块引用关系
@@ -80,27 +83,30 @@ specs/{branch}/pd-<module-key>/
 
 ```
 specs/{branch}/
-├── pd-index.md                    # 全局 PD 覆盖索引
-├── pd-<module-key-1>/             # PD 模块 1
-│   ├── README.md
-│   ├── index.html
-│   ├── detail.html
-│   └── ...
-├── pd-<module-key-2>/             # PD 模块 2
-│   ├── README.md
-│   └── ...
-└── ...
+└── pd-all/
+    ├── pd-hub.html                # 统一查看入口
+    ├── pd-index.md                # 全局 PD 覆盖索引
+    ├── pd-<module-key-1>/         # PD 模块 1
+    │   ├── README.md
+    │   ├── index.html
+    │   ├── detail.html
+    │   └── ...
+    ├── pd-<module-key-2>/         # PD 模块 2
+    │   ├── README.md
+    │   └── ...
+    └── ...
 ```
 
-**命名规范**: `pd-<module-key>/`, module-key 使用小写 + 短横线, 禁止使用缺陷/任务编号。
+**命名规范**: `pd-all/pd-<module-key>/`, module-key 使用小写 + 短横线, 禁止使用缺陷/任务编号。
 
 ## PD 完整性检查清单
 
 - [ ] spec.md 包含模块映射表和 FR 标签 (Phase 1 前提)
-- [ ] 所有 UI 类模块都有对应的 `pd-<module>/` 目录
+- [ ] 所有 UI 类模块都有对应的 `pd-all/pd-<module>/` 目录
 - [ ] 每个模块的 README 包含 FR → PD 追溯矩阵
 - [ ] 每个模块的 README 包含合规检查表
-- [ ] `pd-index.md` 已创建且状态准确
+- [ ] `pd-all/pd-index.md` 已创建且状态准确
+- [ ] `pd-all/pd-hub.html` 已创建且能导航到所有模块
 - [ ] 每个页面都遵循 pd-template.md 的页面框架 (§4)
 - [ ] 每个操作都有 Mermaid 流程图 (§5.5)
 - [ ] 关键页面都有状态矩阵 (§5.2)
@@ -114,7 +120,7 @@ PD 设计通常需要多轮对话:
 
 1. **首轮**: 完成模块拆分 (Phase 1), 确认模块列表和优先级
 2. **逐模块**: 按优先级依次设计每个模块, 每个模块可能需要多轮反馈
-3. **收尾**: 更新 pd-index.md, 进行全局一致性检查
+3. **收尾**: 更新 `pd-all/pd-index.md` + `pd-all/pd-hub.html`, 进行全局一致性检查
 
 用户可以在任何阶段提出修改意见, AI 应基于 pd-template.md 规范评估修改的合理性。
 

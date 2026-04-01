@@ -1,34 +1,47 @@
-# pd-batch-test: 批量测试交互原型
+# pd-batch-test: 对话方案批量测试交互原型
 
 ## 项目概述
 
-本交互原型基于 `pd-template.md` v4.1 规范，实现批量测试模块的全链路交互设计（新建测试批次 → 上传/生成用例 → 执行测试 → 查看报告 → 智能分析）。
+本交互原型基于 `pd-template.md` v4.1 规范，实现对话方案批量测试模块的全链路交互设计（新建测试批次 → 上传/生成用例 → 执行测试 → 查看报告 → 智能分析）。
 
 **技术栈**: React 18 + Ant Design 6.x (CDN UMD, 无脚手架) + Babel Standalone + Dayjs
 
 **对应规范**: `specs/master/spec.md` v1.4，覆盖 FR: FR-012, FR-013, FR-014
 
-**PD 模块 Key**: `batch-test`（参见 `specs/master/pd-index.md`）
+**PD 模块 Key**: `batch-test`（参见 `specs/master/pd-all/pd-index.md`）
+
+## 模块定位
+
+- 本模块用于不同对话方案的批量测试、回归验证和横向比较
+- 本模块关注被测对象是“对话方案/方案版本”，而不是单个指令库模型
+- `pd-intent-library/test.html` 内的批量测试属于当前指令库模型的库内评估，不替代本模块
 
 ## 文件结构与页面层级
 
 ```
 pd-batch-test/
-├── index.html              # 批量测试列表页（主导航页面）
-├── detail.html             # 测试批次详情/结果页（下级页面）
+├── index.html              # 对话方案批量测试列表页（主导航页面）
+├── detail.html             # 对话方案测试批次详情/结果页（下级页面）
 └── README.md
 ```
 
 | 页面 | 类型 | 侧边栏菜单 | 返回按钮 | 说明抽屉 |
 |------|------|-----------|---------|---------|
-| index.html | 主导航页面 | ✅ 批量测试高亮 | 无 | ✅ 6 Tab |
-| detail.html | 下级页面 | ✅ 批量测试高亮 | ✅ 返回列表 | ✅ 6 Tab |
+| index.html | 主导航页面 | ✅ 批量测试（方案）高亮 | 无 | ✅ 6 Tab |
+| detail.html | 下级页面 | ✅ 批量测试（方案）高亮 | ✅ 返回列表 | ✅ 6 Tab |
+
+## 导航逻辑
+
+```
+index.html (方案批量测试列表) → 点击批次行 → detail.html (结果与分析详情)
+pd-dialog-profile/detail.html → 点击平台级批量测试 → index.html
+```
 
 ## 需求追溯矩阵 (FR → PD)
 
 | FR 编号 | 需求摘要 | PD 页面 | 交互组件 | 覆盖状态 |
 |---------|---------|---------|---------|---------|
-| FR-012 | 批量测试：自动生成用例，PM 可手动修改微调 | index.html | 新建批次弹窗 + 用例生成/上传 | ✅ 完整 |
+| FR-012 | 对话方案批量测试：自动生成用例，PM 可手动修改微调 | index.html | 新建批次弹窗 + 用例生成/上传 | ✅ 完整 |
 | FR-013 | 用例模板：编号、语句、预期/实际路由/意图/槽位、得分、耗时、达标 | detail.html | 测试结果 Table（完整字段） | ✅ 完整 |
 | FR-014 | 未达标智能分析报告：总体汇总、准确率排名、混淆矩阵、归因分析、建议 | detail.html | 分析报告 Tabs + Collapse 面板 | ✅ 完整 |
 
@@ -36,8 +49,46 @@ pd-batch-test/
 
 | 引用方向 | 说明 |
 |---------|------|
-| pd-intent-library/test.html → index.html | 指令库测试页可跳转批量测试 |
-| index.html → pd-dialog-profile | 批量测试关联对话方案 |
+| pd-dialog-profile/detail.html → index.html | 从对话方案详情进入平台级批量测试 |
+| index.html → pd-dialog-profile | 选择和查看被测对话方案 |
+
+## 产出物合规检查表 (vs pd-template.md v4.1)
+
+| 模板条款 | 状态 | 说明 |
+|---------|------|------|
+| §2.3 下级页面不在侧边栏 | ✅ | detail 无独立一级菜单 |
+| §2.3 返回按钮与标题同行 | ✅ | detail 返回按钮位于标题左侧 |
+| §2.4 每页有说明抽屉 | ✅ | 2 页均有"说明"按钮 + Drawer |
+| §2.4 抽屉含 6 标签页 | ✅ | 数据流向/状态流转/字段说明/操作说明/业务逻辑/易错点 |
+| §2.4 抽屉宽度切换 | ✅ | 2 页均支持 800/1200 切换 |
+| §3.1 CDN 使用 unpkg | ✅ | 全部使用 unpkg |
+| §3.3 useCallback for Menu | ✅ | handleOpenChange 使用 useCallback |
+| §5.5 操作流程图 | ✅ | 建批、执行、分析等流程在抽屉中表达 |
+
+## 业务价值
+
+- **解决什么问题**：把“不同对话方案之间的批量回归验证”从单模块测试中独立出来，形成平台级验证入口
+- **用户是谁**：产品经理、测试人员、质量负责人
+- **使用场景**：
+  1. 对多个候选对话方案做统一批量评测，比较整体效果
+  2. 在版本变更后做回归验证，确认是否出现准确率下降或混淆增加
+- **成功标准**：团队可以基于统一批次结果决定哪个对话方案更适合进入发布链路
+
+## 技术约束
+
+1. 无脚手架：纯 CDN 引入，无 build 步骤
+2. 显式 window 访问：`const antd = window.antd; const icons = window.icons;`
+3. 完整解构：所有使用的组件/图标都在顶部显式解构
+4. Mock 数据：全部使用静态 mock 数据，无真实 API
+5. 评测对象口径固定为“对话方案/方案版本”，不与指令库内评估混用
+
+## 查看方式
+
+直接在浏览器打开任意 HTML 文件（如 `index.html`），或使用本地 HTTP 服务器：
+```bash
+python -m http.server 8080
+# 访问 http://localhost:8080/specs/master/pd-all/pd-batch-test/index.html
+```
 
 ---
 

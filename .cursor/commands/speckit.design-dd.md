@@ -11,6 +11,14 @@
 - `specs/{branch}/ad/` - 架构设计（ad-global.md + ad-<module>.md，或单文件 ad.md）
 - `specs/_template/dd-template.md` - DD 设计规范 (框架级模板)
 
+## 前置 Gate（MUST）
+
+1. 从仓库根目录运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireDesign`，解析 `FEATURE_DIR`
+2. 若当前采用模块级 rollout，先运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认 `MasterAgent` 选中的目标模块
+3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage dd -Module <target-module> -Json`（非模块模式可省略 `-Module`）
+4. 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须先修上游制品，不得继续生成 DD
+5. 若返回 `WARNING`，必须在 DD 文档中显式继承风险，不得把条件准入能力默认视为已设计完成
+
 ## 执行流程
 
 ### Phase 1: 数据模型设计
@@ -155,4 +163,4 @@ based_on:
 - [ ] AD 中定义的每个 API 端点都有对应的实现映射
 
 ## 下一步
-DD 完成后，进入 plan.md 阶段：`/speckit.plan`，此时可以精确估算任务和依赖。
+DD 完成后，进入模块 plan 阶段：`/speckit.plan`，此时可以精确估算任务和依赖。

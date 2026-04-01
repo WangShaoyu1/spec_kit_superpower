@@ -6,7 +6,7 @@ based_on:
   - spec.md@v1.4
   - pd-intent-library/ (v3.3)
   - dd-template.md@v2.2
-scope: 指令库管理模块 (intent-library) — 完整详设；其他模块待 PD 完成后补充
+scope: 指令库管理模块 (intent-library) — 归档历史详设；当前活口径以 `specs/master/pd-all/pd-index.md`、`ad/ad-intent-library.md`、`dd/dd-intent-library.md` 为准
 ---
 
 # 详细设计 (DD): SmartChef 智能对话管理平台
@@ -1062,7 +1062,7 @@ async def publish_model(id: UUID, body: PublishModelRequest, current_user=Depend
 | FR-047 | 方案发布需 published 模型 | §3.1 (归档前置校验) | ✅ 完整 |
 | FR-048 | 训练集 1:1, 评估集非 1:1 | §2.3, §2.4 (业务约束) | ✅ 完整 |
 | FR-049 | 数据管理 (意图/词槽/实体/相似问/排除问) | §2.6~§2.10 (全部数据模型) | ✅ 完整 |
-| FR-050 | 阈值继承逻辑 | §2.1 (default_*_threshold) + §2.5 (threshold_*) + §7.2 | ✅ 完整 |
+| FR-050 | 阈值继承逻辑 | §2.1 (default_*_threshold) + §2.5 (threshold_*) + §7.2 | ⚠️ Partial（当前活口径以 `pd-index.md` / `ad-intent-library.md` / `dd-intent-library.md` 为准） |
 | FR-051 | 单条+批量测试 | §4.3 (单条) + §4.2 (批量) + §3.2 (EvaluationRun 状态) | ✅ 完整 |
 | FR-052 | 智能分析报告 | §2.5 (analysis JSONB) + §4.2 (分析逻辑) | ✅ 完整 |
 | FR-053 | 权限控制 | §6 (权限模型完整) | ✅ 完整 |

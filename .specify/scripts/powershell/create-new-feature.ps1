@@ -289,7 +289,8 @@ if ($hasGit) {
     try {
         git checkout -b $branchName | Out-Null
     } catch {
-        Write-Warning "Failed to create git branch: $branchName"
+        Write-Error "Failed to create git branch: $branchName"
+        exit 1
     }
 } else {
     Write-Warning "[specify] Warning: Git repository not detected; skipped branch creation for $branchName"

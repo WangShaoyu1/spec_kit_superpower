@@ -8,45 +8,50 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
 按照 `tasks/` 目录中的任务清单，**系统性地执行代码实现**。
 
 ## 执行模式
-采用**指挥官+子代理工人**模式：
-- **指挥官（主对话）**: 读取 tasks/README.md 调度，按模块派发任务、验证结果、标记进度
+采用**MasterAgent + 子代理工人**模式：
+- **MasterAgent（主对话）**: 读取 rollout/state/tasks 索引，选择唯一目标模块，派发任务、验证结果、标记进度
 - **子代理（工人）**: 每个工人有独立上下文，只读取所需的模块任务文件和设计文档，完成具体任务
 
 ## 执行流程
 
 ### 前置检查
-1. 运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks`，解析 `FEATURE_DIR` 和 `AVAILABLE_DOCS`
-2. 后续所有读取与写入都必须以 `FEATURE_DIR` 解析出的绝对路径为准，例如 `FEATURE_DIR/tasks/README.md`、`FEATURE_DIR/checklists/`、`FEATURE_DIR/plan.md`
-3. 确认 `FEATURE_DIR/tasks/README.md` 与模块任务文件存在，且路径使用绝对路径
-4. 若 `FEATURE_DIR/checklists/` 存在未完成项，必须先向用户提示当前风险，再决定是否继续
-5. 若 `FEATURE_DIR/plan.md` 中仍存在未处理的 `BLOCKER` 或影响核心链路的 `Stub / Blocked By`，不得直接宣称进入可交付实现阶段
+1. 运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequirePlan -RequireDesign -RequireTasks -IncludeTasks`，解析 `FEATURE_DIR` 和 `AVAILABLE_DOCS`
+2. 运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认当前唯一允许推进的目标模块
+3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage implement -Module <target-module> -Json`
+   - 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须停止并先修上游制品
+   - 若返回 `WARNING`，必须先向用户提示当前显式未完成风险，再决定是否继续
+4. 后续所有读取与写入都必须以 `FEATURE_DIR` 解析出的绝对路径为准，例如 `FEATURE_DIR/tasks/README.md`、`FEATURE_DIR/checklists/`、`FEATURE_DIR/plans/plan-<module>.md`
+5. 确认 `FEATURE_DIR/tasks/README.md` 与模块任务文件存在，且路径使用绝对路径
+6. 若 `FEATURE_DIR/checklists/` 存在未完成项，必须先向用户提示当前风险，再决定是否继续
+7. 若当前模块 plan 中仍存在未处理的 `BLOCKER` 或影响核心链路的 `Stub / Blocked By`，不得直接宣称进入可交付实现阶段
 
 ### 启动实现
 ```
 /speckit.implement
 ```
-指挥官读取 `FEATURE_DIR/tasks/README.md` 索引，识别当前可执行的模块和任务。
+`MasterAgent` 读取 `FEATURE_DIR/tasks/README.md` 与 rollout/state，识别当前唯一可执行的模块和任务。
 
 ### 断点续传
 ```
 /speckit.implement continue
 ```
-基于各模块任务文件中的 `[X]` 标记，自动识别上次进度，继续执行。
+基于各模块任务文件中的 `[X]` 标记与 `module-state.json`，自动识别上次进度，继续执行。
 
 ### 任务派发策略
-1. **读取索引**: 加载 `FEATURE_DIR/tasks/README.md`，了解模块依赖和执行顺序
-2. **选择模块**: 按优先级选择当前应执行的 `FEATURE_DIR/tasks/tasks-<module>.md`
+1. **读取索引**: 加载 `FEATURE_DIR/tasks/README.md`，再读取 `module-rollout.json` 与 `module-state.json`
+2. **选择模块**: 只选择当前唯一允许推进的模块，并使用 rollout 中的 `task_slug` 打开 `FEATURE_DIR/tasks/tasks-<task-slug>.md`
 3. **识别就绪任务**: 在模块文件内，找无依赖或依赖已完成的任务
 4. **批次规划**: 每批 3-5 个可并行任务（标记为 [P]）
 5. **创建子代理**: 为每个任务创建独立 worker，【如果Cursor系统能力支持，子代理使用Codex5.3、Gemini 3.1 pro、auto三种模型】
-6. **并行执行**: 多个 worker 同时工作
+6. **并行执行**: 只允许同一模块内的 worker 并行，不允许跨模块并行争用服务或浏览器
 7. **结果验证**: 检查输出是否符合设计文档和验收标准
-8. **标记进度**: 更新对应模块任务文件中的 `[X]` 标记
-9. **更新索引**: 更新 `FEATURE_DIR/tasks/README.md` 中的模块进度统计
+8. **浏览器阶段**: 模块任务完成后，立即运行 browser stage，而不是等所有模块完成
+9. **标记进度**: 更新对应模块任务文件中的 `[X]` 标记与 `module-state.json`
+10. **更新索引**: 更新 `FEATURE_DIR/tasks/README.md` 中的模块进度统计
 
 ### 子代理工作流
 每个子代理：
-1. 读取分配的任务描述（来自具体的 `FEATURE_DIR/tasks/tasks-<module>.md`）
+1. 读取分配的任务描述（来自具体的 `FEATURE_DIR/tasks/tasks-<task-slug>.md`）
 2. 按需读取 `FEATURE_DIR/pd-all/pd-<module>/`、`FEATURE_DIR/ad/ad-<module>.md`、`FEATURE_DIR/dd/dd-<module>.md` 的相关章节
 3. 实现代码（TDD: 先确认测试红灯，再实现，最后绿灯）
 4. 运行测试
@@ -120,14 +125,19 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
      - 一个功能的后端服务 + API + 前端 + 测试 MUST 在同一切片中完成
      - 不允许"先铺完所有 API 桩再回头补逻辑"的水平推进策略
      - 每个切片完成时 MUST 运行该切片的集成测试并通过
-6. **代码审查**: 召唤 `code-reviewer` 子代理，对本模块代码进行审查
+6. **模块级 browser stage** [MUST]:
+   - 先运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage browser -Module <target-module> -Json`
+   - 再执行 `/speckit.smoke <target-module>`，完成 `UI smoke + business e2e + quality probes`
+   - 重点模块必须额外检查性能与准确率信号
+   - 未通过 browser stage 的模块不得标记为完成
+7. **代码审查**: 召唤 `code-reviewer` 子代理，对本模块代码进行审查
    - 审查范围: 本模块所有新增/变更的文件
    - 审查标准: 安全、性能、错误处理、代码规范、设计一致性、**枚举一致性**
    - 审查输出: 结构化报告（CRITICAL / MAJOR / MINOR 分级）
    - **CRITICAL / MAJOR 问题 MUST 修复后才能标记模块完成**
-7. **设计符合性**: 对照 PD 交互稿 + DD 数据模型 + AD 架构，验证功能正确性
-8. **回归测试**: 确认先前模块的测试仍然通过
-9. **构建验证**: 后端 `python -c "from app.main import create_app"` + 前端 `npm run build` 均成功
+8. **设计符合性**: 对照 PD 交互稿 + DD 数据模型 + AD 架构，验证功能正确性
+9. **回归测试**: 确认先前模块的测试仍然通过
+10. **构建验证**: 后端 `python -c "from app.main import create_app"` + 前端 `npm run build` 均成功
 
 #### C. 全局完成门禁 — 所有模块完成时
 
@@ -148,6 +158,8 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
 - [ ] 该模块所有任务标记为完成
 - [ ] 每个任务都有配套测试且通过
 - [ ] 每个任务都能提供完成证据（测试输出 / 构建输出 / review 结论 / smoke 结果）
+- [ ] `validate-stage-gates.ps1 -Stage browser -Module <target-module>` 已通过
+- [ ] `/speckit.smoke <target-module>` 已完成，模块状态已推进到 `browser_verified`
 - [ ] 全量测试通过（单元 + 契约 + 集成 + E2E）
 - [ ] Code Review 完成，CRITICAL/MAJOR 问题已修复
 - [ ] 代码符合 DD 定义的数据模型和接口契约

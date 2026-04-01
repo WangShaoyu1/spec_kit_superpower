@@ -1,667 +1,219 @@
 ---
-version: 2.1
-updated: 2026-03-22
-module: intent-library
-covers_fr: FR-002,003,039~054
+version: 1.0
+scope: pd-intent-library
 based_on:
-  - spec.md@v1.4
-  - pd-all/pd-intent-library/ (v3.4, 5 pages)
-changelog: |
-  2.1: 对齐 PD 基线重做，收紧页面边界、LLM 合成反馈与测试消费契约
-  2.0: 从 ad.md 拆分为独立模块文档
-  1.1: 补充测试流程; 数据集/意图/词槽/实体完整API; 新增小模型训练推理架构
-  1.0: 初始版本 (模型生命周期、基础CRUD)
+  - specs/master/spec.md
+  - specs/master/pd-all/pd-index.md
+  - specs/master/pd-all/pd-intent-library/README.md
+  - specs/master/pd-all/pd-intent-library/index.html
+  - specs/master/pd-all/pd-intent-library/detail.html
+  - specs/master/pd-all/pd-intent-library/datasets.html
+  - specs/master/pd-all/pd-intent-library/dataset-detail.html
+  - specs/master/pd-all/pd-intent-library/test.html
+  - .specify/harness/module-rollout.json
+  - .specify/harness/core-validation-set.json
 ---
 
-# 架构设计 (AD): 指令库管理模块
+# 指令库管理模块架构设计
 
-## 1. 模块概述
+## 1. 模块职责与边界
 
-指令库管理模块是 SmartChef 平台的核心域之一，负责从指令库创建、数据管理到模型训练推理的完整生命周期。
+| 子模块 | 职责 | 不负责 |
+|--------|------|--------|
+| `library directory` | 指令库列表、语种、唯一 `library_key`、模型数量上限提示 | 对话方案绑定逻辑本身 |
+| `library detail` | 模型版本列表、状态流转、发布/testable 切换、模型下载 | 设备端实际推理加载 |
+| `dataset management` | 训练集/评估集列表、绑定关系、导入方式与样本量可见性 | Excel 解析引擎实现细节 |
+| `dataset content` | 意图、槽位、追问、相似问/排除问、实体值维护 | 运行时语言检测 |
+| `model testing` | 单条测试、批量评估、阈值快照、智能分析回读 | 对话方案级跨方案横向测试 |
 
-**核心职责**:
-- 指令库 CRUD 与基础配置管理
-- 意图、词槽、实体的结构化数据管理
-- 训练数据集与评估数据集管理（创建、导入/导出、LLM 生成）
-- 模型版本全生命周期：draft → training → trained ⇄ evaluating → testable → published → archived → (可恢复至 draft)
-- 模型质量验证：单条测试（对话式）、批量测试（评估任务）、智能分析
-- 模型产物打包与下载（ONNX / TensorRT，平台无关分发）
+## 2. 条件准入口径
 
-**核心实体**: CommandLibrary, LibraryModelVersion, Intent, Slot, TrainingDataset, EvaluationDataset
+- 本模块允许进入 `AD / DD / plan / tasks`，但仍属于**条件准入**
+- 唯一显式例外是 `FR-050`：当前只确认存在“库级默认阈值 + 任务级覆盖入口”，尚未完成“继承/覆盖链路”的完整 UI 呈现
+- 因此下游文档必须持续保留 `FR-050 Partial`，不得把阈值继承逻辑误判为已闭环
 
-**关键约束**:
-- 每个指令库最多 5 个模型版本（FR-043）
-- 同一指令库内 testable 状态唯一（FR-045），published 可与 testable 共存（FR-046）
-- 模型发布需 `model_publish` 权限（FR-053）
-- 发布门禁：对话方案发布时校验绑定的指令库必须有 published 模型（FR-047）
-- 归档后可恢复为 draft（FR-044），恢复时也受 5 个版本上限约束
-- 评估可多轮执行：evaluating → trained（回写评估结果），再可进入下一轮评估或晋升为 testable
+## 3. 模块关系与调用
 
-**PD 页面**: index.html, detail.html, datasets.html, dataset-detail.html, test.html
+| 调用方 | 被调方 | 通信方式 | 同步/异步 | 失败策略 |
+|--------|--------|---------|----------|---------|
+| `frontend/modules/intent-library` | `GET /api/v1/intent-libraries` | REST | 同步 | 保留当前筛选与分页，显示错误态 |
+| `frontend/modules/intent-library` | `POST /api/v1/intent-libraries` | REST | 同步 | 表单保留输入，回显字段错误 |
+| `frontend/modules/intent-library` | `POST /api/v1/intent-libraries/{id}/models/train` | REST + background job | 异步 | 明确展示真实排队/失败状态，禁止演示文案假成功 |
+| `frontend/modules/intent-library` | `POST /api/v1/models/{id}/evaluate` | REST + background job | 异步 | 任务失败时保留结果快照与错误原因 |
+| `frontend/modules/intent-library` | `POST /api/v1/models/{id}/publish` | REST | 同步 | 失败时维持原 published/testable 关系 |
+| `intent library service` | `dataset service` | 领域调用 | 同步 | 数据集绑定失败即训练/评估任务创建失败 |
+| `intent library service` | `training/evaluation worker` | 后台任务 | 异步 | 状态机与审计日志必须真实回写 |
 
-**本轮治理约束**:
-- `detail.html` 中的“下载模型”是页面动作，不再视为独立页面
-- `generate-training` / `generate-evaluation` 的默认交互是“请求内返回真实结果或明确错误”，不得返回伪成功文案
-- `POST /datasets/{id}/import`、`GET /datasets/{id}/export` 属于目标能力；若本轮未落地，必须在 `plan/tasks` 中显式声明 `Deferred`
-- 单条测试、消息历史、批量测试分析的前后端消费必须按真实包络与分页契约实现，禁止前端自行猜测返回结构
+## 4. 核心数据流
 
----
+### 4.1 指令库创建闭环
 
-## 2. 核心数据流
-
-### 2.1 指令库模型生命周期
-
-**对应 FR**: FR-043~054
-**PD 页面**: detail.html, datasets.html, dataset-detail.html, test.html
+**触发点**: PM 提交“新建指令库”弹窗  
+**涉及模块**: 前端列表页、API 层、IntentLibraryService、PostgreSQL  
+**对应 FR**: FR-039, FR-043
 
 ```mermaid
 sequenceDiagram
-    participant PM as PM (前端)
-    participant API as API 层
-    participant IS as IntentService
-    participant IL as IntentLibraries
-    participant DB as PostgreSQL
-    participant ML as 训练引擎(异步)
+    participant FE as Library UI
+    participant API as IntentLibrary API
+    participant SVC as IntentLibraryService
+    participant PG as PostgreSQL
 
-    Note over PM, ML: 阶段 1: 数据准备
-    PM->>API: POST /api/v1/intent-libraries/{id}/datasets (导入训练集)
-    API->>IS: validate_dataset(data)
-    IS->>DB: INSERT training_dataset
-    IS-->>PM: 201 Created
-
-    Note over PM, ML: 阶段 2: 创建训练任务
-    PM->>API: POST /api/v1/intent-libraries/{id}/models (新建模型)
-    API->>IL: create_model_version(library_id, dataset_id)
-    IL->>DB: 检查模型数量 < 5 (FR-043)
-    alt 超限
-        IL-->>PM: 422 "请先归档/删除历史模型"
+    FE->>API: POST /api/v1/intent-libraries
+    API->>SVC: create_library(command)
+    SVC->>PG: 校验 library_key 全局唯一
+    alt key 已存在
+        SVC-->>API: LIB-409-KEY
+        API-->>FE: 409 + 字段错误
+    else 可创建
+        SVC->>PG: 写入 command_library
+        SVC->>PG: 写入审计日志
+        SVC-->>API: library snapshot
+        API-->>FE: 200 success
+        FE->>API: GET /api/v1/intent-libraries
+        API-->>FE: 列表与模型占用数回读
     end
-    IL->>DB: INSERT library_model_version (status=draft)
-    IL->>DB: 绑定训练集 (1:1, FR-048)
-    IL-->>PM: 201 Created
-
-    Note over PM, ML: 阶段 3: 训练
-    PM->>API: POST /api/v1/models/{id}/train
-    API->>IL: start_training(model_id)
-    IL->>DB: UPDATE status = training
-    IL->>ML: 提交训练任务(异步)
-    ML-->>IL: 训练完成回调
-    IL->>DB: UPDATE status = trained
-
-    Note over PM, ML: 阶段 4: 评估
-    PM->>API: POST /api/v1/models/{id}/evaluate
-    API->>IL: start_evaluation(model_id, eval_dataset_id)
-    IL->>DB: UPDATE status = evaluating
-    IL->>ML: 提交评估任务
-    ML-->>IL: 评估完成 + 指标
-    IL->>DB: UPDATE status = trained, 写入评估结果
-
-    Note over PM, ML: 阶段 5: 设为 testable (FR-045)
-    PM->>API: POST /api/v1/models/{id}/set-testable
-    API->>IL: set_testable(model_id)
-    IL->>DB: 取消同库旧 testable (唯一性约束)
-    IL->>DB: UPDATE status = testable
-
-    Note over PM, ML: 阶段 6: 发布 (FR-053 权限校验)
-    PM->>API: POST /api/v1/models/{id}/publish
-    API->>IL: publish_model(model_id, operator)
-    IL->>IL: check_permission(operator, "model_publish")
-    IL->>DB: UPDATE status = published (可与 testable 共存, FR-046)
-    IL-->>PM: 200 OK
-
-    Note over PM, ML: 归档与恢复 (FR-044)
-    PM->>API: POST /api/v1/models/{id}/archive
-    API->>IL: archive_model(model_id)
-    IL->>DB: UPDATE status = archived
-    IL-->>PM: 200 OK
-
-    PM->>API: POST /api/v1/models/{id}/restore
-    API->>IL: restore_model(model_id)
-    IL->>DB: 检查模型数量 < 5 (归档恢复也受限)
-    alt 超限
-        IL-->>PM: 422 "活跃模型已达上限"
-    end
-    IL->>DB: UPDATE status = draft (FR-044: 归档后可恢复为 draft)
-    IL-->>PM: 200 OK
 ```
 
-### 2.2 模型测试流程（质量验证环节）
+### 4.2 模型训练与评估闭环
 
-**对应 FR**: FR-050~052
-**PD 页面**: test.html（单条测试 Tab + 批量测试 Tab）
+**触发点**: PM 在详情页点击“新建训练”或“批量评估”  
+**涉及模块**: 前端详情页/测试页、API 层、TrainingJobService、EvaluationService、PostgreSQL  
+**对应 FR**: FR-043, FR-044, FR-048, FR-049, FR-050, FR-052
 
 ```mermaid
 sequenceDiagram
-    participant PM as PM (前端 test.html)
-    participant API as API 层
-    participant TS as TestingService
-    participant NLU as NLU Pipeline
-    participant IL as IntentLibraries
-    participant DB as PostgreSQL
-    participant LLM as ZenMux (分析)
+    participant FE as Detail/Test UI
+    participant API as Model API
+    participant SVC as Training/Eval Service
+    participant JOB as Worker
+    participant PG as PostgreSQL
 
-    Note over PM, LLM: 单条测试 (对话式, FR-051)
-    PM->>API: POST /api/v1/models/{id}/test-sessions (创建会话)
-    API->>TS: create_session(model_id, name)
-    TS->>DB: INSERT intent_test_session
-    API-->>PM: 201 {session_id}
-    PM->>API: POST /api/v1/test-sessions/{session_id}/messages {content}
-    API->>IL: get_model(session.model_id, status in [testable, published])
-    IL-->>API: model + intent_config
-    API->>TS: send_message(content, session)
-    TS->>NLU: process(text, model_version) — 使用指定模型推理
-    NLU-->>TS: {intent, confidence, slots, latency_ms}
-    TS->>DB: INSERT user_message + assistant_message (会话级存储, 支持历史滚动)
-    TS-->>PM: 200 [user_message, assistant_message]
-
-    Note over PM, LLM: 批量测试 (评估任务, FR-051)
-    PM->>API: POST /api/v1/models/{id}/test/batch {eval_dataset_id, threshold?}
-    API->>IL: get_model(model_id)
-    API->>TS: create_batch_run(model, dataset, threshold)
-    TS->>DB: INSERT evaluation_run (status=running)
-    TS-->>PM: 202 Accepted {run_id}
-
-    loop 逐条评估 (异步任务)
-        TS->>NLU: process(test_case.text, model_version)
-        NLU-->>TS: prediction
-        TS->>TS: compare(prediction, expected) → pass/fail
-        TS->>DB: UPDATE run progress
-    end
-
-    TS->>DB: UPDATE evaluation_run (status=completed, metrics)
-
-    Note over PM, LLM: 智能分析 (FR-052)
-    PM->>API: GET /api/v1/test-runs/{run_id}/analysis
-    API->>TS: generate_analysis(run)
-    TS->>LLM: 分析请求(混淆矩阵, 低分样本, 槽位错误)
-    LLM-->>TS: 结构化分析结果
-    TS-->>PM: 200 {conclusion, confusion_matrix, low_score_samples, slot_errors, suggestions}
+    FE->>API: POST /models/{id}/train or /evaluate
+    API->>SVC: validate dataset binding + threshold snapshot
+    SVC->>PG: 写入 model_version / evaluation_run
+    SVC->>JOB: 投递后台任务
+    API-->>FE: 返回 queued/running 状态
+    JOB->>PG: 更新 training/evaluating -> trained/testable
+    JOB->>PG: 写入准确率、slot_f1、latency、分析报告
+    FE->>API: 轮询详情/评估结果
+    API-->>FE: 返回真实状态与结果快照
 ```
 
-**阈值策略** (FR-050):
-- 每个指令库有「库级默认阈值」，批量测试时可在任务级覆盖
-- 单条测试使用库级阈值，前端 Debug 面板展示置信度颜色编码
+### 4.3 发布与 testable 唯一性闭环
 
----
+**触发点**: PM 在模型版本列表执行 `设为 testable` 或 `发布`  
+**涉及模块**: 详情页、API 层、PublishGuard、PostgreSQL  
+**对应 FR**: FR-045, FR-046, FR-047, FR-053, FR-054
 
-## 3. 接口契约
+```mermaid
+sequenceDiagram
+    participant FE as Detail UI
+    participant API as Publish API
+    participant SVC as Publish Service
+    participant PG as PostgreSQL
 
-### 3.1 指令库 CRUD
-
-| 方法 | 路径 | 说明 | 权限 | 对应 FR |
-|------|------|------|------|---------|
-| GET | /api/v1/intent-libraries | 指令库列表 (分页+筛选) | intent_library_read | FR-039 |
-| POST | /api/v1/intent-libraries | 创建指令库 | intent_library_create | FR-039 |
-| GET | /api/v1/intent-libraries/{id} | 指令库详情 | intent_library_read | FR-039 |
-| PUT | /api/v1/intent-libraries/{id} | 更新指令库 | intent_library_update | FR-039 |
-| DELETE | /api/v1/intent-libraries/{id} | 删除指令库 | intent_library_delete | FR-039 |
-
-**创建指令库请求**:
-
-```json
-{
-  "name": "string, 必填, max 100",
-  "library_key": "string, 必填, 全局唯一, 创建后不可修改 (FR-039)",
-  "language": "string, 必填, enum: zh/en",
-  "description": "string, 可选, max 500"
-}
+    FE->>API: POST /models/{id}/testable or /publish
+    API->>SVC: switch_model_state(model_id, action)
+    SVC->>PG: 读取同库其它模型状态
+    SVC->>PG: 自动取消旧 testable/published 标记
+    SVC->>PG: 更新目标模型状态与版本元数据
+    SVC->>PG: 写入审计日志
+    SVC-->>API: latest model matrix
+    API-->>FE: success + 最新状态快照
 ```
 
-### 3.2 模型版本管理
-
-| 方法 | 路径 | 说明 | 权限 | 对应 FR |
-|------|------|------|------|---------|
-| GET | /api/v1/intent-libraries/{lib_id}/models | 模型版本列表 | intent_library_read | FR-043 |
-| POST | /api/v1/intent-libraries/{lib_id}/models | 新建模型(绑定训练集) | model_train | FR-043,048 |
-| POST | /api/v1/models/{id}/train | 启动训练 | model_train | FR-044 |
-| POST | /api/v1/models/{id}/evaluate | 启动评估 | model_train | FR-044 |
-| POST | /api/v1/models/{id}/set-testable | 设为测试态 | model_test_manage | FR-045,053 |
-| POST | /api/v1/models/{id}/publish | 发布模型 | model_publish | FR-044,053 |
-| POST | /api/v1/models/{id}/archive | 归档模型 | model_publish | FR-044 |
-| POST | /api/v1/models/{id}/restore | 恢复归档模型为 draft | model_train | FR-044 |
-| GET | /api/v1/models/{id}/download | 下载模型产物 | model_train | FR-054 |
-
-**状态机约束** (API 层校验):
-- 新建: 检查 `count < 5` (FR-043)
-- set-testable: 自动取消同库旧 testable (FR-045)
-- publish: 需要 `model_publish` 权限 (FR-053)
-- 允许同时 testable + published (FR-046)
-
-### 3.3 数据集管理
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| GET | /api/v1/intent-libraries/{lib_id}/datasets | 数据集列表 (分页+筛选) | FR-048 |
-| POST | /api/v1/intent-libraries/{lib_id}/datasets | 创建数据集 | FR-048 |
-| GET | /api/v1/datasets/{id} | 数据集详情 | FR-048 |
-| PUT | /api/v1/datasets/{id} | 更新数据集元信息 | FR-048 |
-| DELETE | /api/v1/datasets/{id} | 删除数据集 | FR-048 |
-| POST | /api/v1/datasets/{id}/import | 批量导入训练/评估数据 (Excel/JSON) | FR-049 |
-| GET | /api/v1/datasets/{id}/export | 导出数据集 (Excel/JSON) | FR-049 |
-| POST | /api/v1/datasets/{id}/generate-training | LLM 生成训练集 (自定义 prompt) | FR-048 |
-| POST | /api/v1/datasets/{id}/generate-evaluation | LLM 生成评估集 (自定义 prompt) | FR-048 |
-
-**批量导入请求**:
-
-```json
-{
-  "file": "multipart/form-data, 必填, .xlsx/.json",
-  "type": "string, 必填, enum: training/evaluation",
-  "overwrite": "boolean, 可选, 默认 false (追加模式)"
-}
-```
-
-**导出请求** (Query):
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| format | string | 否 | 导出格式: excel/json, 默认 excel |
-| scope | string | 否 | 导出范围: all/intents_only/slots_only, 默认 all |
-
-**实现约束**:
-- `POST /generate-training` / `POST /generate-evaluation` 默认同步执行，用于向前端直接返回 `generated_count / skipped_count / warnings`
-- 若出现 `LLM 未配置`、`数据集无意图`、`外部调用失败` 等前置或执行错误，接口直接返回明确业务错误，不使用 `202 accepted` 掩盖失败
-- 若导入/导出在当前迭代未交付，前端必须展示“未接入/延期”状态，不能展示“导入成功”或假进度
-
-### 3.4 意图管理 (数据集内)
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| GET | /api/v1/datasets/{id}/intents | 意图列表 (分页+搜索) | FR-049 |
-| POST | /api/v1/datasets/{id}/intents | 创建意图 | FR-049 |
-| GET | /api/v1/datasets/{id}/intents/{intent_key} | 意图详情 | FR-049 |
-| PUT | /api/v1/datasets/{id}/intents/{intent_key} | 更新意图配置 | FR-049 |
-| DELETE | /api/v1/datasets/{id}/intents/{intent_key} | 删除意图 | FR-049 |
-
-**创建/更新意图请求**:
-
-```json
-{
-  "intent_key": "string, 必填, 数据集内唯一",
-  "name_zh": "string, 必填, 中文名",
-  "description": "string, 可选, 最大 500 字符",
-  "slots": ["string, 可选, 引用的词槽 key 列表"],
-  "follow_up_enabled": "boolean, 可选, 是否启用追问",
-  "follow_up_prompt": "string, 条件必填, follow_up_enabled=true 时的追问话术",
-  "hit_responses": ["string, 可选, 命中时返回给用户的话术列表, 支持 {slot} 变量"],
-  "miss_response": "string, 可选, 未命中时返回给用户的话术"
-}
-```
-
-### 3.5 相似问与排除问 (训练数据)
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| GET | /api/v1/datasets/{ds_id}/intents/{intent_key}/similar-questions | 相似问列表 (正样本) | FR-049 |
-| POST | /api/v1/datasets/{ds_id}/intents/{intent_key}/similar-questions | 批量添加相似问 | FR-049 |
-| DELETE | /api/v1/datasets/{ds_id}/intents/{intent_key}/similar-questions | 批量删除相似问 | FR-049 |
-| GET | /api/v1/datasets/{ds_id}/intents/{intent_key}/negative-examples | 排除问列表 (负样本) | FR-049 |
-| POST | /api/v1/datasets/{ds_id}/intents/{intent_key}/negative-examples | 批量添加排除问 | FR-049 |
-| DELETE | /api/v1/datasets/{ds_id}/intents/{intent_key}/negative-examples | 批量删除排除问 | FR-049 |
-
-**批量添加相似问/排除问请求**:
-
-```json
-{
-  "items": [
-    "你好，帮我设置温度",
-    "温度调到 180 度",
-    "..."
-  ]
-}
-```
-
-### 3.6 词槽与实体管理
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| GET | /api/v1/datasets/{id}/slots | 词槽列表 (含系统词槽 + 自定义词槽) | FR-049 |
-| POST | /api/v1/datasets/{id}/slots | 创建自定义词槽 | FR-049 |
-| PUT | /api/v1/datasets/{id}/slots/{slot_key} | 更新自定义词槽 | FR-049 |
-| DELETE | /api/v1/datasets/{id}/slots/{slot_key} | 删除自定义词槽 | FR-049 |
-| GET | /api/v1/datasets/{id}/slots/{slot_key}/entities | 实体值列表 (分页) | FR-049 |
-| POST | /api/v1/datasets/{id}/slots/{slot_key}/entities | 批量添加实体值 | FR-049 |
-| PUT | /api/v1/datasets/{id}/slots/{slot_key}/entities/{entity_id} | 更新实体值 | FR-049 |
-| DELETE | /api/v1/datasets/{id}/slots/{slot_key}/entities | 批量删除实体值 | FR-049 |
-| POST | /api/v1/datasets/{id}/slots/{slot_key}/entities/import | 批量导入实体 (Excel/文本) | FR-049 |
-| GET | /api/v1/datasets/{id}/slots/{slot_key}/entities/export | 导出实体列表 | FR-049 |
-| GET | /api/v1/datasets/{id}/slots/{slot_key}/entities/template | 下载实体导入 Excel 模板 | FR-049 |
-
-**创建自定义词槽请求**:
-
-```json
-{
-  "slot_key": "string, 必填, 数据集内唯一",
-  "name_zh": "string, 必填, 中文名",
-  "description": "string, 可选",
-  "slot_type": "string, 必填, enum: custom (系统词槽不可创建)",
-  "entities": [
-    {
-      "value": "string, 必填, 实体值",
-      "synonyms": ["string, 可选, 同义词列表"]
-    }
-  ]
-}
-```
-
-**批量导入实体请求**:
-
-```json
-{
-  "file": "multipart/form-data, .xlsx/.txt/.csv",
-  "mode": "string, 可选, enum: append/overwrite, 默认 append"
-}
-```
-
-Excel 模板格式: 两列 `entity_value | synonyms`，synonyms 以逗号分隔。
-文本导入格式: 一行一个实体值，逗号分隔同义词。
-
-### 3.7 测试 API
-
-#### 3.7.1 测试会话管理
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| POST | /api/v1/models/{id}/test-sessions | 创建测试会话 | FR-051 |
-| GET | /api/v1/models/{id}/test-sessions | 测试会话列表 | FR-051 |
-| PUT | /api/v1/test-sessions/{sid} | 重命名会话 | FR-051 |
-| DELETE | /api/v1/test-sessions/{sid} | 删除会话 (级联删除消息) | FR-051 |
-
-**创建会话请求**:
-
-```json
-{
-  "name": "string, 可选, max 100, 默认自动生成 '测试会话 N'"
-}
-```
-
-**创建会话响应** (201):
-
-```json
-{
-  "code": "000000",
-  "data": {
-    "id": "uuid",
-    "name": "测试会话 3",
-    "model_id": "uuid",
-    "created_at": "2026-03-18T10:00:00+08:00",
-    "message_count": 0
-  },
-  "msg": "success"
-}
-```
-
-**会话列表响应**: 按 `updated_at desc` 排序，当前实现为全量返回（不分页）。
-
-**重命名请求**:
-
-```json
-{
-  "name": "string, 必填, max 100"
-}
-```
-
-#### 3.7.2 单条测试 (对话式)
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| POST | /api/v1/test-sessions/{sid}/messages | 向已创建会话发送测试消息 | FR-051 |
-
-**请求**:
-
-```json
-{
-  "content": "string, 必填, 1~500 字符"
-}
-```
-
-**响应** (200):
-
-```json
-{
-  "code": "000000",
-  "data": [
-    {
-      "id": "uuid",
-      "session_id": "uuid",
-      "role": "user",
-      "content": "设置温度180度",
-      "result": {},
-      "created_at": "2026-03-18T10:05:00+08:00"
-    },
-    {
-      "id": "uuid",
-      "session_id": "uuid",
-      "role": "assistant",
-      "content": "意图: set_cooking_temp (置信度: 94.00%)",
-      "result": {
-        "intent": "set_cooking_temp",
-        "confidence": 0.94,
-        "slots": {
-          "number": "180"
-        },
-        "latency_ms": 45
-      },
-      "created_at": "2026-03-18T10:05:00+08:00"
-    }
-  ],
-  "msg": "success"
-}
-```
-
-#### 3.7.3 会话消息历史
-
-| 方法 | 路径 | 说明 | 对应 FR |
-|------|------|------|---------|
-| GET | /api/v1/test-sessions/{sid}/messages | 消息列表 (页码分页) | FR-051 |
-
-**消息列表请求** (Query):
-
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| page | int | 否 | 1 | 页码，从 1 开始 |
-| page_size | int | 否 | 10 | 每页条数，当前该接口 max=200 |
-
-**消息列表响应**: 服务端按 `created_at desc` 选取分页窗口，返回时按时间正序排列当前页消息，便于聊天窗口直接渲染。
-
-**消费约束**:
-- 前端必须按统一响应包络读取 `data.items / total / page / page_size / pages`
-- 不允许把消息历史假定为“纯数组一次性返回”，也不允许自行虚构游标字段
-
-```json
-{
-  "code": "000000",
-  "data": {
-    "items": [
-      {
-        "id": "uuid",
-        "role": "user",
-        "content": "设置温度180度",
-        "created_at": "2026-03-18T10:05:00+08:00"
-      },
-      {
-        "id": "uuid",
-        "role": "assistant",
-        "content": "意图: set_cooking_temp (置信度: 94.00%)",
-        "result": {
-          "intent": "set_cooking_temp",
-          "confidence": 0.94,
-          "slots": {
-            "number": "180"
-          },
-          "latency_ms": 45
-        },
-        "created_at": "2026-03-18T10:05:00+08:00"
-      }
-    ],
-    "total": 2,
-    "page": 1,
-    "page_size": 10,
-    "pages": 1
-  },
-  "msg": "success"
-}
-```
-
-#### 3.7.4 批量测试 (评估任务)
-
-当前 `test.html` 中的“批量测试”已改为真实 `batch-tests` 闭环：前端选择 `model_id`、录入测试行后，直接创建批量测试任务、导入 cases、触发执行，并跳转到 `/batch-test/{id}` 查看结果与分析。
-
-**本轮真实口径**:
-- `IntentLibrary/test.html` 只负责发起任务与跳转；标准批量评估状态、逐条结果、智能分析统一以 `batch-tests` 模块接口与页面为准
-- 创建任务时必须绑定 `model_id`；后端同时兼容历史 `profile_id` 批量测试，但两者互斥
-- 若模型产物缺失、权限不足或执行失败，必须回传真实错误；前端不得伪造“执行成功 / 智能分析已生成 / 可回放 test-run”状态
-
----
-
-## 4. 小模型训练与推理架构
-
-本节是指令库域的核心技术支撑，覆盖从训练数据到设备端推理的完整链路。
-
-**对应 FR**: FR-027, FR-043~054
-
-### 4.1 整体流水线
-
-```
-训练数据 (dataset) → 数据预处理 → 模型训练 → 模型评估 → 模型导出 → 平台部署
-                                                                  ├── ONNX (服务端测试/通用设备)
-                                                                  └── TensorRT (Jetson Nano)
-```
-
-### 4.2 训练框架与模型架构
-
-| 组件 | 技术选型 | 版本 | 选型理由 |
-|------|---------|------|---------|
-| 训练框架 | PyTorch | 2.x | 生态成熟，动态图调试友好，ONNX 导出原生支持 |
-| 意图分类模型 | BERT-base-chinese / DistilBERT | - | 中文语义理解能力强，DistilBERT 用于设备端轻量推理 |
-| 槽位提取模型 | BERT + CRF (序列标注) | - | BIO 标注 + CRF 层提升边界识别准确率 |
-| 分词 / Tokenizer | HuggingFace Transformers | 4.x | 与模型配套，支持中文 WordPiece |
-| 数据增强 | NLPAug / LLM 合成 | - | 小样本场景下扩充训练集 |
-| 英文数据生成 | LLM 翻译 (中→英) | - | FR-025: 英文训练数据基于中文数据翻译生成，通过 LLM 合成流程的 translate 模式实现 |
-| 实验管理 | MLflow (可选) | - | 训练超参、指标、模型版本追踪 |
-
-### 4.3 训练流水线详细设计
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│  训练流水线 (异步任务, 后台 Worker)                                       │
-│                                                                         │
-│  1. 数据预处理                                                           │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │  训练集 JSON/Excel                                                │   │
-│  │    → 意图标签编码 (intent_key → label_id)                         │   │
-│  │    → Tokenize (WordPiece, max_length=128)                         │   │
-│  │    → 槽位 BIO 标注转换                                            │   │
-│  │    → Train/Val 拆分 (8:2, 按意图分层抽样)                          │   │
-│  │    → (英文库) LLM 翻译中文训练数据为英文 (FR-025)                   │   │
-│  └───────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  2. 模型训练                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │  意图分类:                                                        │   │
-│  │    BERT → Linear(hidden_size, num_intents) → CrossEntropyLoss     │   │
-│  │    学习率: 2e-5, batch_size: 32, epochs: 10~30 (early stopping)   │   │
-│  │                                                                    │   │
-│  │  槽位提取:                                                         │   │
-│  │    BERT → Linear(hidden_size, num_slot_tags) → CRF                │   │
-│  │    联合训练: loss = intent_loss * α + slot_loss * (1-α), α=0.6     │   │
-│  └───────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  3. 模型评估                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │  评估指标:                                                         │   │
-│  │    - 意图分类: Accuracy, Precision, Recall, F1 (macro/micro)      │   │
-│  │    - 槽位提取: Slot F1 (严格匹配)                                  │   │
-│  │    - 综合: Intent+Slot 联合准确率                                  │   │
-│  │  输出: 混淆矩阵, 低置信度样本列表, 槽位错误分布                      │   │
-│  └───────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  4. 模型导出                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐   │
-│  │  PyTorch (.pt)                                                     │   │
-│  │    → torch.onnx.export (opset_version=14, dynamic_axes)            │   │
-│  │    → ONNX 模型 (.onnx) — 服务端推理 / 通用设备                     │   │
-│  │    → (可选) TensorRT 转换: trtexec --onnx=model.onnx --fp16        │   │
-│  │       → TensorRT 引擎 (.engine) — Jetson Nano 专用                 │   │
-│  │                                                                    │   │
-│  │  导出产物打包:                                                      │   │
-│  │    model.onnx / model.engine                                       │   │
-│  │    + label_map.json (intent_key ↔ label_id)                        │   │
-│  │    + slot_map.json (slot_tag ↔ tag_id)                             │   │
-│  │    + tokenizer_config (vocab.txt + config)                         │   │
-│  │    + metadata.json (训练时间, 数据集版本, 指标快照)                  │   │
-│  │    → 打包为 .zip 供下载 (FR-054, 平台无关)                          │   │
-│  └───────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4.4 推理引擎架构
-
-**服务端推理** (用于单条测试、批量评估、在线对话):
-
-| 组件 | 说明 |
-|------|------|
-| 推理引擎 | ONNX Runtime (Python, CPU) |
-| 加载方式 | 模型发布/设为 testable 时预加载到内存 |
-| 缓存策略 | Redis 缓存已加载的模型版本 ID → 内存模型对象映射 |
-| 并发处理 | 模型推理使用线程池 (max_workers=4, 因 GIL 限制 CPU 推理为串行) |
-| 超时保护 | 单次推理超时 500ms，超时返回降级响应 |
-
-**设备端推理** (Jetson Nano / 嵌入式设备):
-
-| 组件 | 说明 |
-|------|------|
-| 推理引擎 | TensorRT (C++, GPU) / ONNX Runtime (C++, CPU fallback) |
-| 模型格式 | .engine (TensorRT FP16) / .onnx (通用 fallback) |
-| 内存限制 | 模型 + 运行时 < 1.5GB (Jetson Nano 4GB RAM 共享) |
-| 推理延迟 | 意图分类 < 50ms, 槽位提取 < 80ms (TensorRT FP16) |
-| 模型更新 | 通过 HTTP 下载 .zip → 本地解压 → 热加载 (无需重启) |
-| 多模型管理 | 按指令库隔离, 同时加载 ≤ 3 个模型 (内存受限) |
-
-### 4.5 模型版本与产物管理
-
-```
-PostgreSQL:
-  library_model_version:
-    - model_id, library_id, status, dataset_id
-    - train_config (JSON): {lr, batch_size, epochs, base_model}
-    - train_metrics (JSON): {accuracy, f1, slot_f1, loss_curve}
-    - onnx_path: "models/{library_key}/{model_id}/model.onnx"
-    - package_path: "models/{library_key}/{model_id}/package.zip"
-    - created_at, trained_at, published_at
-
-文件存储 (本地 / 对象存储):
-  models/
-    {library_key}/
-      {model_id}/
-        model.pt            # PyTorch 原始模型
-        model.onnx          # ONNX 导出
-        model.engine         # TensorRT (训练机器生成)
-        label_map.json
-        slot_map.json
-        tokenizer/
-        metadata.json
-        package.zip          # 下载用打包文件 (FR-054)
-```
-
-### 4.6 训练任务调度
-
-| 场景 | 实现方式 | 说明 |
-|------|---------|------|
-| 训练任务提交 | FastAPI BackgroundTasks / Celery (按规模选择) | 初期用 BackgroundTasks，任务量大时切 Celery |
-| 训练进度通知 | 前端轮询 `GET /api/v1/models/{id}` (status + progress) | 每 5s 轮询，训练中返回 progress 百分比 |
-| GPU 资源 | 单 GPU 串行训练（初期），队列化等待 | 训练任务互斥锁，避免 OOM |
-| 训练中断恢复 | Checkpoint 保存 (每 epoch) + 恢复训练 | 中断后可从最近 checkpoint 继续 |
-| 超时保护 | 单次训练最长 2h，超时自动终止标记 failed | 防止资源泄露 |
-
----
-
-## 5. 模块级风险
-
-| 风险 | 影响 | 可能性 | 缓解策略 | 对应 |
-|-----|------|--------|---------|------|
-| 小模型推理延迟超标 | 高 | 中 | 模型量化 (FP16/INT8) + ONNX Runtime 优化 + 推理预加载 | SC-002 |
-| 模型训练耗时长 | 低 | 高 | 异步任务 + 进度轮询 + 2h 超时保护 + checkpoint 断点续训 | FR-044 |
-| 训练 GPU 资源不足 | 中 | 中 | 串行训练队列 + 互斥锁 + 未来扩展至 Celery + GPU 池 | FR-043 |
-| 设备端模型热加载失败 | 中 | 低 | 新模型校验通过后替换，失败保留旧模型运行 | FR-054 |
-| ONNX→TensorRT 转换兼容性 | 中 | 中 | 限定 opset 14, 持续集成中做转换验证 | FR-054 |
+## 5. 接口契约
+
+### 5.1 `GET /api/v1/intent-libraries`
+
+- **能力点**: `intent_library_read`
+- **输入**: `language/status/page/page_size`
+- **输出**: 指令库列表、模型数量、published/testable 摘要
+
+### 5.2 `POST /api/v1/intent-libraries`
+
+- **能力点**: `intent_library_write`
+- **输入**: `library_key/name/language/description/default_thresholds`
+- **约束**:
+  - `library_key` 全局唯一且创建后不可修改
+  - 语言固定 `zh/en`
+  - `default_thresholds` 只定义库级默认值，不等价于任务级覆盖快照
+
+### 5.3 `GET /api/v1/intent-libraries/{library_id}`
+
+- **能力点**: `intent_library_read`
+- **输出**: 指令库详情、模型版本列表、状态机说明、数据集绑定摘要、阈值默认值
+
+### 5.4 `POST /api/v1/intent-libraries/{library_id}/datasets`
+
+- **能力点**: `intent_library_write`
+- **输入**: `dataset_type(training/evaluation)`、来源(`manual/llm/import`)与字段映射
+- **输出**: 数据集记录与绑定状态
+
+### 5.5 `POST /api/v1/models/{model_id}/train`
+
+- **能力点**: `model_train`
+- **输入**: `training_dataset_id`、可选超参与说明
+- **输出**: `draft -> training` 真实任务状态
+- **失败语义**: 模型数量超限、训练集 1:1 绑定冲突、数据集为空、任务投递失败
+
+### 5.6 `POST /api/v1/models/{model_id}/evaluate`
+
+- **能力点**: `model_test_manage`
+- **输入**:
+  - `evaluation_dataset_id`
+  - `threshold_override`
+- **输出**:
+  - 任务状态
+  - `threshold_snapshot`
+  - 评估结果引用
+- **FR-050 约束**:
+  - 允许任务级单次覆盖
+  - 覆盖结果必须快照化保存
+  - 库级默认值与任务级覆盖的继承展示仍属 `Partial`
+
+### 5.7 `POST /api/v1/models/{model_id}/publish`
+
+- **能力点**: `model_publish`
+- **输入**: 发布说明、产物格式确认
+- **输出**: 最新 published/testable 关系、下载元数据
+
+### 5.8 `GET /api/v1/models/{model_id}/download`
+
+- **能力点**: `intent_library_read`
+- **输出**: 产物地址、格式、版本摘要、兼容环境说明
+
+## 6. 浏览器阶段与性能门槛
+
+| 项目 | 冻结值 | 来源 |
+|------|--------|------|
+| `response_p95_ms` | `2000` | `.specify/harness/module-rollout.json` |
+| `command_intent_accuracy_min` | `0.95` | `spec.md` SC-001 |
+| `slot_f1_min` | `0.90` | 本轮 critical 模块冻结门槛 |
+| `validation_set_path` | `.specify/harness/core-validation-set.json` | 由 `temp_data/config.json` 生成 |
+| `validation_case_count_min` | `39` | `temp_data/config.json` |
+| `required_slot_case_count_min` | `21` | `temp_data/config.json` |
+
+## 7. FR 追溯
+
+| FR | 需求 | 设计落实 |
+|----|------|---------|
+| FR-039 | 指令库管理、唯一 key | 列表 + 创建契约 + 不可修改约束 |
+| FR-043 | 单库模型上限 5 | 详情页/训练入口容量检查 |
+| FR-044 | 模型状态机 | 训练/评估/发布数据流 |
+| FR-045/046 | testable/published 唯一性 | 发布与切换服务 |
+| FR-048/049 | 训练/评估数据集口径 | 数据集管理与导入契约 |
+| FR-050 | 阈值默认值 + 任务覆盖 | `threshold_snapshot`，但保持 `Partial` 声明 |
+| FR-051/052 | 单条测试 + 批量评估 + 分析 | `test.html` 与评估任务返回 |
+| FR-053 | 能力点控制发布/测试管理 | API capability guard |
+| FR-054 | 模型下载 | 下载接口与版本元数据 |
+
+## 8. 风险与缓解
+
+| 风险 | 影响 | 缓解 |
+|------|------|------|
+| `FR-050` 部分覆盖 | 任务级阈值继承可能被误解为已闭环 | 在 DD/plan/tasks 持续标记 `Partial`，禁止宣称 100% 完成 |
+| 异步训练假成功 | UI 看似成功但后台未真实执行 | 所有训练/评估入口必须返回真实 job id 与状态，browser stage 检查状态回读 |
+| 数据集样本统计失真 | PM 误判覆盖度与质量 | 样本量、必填槽位覆盖和阈值快照均以后端回读为准 |
+| 产物下载与发布解耦不清 | published 模型无法在 Python/C++ 双端验证 | 在任务阶段补充元数据和下载验证链路 |

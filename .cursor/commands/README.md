@@ -29,18 +29,23 @@
 │                          ↓                                                  │
 │   /speckit.plan                                                             │
 │   ├── 输入: spec.md + pd-all/ + ad/ + dd/                                   │
-│   ├── 输出: plan.md (实施规划桥梁)                                           │
+│   ├── 输出: plans/plan-<module>.md (实施规划桥梁)                           │
 │   └── 检查点: 阶段规划、测试策略、风险识别                                    │
 │                          ↓                                                  │
 │   /speckit.tasks                                                            │
-│   ├── 输入: pd-all/ + ad/ + dd/ + plan.md                                   │
+│   ├── 输入: pd-all/ + ad/ + dd/ + plans/plan-<module>.md                    │
 │   ├── 输出: tasks/ (按 PD 模块拆分的任务目录, TDD 强制)                      │
 │   └── 检查点: 每模块独立可测、依赖清晰、覆盖全部 PD 交互                     │
 │                          ↓                                                  │
 │   /speckit.implement                                                        │
-│   ├── 输入: tasks/ (读取 README.md 索引 + 各模块任务文件)                    │
+│   ├── 输入: tasks/ + module-rollout/state                                   │
 │   ├── 输出: 代码实现                                                        │
-│   └── 检查点: 符合设计、测试通过、枚举一致性校验                              │
+│   └── 检查点: 单模块主控、测试通过、枚举一致性校验                            │
+│                          ↓                                                  │
+│   /speckit.smoke [module]                                                   │
+│   ├── 输入: 运行中的前后端服务 + 目标模块                                    │
+│   ├── 输出: 模块级浏览器验证报告（UI smoke + business e2e + probes）         │
+│   └── 检查点: browser_verified                                              │
 │                          ↓                                                  │
 │   /speckit.review                                                           │
 │   ├── 输入: 已实现代码 + ad/ + dd/ + constitution.md                        │
@@ -49,7 +54,7 @@
 │                          ↓                                                  │
 │   /speckit.smoke (全量，在 implement 全局完成门禁 C.6 触发)                  │
 │   ├── 输入: 运行中的前后端服务                                              │
-│   ├── 输出: 浏览器冒烟验证报告（逐页 5 项检查）                             │
+│   ├── 输出: 浏览器冒烟验证报告（逐页 9 项检查）                             │
 │   └── 检查点: 严重问题已修复                                                │
 │                          ↓                                                  │
 │   人工验收                                                                  │
@@ -144,7 +149,7 @@
 - 所有设计文档（spec + pd + ad + dd）完成后
 - 需要精确估算和规划时
 
-**输出**: `specs/{branch}/plan.md`
+**输出**: `specs/{branch}/plans/plan-<module>.md`
 
 **关键产出**:
 - 技术背景速查（不重复 AD/DD 内容）
@@ -158,7 +163,7 @@
 **目的**: 基于 PD 交互模块拆解为独立的任务文件（PD 是首要驱动源，AD/DD 提供实现细节，plan 提供阶段规划，TDD 强制）
 
 **使用场景**:
-- 所有设计文档 + plan.md 完成后
+- 所有设计文档 + 模块 plan 完成后
 - 准备进入开发时
 
 **输出**: `specs/{branch}/tasks/`（README.md 索引 + tasks-infra.md + tasks-\<module\>.md + tasks-refinement.md）
@@ -174,8 +179,8 @@
 
 **模式**:
 - 指挥官+子代理工人模式
-- 指挥官读取 tasks/README.md 调度，按模块派发任务
-- 支持模块级并行执行
+- `MasterAgent` 读取 tasks/README.md + module-rollout/state 调度，按模块派发任务
+- 只允许单模块实现；同模块内任务可并行
 - 自动进度追踪（各模块文件 + 全局索引）
 - **模块检查点含枚举一致性校验**（DD 定义 vs 代码实际使用的权限点/错误码/状态枚举）
 
@@ -236,43 +241,42 @@
 **目的**: 在真实浏览器中模拟用户操作，发现脚本化测试无法覆盖的 UI 渲染与交互问题
 
 **使用场景**:
+- implement 模块完成后的前移浏览器门禁
 - implement 全局完成门禁（全量冒烟）
 - 缺陷修复后验证涉及前端的页面（指定范围）
 - 开发过程中随时自查
 
 **命令**:
 - `/speckit.smoke` - 全量：遍历所有页面
-- `/speckit.smoke [module-name]` - 模块级：如 `monitoring`
+- `/speckit.smoke [module-name]` - 模块级：使用 rollout key，如 `pd-monitoring`
 - `/speckit.smoke [page-path]` - 页面级：如 `/monitoring/device-logs`
 
-**5 项检查**: 页面可达性、控制台零错误、数据渲染校验、布局完整性、关键交互
+**9 项检查**: 页面可达性、控制台、数据渲染、布局、关键交互、性能感知、权限、PD 符合性、业务链路冒烟
 
 ---
 
-## 辅助命令
-
-### /speckit.clarify
+### 11. /speckit.clarify
 **目的**: 对需求或设计进行澄清问答
 
 **使用场景**:
 - spec.md 有疑问时
 - 设计决策需要讨论时
 
-### /speckit.analyze
+### 12. /speckit.analyze
 **目的**: 分析代码或设计问题
 
 **使用场景**:
 - 排查缺陷根因
 - 评审设计方案
 
-### /speckit.checklist
+### 13. /speckit.checklist
 **目的**: 生成验收检查清单
 
 **使用场景**:
 - 功能完成前验收
 - 确保覆盖所有需求点
 
-### /speckit.constitution
+### 14. /speckit.constitution
 **目的**: 查看或引用项目章程
 
 ---
@@ -319,10 +323,12 @@ mkdir -p specs/feature-xxx
 /speckit.design-pd  # → pd-all/
 /speckit.design-ad  # → ad/ (或 ad.md)
 /speckit.design-dd  # → dd/ (或 dd.md)
-/speckit.plan       # → plan.md
+/speckit.plan       # → plans/plan-<module>.md
 /speckit.tasks      # → tasks/ (任务目录)
 /speckit.implement  # → 代码
+/speckit.smoke pd-<module>  # → 模块级浏览器门禁
 /speckit.review     # → Code Review 报告
+/speckit.smoke      # → 全量浏览器冒烟
 ```
 
 ### 缺陷修复流程
@@ -368,8 +374,8 @@ cp specs/master/defects/_template.md specs/master/defects/D0xx.md
 
 ### 检查清单
 
-- [ ] 已阅读 `SPECKIT_ENHANCED.md`
-- [ ] 已查看 `specs/_template/` 模板
-- [ ] 已理解 pd-all/ / ad/ / dd/ 文件夹结构的作用
+- [ ] 已阅读当前命令索引与对应命令说明
+- [ ] 已查看 `.specify/templates/` 与 `specs/_template/` 中的模板约定
+- [ ] 已理解 `pd-all/ / ad/ / dd/ / plans/ / tasks/` 的阶段作用与先后顺序
 - [ ] 已了解缺陷分类路由机制（代码修复 / 设计补充 / 需求回溯）
-- [ ] 已准备在当前迭代试用新流程
+- [ ] 已准备按 `specify -> clarify -> design-pd -> design-ad -> design-dd -> plan -> tasks` 的顺序推进

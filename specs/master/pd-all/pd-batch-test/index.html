@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批量测试 | SmartChef PD</title>
+    <title>对话方案批量测试 | SmartChef PD</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -332,7 +332,7 @@
                     label: "测试验证",
                     children: [
                         { key: "manual-test", icon: React.createElement(MessageOutlined), label: "手动测试", onClick: () => goTo("manual-test") },
-                        { key: "batch-test", icon: React.createElement(ThunderboltOutlined), label: "批量测试" }
+                        { key: "batch-test", icon: React.createElement(ThunderboltOutlined), label: "批量测试（方案）" }
                     ]
                 },
                 {
@@ -695,8 +695,8 @@
                     React.createElement("div", { className: "page-header" },
                         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
                             React.createElement("div", null,
-                                React.createElement("h1", { style: { fontSize: 24, fontWeight: 600, marginBottom: 8 } }, "批量测试"),
-                                React.createElement("p", { style: { color: "#8c8c8c", fontSize: 14 } }, "管理批量测试批次，自动生成或上传测试用例，执行后查看结果与智能分析")
+                                React.createElement("h1", { style: { fontSize: 24, fontWeight: 600, marginBottom: 8 } }, "对话方案批量测试"),
+                                React.createElement("p", { style: { color: "#8c8c8c", fontSize: 14 } }, "管理不同对话方案的批量测试批次，自动生成或上传测试用例，执行后查看结果与智能分析")
                             ),
                             React.createElement(Space, null,
                                 React.createElement(Tooltip, { title: "查看数据流向、状态流转、字段说明和业务约束" },

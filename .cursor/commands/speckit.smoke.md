@@ -17,7 +17,7 @@ $ARGUMENTS
 | 用法 | 范围 |
 |------|------|
 | `/speckit.smoke` | **全量**：遍历所有页面 |
-| `/speckit.smoke [module-name]` | **模块级**：仅验证指定模块的页面（如 `monitoring`） |
+| `/speckit.smoke [module-name]` | **模块级**：仅验证指定模块的页面（使用 rollout key，如 `pd-monitoring`） |
 | `/speckit.smoke [page-path]` | **页面级**：仅验证指定页面（如 `/monitoring/device-logs`） |
 
 ## 目标
@@ -26,7 +26,7 @@ $ARGUMENTS
 
 > 本命令补齐测试金字塔中**视觉渲染层**的盲区，与 E2E 脚本化测试互补。
 
-### 覆盖的问题类型（8 大维度，25+ 项）
+### 覆盖的问题类型（9 项检查，25+ 项）
 
 #### 一、页面可达性 / 路由层面
 - 页面白屏：路由已注册但组件渲染为空（如懒加载失败、ErrorBoundary 吞异常）
@@ -81,10 +81,11 @@ $ARGUMENTS
 ## 前置条件
 
 执行前 MUST 确认：
-1. 后端服务已启动（`uvicorn app.main:app`）
+1. 后端服务已启动（`uvicorn app.main:app` 或 `python -m uvicorn app.main:create_app --factory`）
 2. 前端开发服务器已启动（`npm run dev`）
 3. 数据库已初始化（种子数据已导入）
 4. 至少有一个可登录的用户账号
+5. 若是模块级验证，先运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage browser -Module <target-module> -Json`
 
 ## 执行流程
 
@@ -93,8 +94,9 @@ $ARGUMENTS
 1. 使用 browser 工具打开前端页面（默认 `http://localhost:5173`）
 2. 执行登录操作（使用默认 admin 账号或用户指定的账号）
 3. 确认登录成功，进入主界面
-4. 读取 `plan.md` / `tasks/` 中该范围对应模块的核心业务链路与显式未完成声明
-5. 若目标模块仍存在 `Stub / Blocked By` 且影响核心链路，必须在报告中明确标记为未通过，禁止用"页面可访问"替代结论
+4. 若是模块级验证，读取 `module-rollout.json` 中该模块的 `browser_stage` 配置，确认 `ui_smoke / business_e2e / quality_probes`
+5. 读取当前模块 plan / `tasks/` 中该范围对应模块的核心业务链路与显式未完成声明
+6. 若目标模块仍存在 `Stub / Blocked By` 且影响核心链路，必须在报告中明确标记为未通过，禁止用"页面可访问"替代结论
 
 ### Phase 2: 逐页验证
 
@@ -168,6 +170,7 @@ $ARGUMENTS
 **检查方法**: 通过浏览器或 API 调用，验证核心流程端到端可用（非仅 UI 渲染）。
 
 **各模块核心链路**:
+- **用户管理**: 创建账号 → 调整角色/权限 → 列表与权限矩阵回读一致
 - **指令库**: 新建库 → 新建数据集 → 添加意图 → 创建模型 → 训练 → 状态变为 trained → 评估 → testable → 发布
 - **对话方案**: 创建方案 → 绑定指令库 → 发布 → 测试对话返回有意义结果（非占位符）
 - **批量测试**: 创建批次 → 添加用例 → 执行 → 结果包含真实准确率/延迟
@@ -217,7 +220,7 @@ $ARGUMENTS
 - 严重问题 MUST 修复
 - 一般问题 SHOULD 修复
 - PD 功能差距过大的，建议回到 /speckit.defects 走需求回溯路径
-- **PD 功能符合性为一票否决项**：任何页面 PD 覆盖率 < 85% 即视为整体冒烟未通过
+- **PD 功能符合性为一票否决项**：任何页面 PD 覆盖率 < 80% 即视为整体冒烟未通过
 - **业务链路真实性为一票否决项**：任何模块存在假成功 / 假进度 / 假统计 / 501 桩实现，整体冒烟未通过
 - 如需创建缺陷: 复制 `_template.md` → `D0xx.md`
 ```

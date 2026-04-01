@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>批次详情 | SmartChef PD</title>
+    <title>对话方案批次详情 | SmartChef PD</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -337,7 +337,7 @@
                     key: "testing", icon: <ExperimentOutlined />, label: "测试验证",
                     children: [
                         { key: "manual-test", icon: <MessageOutlined />, label: "手动测试" },
-                        { key: "batch-test", icon: <ExperimentOutlined />, label: "批量测试" }
+                        { key: "batch-test", icon: <ExperimentOutlined />, label: "批量测试（方案）" }
                     ]
                 },
                 {
@@ -371,7 +371,7 @@
                                     <Button icon={<ArrowLeftOutlined />} onClick={() => window.location.href = "index.html"}>返回</Button>
                                     <div>
                                         <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                                            批次详情: {batchInfo.name}
+                                            对话方案批次详情: {batchInfo.name}
                                             <Tag color="red">未达标</Tag>
                                         </h1>
                                     </div>

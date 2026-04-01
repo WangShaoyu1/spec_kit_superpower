@@ -23,13 +23,17 @@ $ARGUMENTS
 
 ## 概述
 
-1. **设置**: 从仓库根目录运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json` 并解析 FEATURE_DIR 和 AVAILABLE_DOCS 列表. 所有路径必须是绝对路径.
+1. **设置**: 从仓库根目录运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequirePlan -RequireDesign` 并解析 FEATURE_DIR 和 AVAILABLE_DOCS 列表. 所有路径必须是绝对路径.
+1.1 若当前采用模块级 rollout，先运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认 `MasterAgent` 选中的目标模块
+1.2 **Harness Gate**: 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage tasks -Module <target-module> -Json`（非模块模式可省略 `-Module`）
+   - 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码, **不得继续生成 tasks**
+   - 若返回 `WARNING`, 必须在对应任务文件中显式继承风险与未完成声明
 
 2. **执行 pre-flight 文档冲突扫描**（生成任务前强制）:
    - 检查同一 FR 在 `spec / AD / DD` 中是否存在冲突口径
    - 检查 `AD` 引用的 PD 页面/流程是否真实存在
-   - 检查 `plan.md` 中的源码路径是否与当前工程目录一致
-   - 检查 `PD README` 中的“部分覆盖 / 待补充 / 待确认”是否已经在 `plan.md` 中显式承接
+   - 检查当前模块 plan 中的源码路径是否与当前工程目录一致
+   - 检查 `PD README` 中的“部分覆盖 / 待补充 / 待确认”是否已经在当前模块 plan 中显式承接
    - 检查每个 UI 模块是否已经定义 1-3 条核心业务链路与真实成功信号
    - 扫描结果必须分级输出:
      - `BLOCKER`: 必须先修设计文档, **不得继续生成 tasks**
@@ -39,7 +43,7 @@ $ARGUMENTS
 3. **加载设计文档**: 从 FEATURE_DIR 读取:
    - **必需**: pd-all/(产品交互设计 — 任务分解的**首要驱动源**，定义具体的页面、交互流程、状态变化)
    - **必需**: ad/(架构设计 — API 契约、数据流), dd/(详细设计 — 数据模型、状态机、算法、错误码)
-   - **必需**: plan.md(阶段规划、技术栈、项目结构)
+   - **必需**: 当前模块 plan(阶段规划、技术栈、项目结构)
    - **参考**: spec.md(用户故事优先级 P1/P2/P3 + FR 标签 — 用于优先级排序和追溯)
    - 注意: ad/ 和 dd/ 可能是文件夹（含 README.md + 模块文件）或单文件（ad.md / dd.md）. 按实际结构加载.
 
@@ -47,9 +51,9 @@ $ARGUMENTS
    - **加载 pd-all/ 并按模块提取页面、交互流程、状态矩阵** — 这是任务拆分的首要来源
    - 加载 ad/(或 ad.md): 提取 API 端点 → 映射到 PD 模块
    - 加载 dd/(或 dd.md): 提取实体、状态机、算法 → 映射到 PD 模块
-   - 加载 plan.md 并提取技术栈、阶段规划、项目结构
+   - 加载当前模块 plan 并提取技术栈、阶段规划、项目结构
    - 加载 spec.md 提取用户故事优先级(P1/P2/P3) → 用于 PD 模块的排序参考
-   - 加载 `plan.md` / `spec.md` 中的核心业务链路、真实成功信号、显式未完成声明
+   - 加载当前模块 plan / `spec.md` 中的核心业务链路、真实成功信号、显式未完成声明
    - **按 PD 模块拆分生成独立的任务文件**:
      - `tasks/tasks-infra.md` — 设置 + 基础设施（阻塞所有模块）
      - `tasks/tasks-<module>.md` — 每个 PD 模块一个独立文件
@@ -127,7 +131,7 @@ $ARGUMENTS
 > spec.md 提供用户故事优先级用于排序参考; PD 提供具体的可实现单元.
 
 **核心业务链路强制**:
-- 每个 UI 模块 MUST 从 `plan.md` 继承 1-3 条核心业务链路
+- 每个 UI 模块 MUST 从对应模块 plan 继承 1-3 条核心业务链路
 - 每条核心链路 MUST 至少拆出一项集成测试或 E2E 测试, 且验证最终结果而非仅验证入口步骤
 - 未定义核心业务链路的模块不得生成"可完成"的任务集
 

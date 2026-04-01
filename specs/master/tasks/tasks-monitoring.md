@@ -1,151 +1,111 @@
-# 监控仪表盘 (Monitoring) 任务
+# 任务文件: `pd-monitoring`
 
-**PD 交互原型**: pd-all/pd-monitoring/ (3 pages: index, device-logs, alert-rules)
-**架构设计**: ad/ad-monitoring.md
-**详细设计**: dd/dd-monitoring.md
-**优先级**: P2
-**依赖**: tasks-infra.md 必须先完成 (日志中间件已在 infra 中创建)
+**输入**: `specs/master/pd-all/pd-monitoring/` + `specs/master/ad/ad-monitoring.md` + `specs/master/dd/dd-monitoring.md` + `specs/master/plans/plan-monitoring.md`  
+**前置依赖**: `pd-batch-test = browser_verified`、`tasks-refinement = completed`  
+**TDD 约束**: 先写失败测试，再写最小实现，再验证通过  
+**风险提示**: 不得伪造 overview 指标、会话链路或告警触发
 
-## 测试任务（TDD: 先写测试, 确保红灯）
+## 任务总览
 
-### 契约测试（覆盖 AD API — 10 端点）
+- 总任务数: 12
+- 测试任务: 5
+- 后端任务: 4
+- 前端任务: 3
 
-- [ ] T001 [P] [T-CONTRACT] 仪表盘 API 契约测试: GET /monitoring/dashboard
-  - 文件: `backend/tests/contract/test_monitoring_dashboard_api.py`
-  - 依据: ad/ad-monitoring.md §3.1
-- [ ] T002 [P] [T-CONTRACT] 设备日志 + 会话链路 契约测试: GET /monitoring/device-logs, GET /monitoring/sessions/{id}/traces, GET /monitoring/logs
-  - 文件: `backend/tests/contract/test_monitoring_logs_api.py`
-  - 依据: ad/ad-monitoring.md §3.2
-- [ ] T003 [P] [T-CONTRACT] 告警规则 CRUD + 事件 契约测试: GET/POST/PUT/DELETE /alert-rules, PUT /alert-rules/{id}/toggle, GET /alert-events
-  - 文件: `backend/tests/contract/test_monitoring_alerts_api.py`
-  - 依据: ad/ad-monitoring.md §3.3
+## 任务列表
 
-### 集成测试（覆盖 AD 数据流）
+### Task 1. 后端契约测试: overview 指标与最近告警
+- [x] 新增 `backend/tests/contract/test_monitoring_api.py`
+- [x] 先写 `overview` 失败测试，覆盖指标卡、路由分布、最近告警字段
+- [x] 运行定向 pytest，确认失败原因正确
+- [x] 在 `backend/app/models.py` 与 `backend/app/api/monitoring.py` 补最小实现
+- [x] 重新运行定向 pytest，确认通过
 
-- [ ] T004 [P] [T-INTEGRATION] 日志写入→指标聚合→仪表盘展示 集成测试
-  - 文件: `backend/tests/integration/test_monitoring_pipeline.py`
-  - 依据: ad/ad-monitoring.md §2.1 监控数据流
-- [ ] T005 [P] [T-INTEGRATION] 告警规则评估→事件生成→状态流转 集成测试
-  - 文件: `backend/tests/integration/test_alert_pipeline.py`
-  - 依据: ad/ad-monitoring.md §2.2 告警数据流
+### Task 2. 后端契约测试: 请求日志筛选与分页
+- [x] 在 `test_monitoring_api.py` 增加日志筛选、分页结构、空态与错误码失败测试
+- [x] 运行失败测试，确认接口与字段缺口
+- [x] 补齐 `request-logs` 查询最小实现
+- [x] 回归该测试文件
 
-### E2E 测试（覆盖 PD 交互路径）
+### Task 3. 后端契约测试: 设备会话与 trace 详情
+- [x] 在 `test_monitoring_api.py` 增加 `device-sessions`、`session detail` 失败测试
+- [x] 运行失败测试
+- [x] 实现设备会话聚合与逐轮链路回读
+- [x] 回归通过
 
-- [ ] T006 [P] [T-E2E] 监控仪表盘页 E2E: 核心指标卡片+趋势图+实时刷新
-  - 文件: `frontend/tests/e2e/monitoring-dashboard.spec.js`
-  - 依据: pd-all/pd-monitoring/index.html
-- [ ] T007 [P] [T-E2E] 告警规则页 E2E: 规则CRUD+启用禁用+事件列表
-  - 文件: `frontend/tests/e2e/monitoring-alerts.spec.js`
-  - 依据: pd-all/pd-monitoring/alert-rules.html
+### Task 4. 后端集成测试: 告警规则与事件收敛
+- [x] 新增 `backend/tests/test_monitoring_flow.py`
+- [x] 写失败测试覆盖规则创建、停用、触发事件、恢复关闭
+- [x] 运行失败测试
+- [x] 实现 `alert_rule` / `alert_event` 与 evaluator
+- [x] 回归通过
 
-## 后端任务
+### Task 5. 后端契约测试: 结构化日志口径
+- [x] 在 `test_monitoring_api.py` 写失败测试覆盖 request/response trace 字段完整性
+- [x] 运行失败测试
+- [x] 修正 `request_log` 序列化与详情返回
+- [x] 回归通过
 
-### 数据模型（来自 DD 实体定义）
+### Task 6. 前端消费契约测试: API 适配层
+- [x] 扩展 `frontend/src/services/api.js`
+- [x] 新增 `frontend/src/services/api.monitoring.test.js`
+- [x] 先写失败测试，覆盖 overview、request-logs、session detail、alert-rules 请求形态
+- [x] 补最小实现并回归 Vitest
 
-- [ ] T008 [P] [B-MODEL] 创建 RequestLog ORM 模型 (id, session_id, device_id, input_text, domain, intent, slots, confidence, latency_ms, status, created_at) + 按月分区策略
-  - 文件: `backend/app/models/request_log.py`
-  - 依据: dd/dd-monitoring.md §1.1
-- [ ] T009 [P] [B-MODEL] 创建 AlertRule ORM 模型 (id, name, metric, operator, threshold, window_minutes, is_enabled, notification_channels)
-  - 文件: `backend/app/models/alert_rule.py`
-  - 依据: dd/dd-monitoring.md §1.2
-- [ ] T010 [P] [B-MODEL] 创建 AlertEvent ORM 模型 (id, rule_id, status, fired_at, resolved_at, value)
-  - 文件: `backend/app/models/alert_event.py`
-  - 依据: dd/dd-monitoring.md §1.3
-- [ ] T011 [P] [B-MODEL] 创建 Pydantic Schema (Dashboard/DeviceLog/AlertRule/AlertEvent Request/Response)
-  - 文件: `backend/app/schemas/monitoring.py`
-- [ ] T012 [B-MODEL] 生成 Alembic 迁移并运行 (request_logs 分区表, alert_rules, alert_events 表)
-  - 文件: `backend/migrations/versions/006_monitoring.py`
+### Task 7. 前端页面测试: 监控总览页骨架
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringDashboardPage.jsx`
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringDashboardPage.test.jsx`
+- [x] 先写失败测试，覆盖指标加载、手动刷新、日志筛选
+- [x] 最小实现页面骨架并回归 Vitest
 
-### 服务层（来自 DD 算法）
+### Task 8. 前端页面测试: 设备日志与 trace
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringDeviceLogsPage.jsx`
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringDeviceLogsPage.test.jsx`
+- [x] 先写失败测试，覆盖设备搜索、会话列表、逐轮链路展示
+- [x] 补详情页与交互，关键动作后强制回读
 
-- [ ] T013 [B-SERVICE] 指标聚合服务 (Redis 缓存 30s + 多维度聚合: 请求量/成功率/延迟/域分布)
-  - 文件: `backend/app/services/monitoring/metrics.py`
-  - 依据: dd/dd-monitoring.md §4.2 指标聚合算法
-- [ ] T014 [B-SERVICE] 多维日志查询服务 (按设备/时间/域/意图 筛选 + 分页)
-  - 文件: `backend/app/services/monitoring/log_query.py`
-  - 依据: dd/dd-monitoring.md §4.3 多维日志查询
-- [ ] T015 [B-SERVICE] 会话链路追踪服务 (按 session_id 聚合完整对话链路)
-  - 文件: `backend/app/services/monitoring/log_query.py` (扩展)
-  - 依据: dd/dd-monitoring.md §4.4
-- [ ] T016 [B-SERVICE] 告警规则管理服务 (CRUD + 启用/禁用)
-  - 文件: `backend/app/services/monitoring/alert_service.py`
-  - 依据: dd/dd-monitoring.md §4.5
-- [ ] T017 [B-SERVICE] 告警评估引擎 (30s 定时评估 + 事件生成 + 状态机: pending→firing→resolved + 同规则去重)
-  - 文件: `backend/app/services/monitoring/alert_engine.py`
-  - 依据: dd/dd-monitoring.md §4.6 告警评估算法
+### Task 9. 前端页面测试: 告警规则
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringAlertRulesPage.jsx`
+- [x] 新增 `frontend/src/modules/monitoring/MonitoringAlertRulesPage.test.jsx`
+- [x] 先写失败测试，覆盖规则列表、新建/停用、最近事件展示
+- [x] 补页面与交互，保存后强制回读
 
-### API 端点（来自 AD 接口契约）
+### Task 10. 前端壳层接入与 Harness 门禁
+- [x] 修改 `frontend/src/App.jsx`、`frontend/src/app/AppShell.jsx`
+- [x] 打通 `/monitoring`、`/monitoring/device-logs`、`/monitoring/alert-rules` 路由及菜单导航
+- [x] 更新 `.specify/harness/module-state.json` 至 `tasks_ready` / `implementing`
+- [x] 记录无 blocker，可进入实现
 
-- [ ] T018 [B-API] 仪表盘 API: GET /monitoring/dashboard
-  - 文件: `backend/app/api/v1/monitoring.py`
-  - 依据: ad/ad-monitoring.md §3.1
-- [ ] T019 [B-API] 设备日志 + 会话链路 + 请求日志 API
-  - 文件: `backend/app/api/v1/monitoring.py` (扩展)
-  - 依据: ad/ad-monitoring.md §3.2
-- [ ] T020 [B-API] 告警规则 CRUD + 启用禁用 + 事件列表 API
-  - 文件: `backend/app/api/v1/monitoring.py` (扩展)
-  - 依据: ad/ad-monitoring.md §3.3
+### Task 11. Browser smoke
+- [x] 启动本地前后端
+- [x] 验证 `overview_real_metrics`
+- [x] 验证 `device_trace_drilldown`
+- [x] 验证 `alert_rule_feedback`
 
-## 前端任务
+### Task 12. 缺陷修复与模块收口
+- [x] 修复 smoke/review 发现的问题
+- [x] 跑后端 pytest、前端 vitest、最近编辑文件 lints
+- [x] 更新模块状态到 `browser_verified`
+- [x] 为下一步收口保留顺推条件
 
-### 页面（来自 PD 交互原型）
+## 收口结果
 
-- [ ] T021 [F-PAGE] 监控仪表盘页: 核心指标卡片+趋势折线图+域分布饼图+自动刷新(30s)
-  - 文件: `frontend/src/pages/Monitoring/index.jsx`
-  - 依据: pd-all/pd-monitoring/index.html
-  - **PD UI Checklist** (dd-monitoring.md §10):
-    - [ ] 8 个指标卡片 (§10.1): 总请求量(24h) / 实时 QPS / 平均延迟 / P95·P99 延迟 / 意图识别准确率 / 错误率 / 平均对话轮次 / 路由分布迷你 Progress
-    - [ ] 路由分布水平条形图 (§10.5 #2): 三行渐变色条 (指令蓝/知识绿/闲聊紫) + 请求数 + 涨跌 Tag
-    - [ ] 请求日志表 9 列 (§10.2.1): 请求ID / 时间 / 设备ID(超链接) / 输入文本(ellipsis+Tooltip) / 路由(Tag) / 意图 / 置信度(Progress色阶) / 响应耗时(色阶Tag+可排序) / 状态(Tag)
-    - [ ] 多维筛选器 6 项 (§10.3.1): 时间范围(RangePicker) / 设备ID(Input) / 路由类型(Select) / 意图名称(Input) / 响应耗时(Select 5档) / 是否异常(Select) + 查询·重置按钮
-    - [ ] 30s 自动刷新倒计时 Badge (§10.5 #1): ≤5s 变橙; 归零自动刷新; 手动刷新重置; Spin 覆盖
-    - [ ] 页面顶部按钮 (§10.4.1): 手动刷新 / 设备日志导航 / 告警规则导航
-    - [ ] 设备 ID 列超链接跳转 device-logs.html?device={id}
-- [ ] T022 [F-PAGE] 设备日志页: 设备会话列表+会话链路详情(消息流)+多维筛选
-  - 文件: `frontend/src/pages/Monitoring/DeviceLogs.jsx`
-  - 依据: pd-all/pd-monitoring/device-logs.html
-  - **PD UI Checklist** (dd-monitoring.md §10):
-    - [ ] 设备 ID 搜索框 (§10.3.2): Input(prefix=SearchOutlined, size=large) + 查询按钮; Enter 触发; 空值 warning
-    - [ ] 设备信息网格 6 格 (§10.1 / §10.5 #6): 首次接入 / 最后活跃 / 总会话数 / 总请求数 / 使用版本(Tag cyan) / 设备状态(Tag green)
-    - [ ] 会话列表表 7 列 (§10.2.2): 会话ID(monospace) / 开始时间 / 结束时间(或"进行中"Tag) / 对话轮次(Badge蓝) / 使用版本(Tag) / 路由分布(多Tag) / 操作(查看链路/收起链路)
-    - [ ] 会话摘要卡片 (§10.1): 会话ID / 持续时间 / 对话轮次 / 使用版本 / 路由分布 (链路展开时顶部 inner Card)
-    - [ ] 会话链路 Timeline (§10.5 #7): dot 颜色按域 (蓝=指令/绿=知识/橙=闲聊); "第N轮" Tag + request_id; 时序正排
-    - [ ] 请求链路 Collapse 详情 (§10.5 #8): 输入→路由(Progress)→意图→槽位表(§10.2.5)→知识命中(Descriptions)→指代消解→人设→对话状态→响应(蓝边框)→耗时(Statistic色阶)→设备上下文JSON
-    - [ ] 空状态引导 (§10.5 #14): 未搜索时 Empty + DesktopOutlined 图标 + 引导文案
-    - [ ] 页面按钮 (§10.4.2): 返回 / 查询 / 查看链路·收起链路
-- [ ] T023 [F-PAGE] 告警规则页: 规则列表+新建/编辑弹窗+启用/禁用开关+告警事件时间线
-  - 文件: `frontend/src/pages/Monitoring/AlertRules.jsx`
-  - 依据: pd-all/pd-monitoring/alert-rules.html
-  - **PD UI Checklist** (dd-monitoring.md §10):
-    - [ ] 3 个统计卡片 (§10.1): 活跃告警(红色+pulse动画) / 规则总数 / 已启用(绿色)+已禁用
-    - [ ] 告警事件 Collapse (§10.5 #12): "最近告警记录" + 事件数Tag; 默认展开; 内嵌事件表(size=small, 无分页)
-    - [ ] 告警事件表 7 列 (§10.2.4): 告警时间 / 规则名称 / 指标(Tag) / 触发值 / 阈值 / 持续时间 / 状态(红=触发中/绿=已恢复)
-    - [ ] 告警规则表 8 列 (§10.2.3): 规则名称 / 监控指标(Tag) / 条件 / 持续时间 / 通知方式(多Tag) / 状态(Switch启用/禁用) / 上次触发 / 操作(编辑+删除)
-    - [ ] 新建/编辑规则 Modal (§10.5 #10): 规则名称(Input) / 监控指标(Select 6选项) / 条件(动态InputNumber按指标类型) / 持续时间+单位(秒/分钟/小时) / 通知方式(Checkbox.Group) / Webhook URL(条件显示)
-    - [ ] 删除确认 Modal (§10.5 #11): Modal.confirm, okType=danger, 含规则名称
-    - [ ] 页面按钮 (§10.4.3): 返回 / 新建规则(primary) / 编辑(link) / 删除(danger link) / 启用禁用Switch
-
-### 组件（可复用）
-
-- [ ] T024 [P] [F-COMPONENT] 指标趋势图组件 (ECharts/Ant Design Charts 折线图+自动刷新)
-  - 文件: `frontend/src/pages/Monitoring/MetricsChart.jsx`
-- [ ] T025 [P] [F-COMPONENT] 会话链路组件 (消息流时间线+分域标记+耗时标注)
-  - 文件: `frontend/src/pages/Monitoring/SessionTrace.jsx`
-
-### 状态管理与 API 对接
-
-- [ ] T026 [F-STORE] 监控状态管理 (zustand): 仪表盘数据/日志列表/告警规则/事件
-  - 文件: `frontend/src/stores/monitoringStore.js`
-- [ ] T027 [F-API] 监控 API 对接层: 全部 10 端点的前端调用封装
-  - 文件: `frontend/src/services/monitoringApi.js`
+- 后端补齐 `RequestLog` / `MonitoringAlertRule` / `MonitoringAlertEvent` 实体与监控路由，overview、日志筛选、会话 trace、规则治理全部回到统一响应信封
+- 新增 `backend/tests/test_monitoring_flow.py`，把规则触发、停用与恢复关闭做成真实 evaluator 收敛，而不是静态告警样本
+- 前端补齐 monitoring API 适配层与三张页面测试，关键动作后统一强制回读，避免本地 toast/状态冒充成功
+- 浏览器 smoke 已验证 overview 真指标、设备会话回读，以及规则创建后列表刷新与停用开关回读；其中规则创建因 AntD `Select` 自动化限制采用 API 注入后做页面回读确认
 
 ## 检查点
 
-**模块验收标准**（对照 PD 交互稿）:
-- [ ] 所有测试通过（T001~T007 红灯→绿灯）
-- [ ] 仪表盘: 核心指标(请求量/成功率/延迟/域分布)实时展示+30s 自动刷新
-- [ ] 设备日志: 按设备/时间/域/意图 多维筛选+会话链路追踪 可用
-- [ ] 告警规则: CRUD+启用禁用+30s 定时评估+事件生成 可用
-- [ ] 告警事件: 状态流转 pending→firing→resolved 正确
-- [ ] RequestLog 分区表按月分区正常工作
-- [ ] 无回归（infra + 先前模块测试仍通过）
+- [x] `python -m pytest backend/tests/contract/test_monitoring_api.py backend/tests/test_monitoring_flow.py` 通过
+- [x] `npm test -- src/services/api.monitoring.test.js src/modules/monitoring/MonitoringDashboardPage.test.jsx src/modules/monitoring/MonitoringDeviceLogsPage.test.jsx src/modules/monitoring/MonitoringAlertRulesPage.test.jsx` 通过
+- [x] 最近编辑文件 lints 为 0
+- [x] `.specify/harness/module-state.json` 已推进到 `browser_verified`
+
+## 完成定义
+
+- [x] overview 可真实展示请求量、QPS、延迟、准确率、路由分布与最近告警
+- [x] 请求日志支持多维筛选与分页，结果结构统一
+- [x] 设备会话与逐轮 trace 可真实回读
+- [x] 告警规则可创建/停用，并能看到真实事件状态
+- [x] browser smoke 通过且模块状态推进完成

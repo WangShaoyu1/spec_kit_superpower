@@ -1,0 +1,515 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-03-31T01:09:27.458758Z",
+  "source": {
+    "path": "temp_data/config.json",
+    "config_version": "2.1"
+  },
+  "summary": {
+    "intent_count": 39,
+    "entrance_intent_count": 39,
+    "required_slot_count": 21
+  },
+  "cases": [
+    {
+      "intent_key": "AI_cooking_page_open",
+      "display_name": "选择智能烹饪模式",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "DIY_cooking_page_open",
+      "display_name": "选择厨师模式",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "affirmative_judgment",
+      "display_name": "肯定判断",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "bright_down",
+      "display_name": "调低亮度",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [
+        {
+          "name": "delta_number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "bright_max",
+      "display_name": "设置最高亮度",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "bright_min",
+      "display_name": "设置最低亮度",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "bright_up",
+      "display_name": "调高亮度",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [
+        {
+          "name": "delta_number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "bright_value",
+      "display_name": "设置亮度为目标值",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您想将亮度设置为多少"
+      ]
+    },
+    {
+      "intent_key": "broadcast_mode_switch",
+      "display_name": "切换播报模式",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "broadcast_mode",
+          "entity": "broadcast_mode"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您想使用标准模式还是简易模式呢"
+      ]
+    },
+    {
+      "intent_key": "cooking_unfreeze",
+      "display_name": "解冻",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "category",
+          "entity": "category"
+        }
+      ],
+      "optional_slots": [
+        {
+          "name": "portion",
+          "entity": "portion"
+        }
+      ],
+      "prompt_samples": [
+        "请提供品类"
+      ]
+    },
+    {
+      "intent_key": "dismiss",
+      "display_name": "退下",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "heat_cooking_page_open",
+      "display_name": "选择智能复热模式",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "category",
+          "entity": "category"
+        }
+      ],
+      "optional_slots": [
+        {
+          "name": "portion",
+          "entity": "portion"
+        }
+      ],
+      "prompt_samples": [
+        "请提供品类"
+      ]
+    },
+    {
+      "intent_key": "jump_to_page",
+      "display_name": "打开指定页面",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "page_name",
+          "entity": "page_name"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "请提供页面名称"
+      ]
+    },
+    {
+      "intent_key": "mute",
+      "display_name": "开启静音",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "negative_judgment",
+      "display_name": "否定判断",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "remaining_cooking_time_query",
+      "display_name": "播报烹饪剩余时间",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [
+        {
+          "name": "dish_name",
+          "entity": "dish_name"
+        }
+      ],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "screen_off",
+      "display_name": "息屏",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "search_recipe_by_age_group",
+      "display_name": "通过年龄段搜索",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "age_group",
+          "entity": "age_group"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "OK"
+      ]
+    },
+    {
+      "intent_key": "search_recipe_by_cuisine_type",
+      "display_name": "通过菜系搜索",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "cuisine_type",
+          "entity": "cuisine_type"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "OK"
+      ]
+    },
+    {
+      "intent_key": "search_recipe_by_diet_preference",
+      "display_name": "通过饮食习惯搜索",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "diet_preference",
+          "entity": "diet_preference"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "OK"
+      ]
+    },
+    {
+      "intent_key": "search_recipe_by_global_region",
+      "display_name": "通过全球区域搜索",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "global_region",
+          "entity": "global_region"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "OK"
+      ]
+    },
+    {
+      "intent_key": "search_recipe_by_region",
+      "display_name": "通过地区搜索",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "region",
+          "entity": "region"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "OK"
+      ]
+    },
+    {
+      "intent_key": "select_list_id",
+      "display_name": "选择序号",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "order_number",
+          "entity": "order_number"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您要选择第几个"
+      ]
+    },
+    {
+      "intent_key": "set_category_size",
+      "display_name": "选择品类份量",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "category",
+          "entity": "category"
+        }
+      ],
+      "optional_slots": [
+        {
+          "name": "portion",
+          "entity": "portion"
+        }
+      ],
+      "prompt_samples": [
+        "请提供品类"
+      ]
+    },
+    {
+      "intent_key": "set_cooking_temp",
+      "display_name": "加热到指定温度",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您想设置多少度呢"
+      ]
+    },
+    {
+      "intent_key": "set_cooking_time",
+      "display_name": "设置烹饪时间",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "duration",
+          "entity": "IFLYTEK.Datetime1.1"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您想烹饪多长时间"
+      ]
+    },
+    {
+      "intent_key": "set_food_cooking_temp",
+      "display_name": "加热食物到指定温度",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "number",
+          "entity": "IFLYTEK.Number"
+        },
+        {
+          "name": "dish_name",
+          "entity": "IFLYTEK.Wildcard"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "请提供温度",
+        "请提供菜品名称"
+      ]
+    },
+    {
+      "intent_key": "set_foodtype",
+      "display_name": "选择食物",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "dish_name",
+          "entity": "dish_name"
+        }
+      ],
+      "optional_slots": [
+        {
+          "name": "local_dish_name",
+          "entity": "IFLYTEK.Wildcard"
+        }
+      ],
+      "prompt_samples": [
+        "请提供菜品名称"
+      ]
+    },
+    {
+      "intent_key": "set_foodtype_taste",
+      "display_name": "选择食物口感",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "taste",
+          "entity": "taste"
+        },
+        {
+          "name": "dish_name",
+          "entity": "dish_name"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "请提供口感",
+        "请提供菜品名称"
+      ]
+    },
+    {
+      "intent_key": "set_taste",
+      "display_name": "选择口感",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "taste",
+          "entity": "taste"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "请提供口感"
+      ]
+    },
+    {
+      "intent_key": "unmute",
+      "display_name": "解除静音",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "voice_cmd_continue_cooking",
+      "display_name": "继续烹饪",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "voice_cmd_pause_cooking",
+      "display_name": "暂停烹饪",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "voice_cmd_start_cooking",
+      "display_name": "启动烹饪",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "voice_cmd_stop_cooking",
+      "display_name": "终止烹饪",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "volume_down",
+      "display_name": "调低音量",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [
+        {
+          "name": "delta_number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "volume_max",
+      "display_name": "设置最高音量",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "volume_up",
+      "display_name": "调高音量",
+      "entrance_intent": true,
+      "required_slots": [],
+      "optional_slots": [
+        {
+          "name": "delta_number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "prompt_samples": []
+    },
+    {
+      "intent_key": "volume_value",
+      "display_name": "设置音量为目标值",
+      "entrance_intent": true,
+      "required_slots": [
+        {
+          "name": "number",
+          "entity": "IFLYTEK.Number"
+        }
+      ],
+      "optional_slots": [],
+      "prompt_samples": [
+        "您想将音量设置为多少"
+      ]
+    }
+  ]
+}

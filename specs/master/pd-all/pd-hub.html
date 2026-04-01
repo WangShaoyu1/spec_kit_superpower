@@ -532,10 +532,10 @@
                 ]
             },
             {
-                key: 'batch-test', title: '批量测试', icon: 'ExperimentOutlined',
+                key: 'batch-test', title: '批量测试（对话方案）', icon: 'ExperimentOutlined',
                 status: 'completed', frCoverage: 'FR-012-014',
                 children: [
-                    { key: 'batch-test/index', title: '批量测试列表', path: 'pd-batch-test/index.html', isMainNav: true },
+                    { key: 'batch-test/index', title: '方案批量测试列表', path: 'pd-batch-test/index.html', isMainNav: true },
                     { key: 'batch-test/detail', title: '测试详情', path: 'pd-batch-test/detail.html' },
                 ]
             }
@@ -544,7 +544,7 @@
         const CROSS_REFS = [
             { from: 'intent-library', to: 'dialog-profile', label: '发布门禁' },
             { from: 'dialog-profile', to: 'intent-library', label: '绑定指令库' },
-            { from: 'intent-library', to: 'batch-test', label: '批量测试' },
+            { from: 'dialog-profile', to: 'batch-test', label: '方案批量测试' },
         ];
 
         const DEFAULT_PAGE_KEY = 'intent-library/index';

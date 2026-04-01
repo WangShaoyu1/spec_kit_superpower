@@ -44,7 +44,7 @@ $ARGUMENTS
    - 读取 `.specify/templates/plan-template.md` 并确保任何"章程检查"或规则与更新的原则保持一致.
    - 读取 `.specify/templates/spec-template.md` 进行范围/需求对齐——如果章程添加/删除强制部分或约束, 则更新.
    - 读取 `.specify/templates/tasks-template.md` 并确保任务分类反映新的或删除的原则驱动的任务类型(例如, 可观测性、版本控制、测试纪律).
-   - 读取 `.specify/templates/commands/*.md` 中的每个命令文件(包括此文件)以验证在需要通用指导时没有过时的引用(如仅限 CLAUDE 的代理特定名称).
+   - 读取 `.cursor/commands/*.md` 中的每个命令文件(包括此文件)以验证在需要通用指导时没有过时的引用(如仅限 CLAUDE 的代理特定名称).
    - 读取任何运行时指导文档(例如 `README.md`、`docs/quickstart.md` 或代理特定指导文件(如果存在)). 更新对已更改原则的引用.
 
 5. 生成同步影响报告(在更新后作为 HTML 注释前置到章程文件顶部): 

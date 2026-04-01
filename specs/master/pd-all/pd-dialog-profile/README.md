@@ -8,7 +8,7 @@
 
 **对应规范**: `specs/master/spec.md` v1.4，覆盖 FR: FR-007~011, FR-015~016, FR-040, FR-047
 
-**PD 模块 Key**: `dialog-profile`（参见 `specs/master/pd-index.md`）
+**PD 模块 Key**: `dialog-profile`（参见 `specs/master/pd-all/pd-index.md`）
 
 ## 文件结构与页面层级
 
@@ -30,6 +30,7 @@ pd-dialog-profile/
 ```
 index.html (方案列表) → 点击行 → detail.html (方案详情/配置)
 detail.html (详情) → 点击手动测试 → test-chat.html (聊天测试)
+detail.html (详情) → 点击平台级批量测试 → ../pd-batch-test/index.html (不同对话方案批量测试)
 detail.html (详情) → 点击发布 → 发布确认弹窗 (含校验)
 ```
 
@@ -53,7 +54,7 @@ detail.html (详情) → 点击发布 → 发布确认弹窗 (含校验)
 
 | FR 编号 | 需求摘要 | 状态 |
 |---------|---------|------|
-| FR-012~014 | 批量测试与智能分析 | 🔲 属于 pd-batch-test |
+| FR-012~014 | 平台级批量测试与智能分析（不同对话方案） | 🔲 属于 pd-batch-test |
 | FR-017~029 | 对话管理 API（路由、NLU、会话管理） | 🔲 属于 AD/DD |
 | FR-041 | 运行时语言检测 + 英文不回退中文 | 🔲 属于 API 设计 |
 
@@ -62,7 +63,7 @@ detail.html (详情) → 点击发布 → 发布确认弹窗 (含校验)
 | 引用方向 | 说明 |
 |---------|------|
 | detail.html → pd-intent-library | FR-040: 绑定指令库，展示指令库名称、语种、published 状态 |
-| detail.html → pd-batch-test | FR-012: 跳转批量测试（待 pd-batch-test 完成后补充链接） |
+| detail.html → pd-batch-test | FR-012: 跳转平台级批量测试，用于不同对话方案的回归验证和横向比较 |
 | pd-intent-library/detail.html → detail.html | FR-047: 方案发布门禁引用指令库 published 状态 |
 
 ## 产出物合规检查表 (vs pd-template.md v4.1)
@@ -108,7 +109,7 @@ detail.html (详情) → 点击发布 → 发布确认弹窗 (含校验)
 直接在浏览器打开任意 HTML 文件（如 `index.html`），或使用本地 HTTP 服务器：
 ```bash
 python -m http.server 8080
-# 访问 http://localhost:8080/specs/master/pd-dialog-profile/index.html
+# 访问 http://localhost:8080/specs/master/pd-all/pd-dialog-profile/index.html
 ```
 
 ---

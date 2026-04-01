@@ -1,10 +1,10 @@
 # Speckit Plan - 实施计划
 
-**核心规范**: `.specify/templates/plan-template.md` — plan.md 的结构和格式 MUST 遵循此模板。
+**核心规范**: `.specify/templates/plan-template.md` — 模块 plan (`plans/plan-<module>.md`) 的结构和格式 MUST 遵循此模板。
 
 ## 目的
 基于完成的设计文档（spec + pd + ad + dd），制定**可执行的技术实施计划**。
-plan.md 定位为"**实施规划桥梁**"——承上（设计文档链）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与阶段规划。
+模块 plan 定位为"**实施规划桥梁**"——承上（设计文档链）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与阶段规划。
 
 ## 输入（必须全部完成）
 - `specs/{branch}/spec.md` - 业务需求 (含模块映射表 + FR 标签) ✓
@@ -15,14 +15,14 @@ plan.md 定位为"**实施规划桥梁**"——承上（设计文档链）启下
 ## 执行流程
 
 ### Phase 0: Pre-flight 一致性扫描
-在编写 plan.md 前, 必须先检查以下冲突并给出 `OK / WARNING / BLOCKER` 结论:
+在编写模块 plan 前, 必须先检查以下冲突并给出 `OK / WARNING / BLOCKER` 结论:
 - 同一 FR 在 `spec / AD / DD` 中是否存在口径冲突
 - `AD` 引用的 PD 页面或流程是否真实存在
 - `plan` 将使用的源码路径是否与当前工程目录一致
 - `PD` 是否存在部分覆盖/待补充项, 以及这些项是否需要显式下传到 `tasks`
 - 关键异步链路是否已经定义真实成功信号、状态回传和失败处理
 
-若出现 `BLOCKER`, 必须先回到上游设计文档修正, **不得直接继续生成 plan.md**。
+若出现 `BLOCKER`, 必须先回到上游设计文档修正, **不得直接继续生成模块 plan**。
 
 ### Phase 1: 技术方案细化
 基于 AD 和 DD，细化技术实现方案：
@@ -62,7 +62,7 @@ plan.md 定位为"**实施规划桥梁**"——承上（设计文档链）启下
 ## 输出产物
 
 ```yaml
-# specs/{branch}/plan.md
+# specs/{branch}/plans/plan-<module>.md
 ---
 version: 2.0
 based_on:
@@ -91,9 +91,9 @@ based_on:
 - [ ] 测试策略覆盖前后端消费契约和异步状态机
 - [ ] 性能目标有对应的测试任务
 - [ ] 不重复 AD/DD 中已定义的详细内容（仅做引用）
-- [ ] **项目路径一致性**: plan.md 中引用的项目目录（如 `smartchef-v2/`）与 tasks/ 中的路径引用完全一致
+- [ ] **项目路径一致性**: 模块 plan 中引用的项目目录（如 `smartchef-v2/`）与 tasks/ 中的路径引用完全一致
 - [ ] **PD 模块路径映射**: 每个 PD 模块有明确的源码目录映射（如 `pd-intent-library/ → frontend/src/pages/IntentLibrary/`）
 - [ ] 已显式记录 Deferred / Stub / Out of Scope / Blocked By，不允许把“部分覆盖”藏在备注里
 
 ## 下一步
-plan.md 完成后，运行 `/speckit.tasks` 生成 tasks/ 任务目录，然后 `/speckit.implement` 开始执行。
+模块 plan 完成后，运行 `/speckit.tasks` 生成 tasks/ 任务目录，然后 `/speckit.implement` 开始执行。

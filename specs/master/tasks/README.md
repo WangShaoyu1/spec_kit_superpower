@@ -1,120 +1,69 @@
-# 任务目录索引
+# 任务索引: master / modules
 
-> 基于完整设计文档链 (spec.md → PD → AD → DD → plan) 按 PD 模块拆分的可执行任务集。
->
-> 设计链路: `spec.md → pd-all/ → ad/ → dd/ → plan.md → tasks/`
-
-## 全局统计
-
-| 维度 | 统计 |
-|------|------|
-| 任务文件数 | 8 |
-| 总任务数 | **218** |
-| 基础设施 | 26 |
-| PD 模块任务 | 173 (6 模块) |
-| 横切/完善 | 19 |
-| 覆盖 AD API 端点 | ~139 (全覆盖) |
-| 覆盖 DD 实体 | 36+ (全覆盖) |
-| 覆盖 PD 页面 | 17 页 (全覆盖) |
+**生成时间**: 2026-03-31  
+**设计依据**: `pd-all/ + ad/ + dd/ + plans/`  
+**TDD 模式**: 强制  
+**进度口径**: 以任务勾选和检查点证据为准
 
 ## 模块执行顺序
 
-| 顺序 | 模块 | 优先级 | 文件 | 任务数 | 测试 | 后端 | 前端 | 依赖 | 状态 |
-|------|------|--------|------|--------|------|------|------|------|------|
-| 0 | 基础设施 | 阻塞 | [tasks-infra.md](tasks-infra.md) | 26 | 4 | 17 | 5 | 无 | 🔲 |
-| 1 | 指令库管理 | P1 | [tasks-intent-library.md](tasks-intent-library.md) | 重做中 | 重做中 | 重做中 | 重做中 | infra | ⚠️ 基线重做中 |
-| 2 | 知识库管理 | P1 | [tasks-knowledge-base.md](tasks-knowledge-base.md) | 27 | 7 | 14 | 6 | infra | 🔲 |
-| 3 | 对话方案 | P1 | [tasks-dialog-profile.md](tasks-dialog-profile.md) | 38 | 9 | 22 | 7 | infra, intent-library(弱) | 🔲 |
-| 4 | 批量测试 | P2 | [tasks-batch-test.md](tasks-batch-test.md) | 25 | 6 | 13 | 6 | infra, dialog-profile | 🔲 |
-| 5 | 监控仪表盘 | P2 | [tasks-monitoring.md](tasks-monitoring.md) | 27 | 7 | 13 | 7 | infra | 🔲 |
-| 6 | 用户管理 | P3 | [tasks-user-mgmt.md](tasks-user-mgmt.md) | 15 | 5 | 5 | 5 | infra (User/Role 已创建) | 🔲 |
-| 7 | 横切/完善 | 收尾 | [tasks-refinement.md](tasks-refinement.md) | 19 | 4 | 11 | 4 | 所有模块基本完成 | 🔲 |
+| 序号 | 文件 | PD 模块 | 优先级 | 任务数 | 依赖 | 状态 |
+|------|------|---------|--------|--------|------|------|
+| 0 | `tasks-infra.md` | 基础设施 | - | 5 | 无 | ✅ |
+| 1 | `tasks-user-mgmt.md` | `pd-user-mgmt` | P1 | 13 | infra | ✅ |
+| 2 | `tasks-intent-library.md` | `pd-intent-library` | P1 | 12 | `pd-user-mgmt` | ✅ |
+| 3 | `tasks-knowledge-base.md` | `pd-knowledge-base` | P1 | 12 | `pd-intent-library` | ✅ |
+| 4 | `tasks-dialog-profile.md` | `pd-dialog-profile` | P1 | 12 | `pd-knowledge-base` | ✅ |
+| 5 | `tasks-batch-test.md` | `pd-batch-test` | P1 | 12 | `pd-dialog-profile` | ✅ |
+| 6 | `tasks-refinement.md` | 横切关注点 | - | 4 | `tasks-batch-test.md` | ✅ |
+| 7 | `tasks-monitoring.md` | `pd-monitoring` | P2 | 12 | `tasks-refinement.md` | ✅ |
 
-**状态枚举**: 🔲 待开始 / 🚧 进行中 / ✅ 已完成 / ⚠️ 基线重做中 / ⏸️ 暂缓
+**状态**: ⬜ 未开始 | 🔄 进行中 | ✅ 完成
+
+## 全局统计
+
+| 维度 | 数量 |
+|------|------|
+| 任务文件总数 | 8 |
+| 任务总数 | 82 |
+| 测试任务 | 33 |
+| 后端任务 | 28 |
+| 前端任务 | 21 |
+| 可并行任务 `[P]` | 28 |
+
+## 未完成声明汇总
+
+| 模块 | Deferred | Partial | Out of Scope | Blocked By |
+|------|----------|---------|--------------|------------|
+| `user-mgmt` | 用户自主改密、SSO | 无 | 批量导入导出、自定义角色 | 无 |
+| `intent-library` | Excel 解析器、复杂 LLM 提示词 | `FR-050` 继承链路可视化 | 运行时设备侧加载、跨模块绑定细节 | 无 |
+| `knowledge-base` | 批量压缩包导入、真正的向量数据库接入 | 无 | 运行时知识路由、对话方案绑定 | 无 |
+| `dialog-profile` | 多版本回滚、真实在线 LLM 调用、跨设备版本热更新 | 无 | 生产 API 路由编排、批量测试分析 | 无 |
+| `batch-test` | 批量上传压缩包、跨批次趋势对比、真实 LLM 归因分析 | 无 | 生产压测、线上流量回放、监控联动 | 无 |
 
 ## 跨模块依赖关系
 
-```
-tasks-infra (阶段 0 — 阻塞所有)
-  │
-  ├── tasks-intent-library (P1) ─────┐
-  ├── tasks-knowledge-base (P1) [P] ─┤ (可并行)
-  │                                   │
-  ├── tasks-dialog-profile (P1) ──────┤ (弱依赖 intent-library: 指令库绑定/发布门禁)
-  │   │                               │
-  │   └── tasks-batch-test (P2) ──────┤ (依赖 dialog-profile: 测试管道)
-  │                                   │
-  ├── tasks-monitoring (P2) [P] ──────┤ (可与 P1 模块并行)
-  ├── tasks-user-mgmt (P3) [P] ──────┤ (可与其他模块并行)
-  │                                   │
-  └── tasks-refinement (收尾) ────────┘ (所有模块基本完成后)
-```
+- `tasks-infra.md` 已完成，为正式骨架提供基础设施
+- `tasks-user-mgmt.md` 已完成，为所有后续模块提供 capability 权限基线
+- `tasks-intent-library.md` 已完成，为知识库和对话方案模块提供菜单与模块化后端模式
+- `tasks-knowledge-base.md` 已完成，为对话方案模块提供知识库绑定前置能力
+- `tasks-dialog-profile.md` 已完成，为批量测试模块提供方案级测试对象与调试基础能力
+- `tasks-batch-test.md` 已完成，为后续横切收敛与监控模块提供真实批量验证入口
+- `tasks-refinement.md` 已完成，统一了 user-mgmt 横切验证口径并为监控模块启动清场
+- `tasks-monitoring.md` 已完成，补齐了运行态观测、会话链路与告警治理闭环
 
 ## 执行策略
 
-### 串行路径（关键链路）
+### 串行模式
+infra → user-mgmt → intent-library → knowledge-base → dialog-profile → batch-test → refinement
 
-```
-infra → intent-library → dialog-profile → batch-test → refinement
-```
+### 当前模块模式
+monitoring → 已完成 browser 验证，等待下一模块
 
-### 并行窗口
+## 全局完成定义
 
-| 窗口 | 可并行模块 | 条件 |
-|------|-----------|------|
-| W1 | intent-library + knowledge-base + monitoring + user-mgmt | infra 完成后 |
-| W2 | dialog-profile + monitoring + user-mgmt | intent-library 完成后 |
-| W3 | batch-test + user-mgmt | dialog-profile 完成后 |
-
-### TDD 执行规则
-
-每个模块内部严格遵循:
-```
-测试(红灯) → 数据模型 → 服务层 → API端点 → 前端页面 → 集成验证(绿灯)
-```
-
-### 子代理分派建议
-
-基于 `speckit.implement.md` 子代理策略:
-- **后端代理**: 每次处理一个模块的 [B-MODEL] + [B-SERVICE] + [B-API] 任务
-- **前端代理**: 每次处理一个模块的 [F-PAGE] + [F-COMPONENT] + [F-STORE] + [F-API] 任务
-- **测试代理**: 每次处理一个模块的 [T-CONTRACT] + [T-INTEGRATION] + [T-E2E] 任务
-- **并行上限**: 不同文件标记 [P] 的任务可同时分派给不同代理
-
-## 进度追踪
-
-| 模块 | 总数 | 已完成 | 进度 |
-|------|------|--------|------|
-| 基础设施 | 26 | - | 待核查 |
-| 指令库管理 | 重算中 | 重算中 | **基线重做中** |
-| 知识库管理 | 27 | - | 待核查 |
-| 对话方案 | 38 | - | 待核查 |
-| 批量测试 | 25 | - | 待核查 |
-| 监控仪表盘 | 27 | - | 待核查 |
-| 用户管理 | 15 | - | 待核查 |
-| 横切/完善 | 19 | - | 待核查 |
-| **合计** | **待重算** | **待重算** | **待全量核查** |
-
-## 进度口径
-
-- `tasks-intent-library.md` 已进入基线重做，旧的 `41/41 完成` 仅代表上一轮任务链记录，不再作为当前完成证明
-- 自本轮起，模块状态必须同时满足：任务勾选、验证证据、未完成声明三者一致
-- 若任务文件中仍保留历史记录，应显式标注“仅供对照，不作为当前完成证明”
-
-## MVP 建议
-
-**最小可行产品范围** (infra + P1 模块):
-- tasks-infra.md: 26 任务
-- tasks-intent-library.md: 历史口径 41 任务（当前以 `tasks-intent-library.md` 的重做切片与验证证据为准）
-- tasks-knowledge-base.md: 27 任务
-- tasks-dialog-profile.md: 38 任务
-- **MVP 合计: 132 任务（含 intent-library 历史统计口径）**
-
-完成 MVP 后即可进行首轮人工验收 (对照 PD 交互稿 + spec.md)。
-
----
-
-**创建时间**: 2026-03-18
-**基于 spec.md**: v1.4
-**基于 plan.md**: v2.1
-**基于 tasks-template.md**: v1.0
+- [ ] 所有纳入范围的任务均已勾选完成
+- [ ] 显式未完成声明已登记且未被误算为完成
+- [ ] `pd-user-mgmt`、`pd-intent-library`、`pd-knowledge-base`、`pd-dialog-profile` 与 `pd-batch-test` 均有 browser 证据
+- [ ] 关键模块性能门槛已冻结并在实现中回读
+- [ ] 不存在前端假成功提示或未回读的状态/统计

@@ -1,5 +1,5 @@
 ---
-description: 在任务生成后, 对 spec.md、plan.md 和 tasks/ 执行非破坏性的跨制品一致性和质量分析.
+description: 在任务生成后, 对 spec.md、模块 plan 和 tasks/ 执行非破坏性的跨制品一致性和质量分析.
 ---
 
 ## 用户输入
@@ -12,7 +12,7 @@ $ARGUMENTS
 
 ## 目标
 
-在实施之前, 识别核心制品(`spec.md`、`plan.md`、`tasks/`)之间的不一致、重复、模糊和规范不足的项目. 此命令**必须**在 `/speckit.tasks` 成功生成完整的 `tasks/` 目录后运行.
+在实施之前, 识别核心制品(`spec.md`、模块 plan、`tasks/`)之间的不一致、重复、模糊和规范不足的项目. 此命令**必须**在 `/speckit.tasks` 成功生成完整的 `tasks/` 目录后运行.
 
 ## 操作约束
 
@@ -24,10 +24,10 @@ $ARGUMENTS
 
 ### 1. 初始化分析上下文
 
-从仓库根目录运行一次 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` 并解析 JSON 以获取 FEATURE_DIR 和 AVAILABLE_DOCS. 推导绝对路径: 
+从仓库根目录运行一次 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequirePlan -RequireDesign -RequireTasks -IncludeTasks` 并解析 JSON 以获取 FEATURE_DIR 和 AVAILABLE_DOCS. 推导绝对路径: 
 
 - SPEC = FEATURE_DIR/spec.md
-- PLAN = FEATURE_DIR/plan.md
+- PLAN = FEATURE_DIR/plans/plan-<module>.md
 - TASKS_DIR = FEATURE_DIR/tasks/ (优先) 或 FEATURE_DIR/tasks.md (兼容旧格式)
 
 如果任何必需文件缺失, 则以错误消息中止(指示用户运行缺失的先决条件命令).
@@ -45,7 +45,7 @@ $ARGUMENTS
 - 用户故事
 - 边缘情况(如果存在)
 
-**从 plan.md: **
+**从模块 plan: **
 
 - 架构/技术栈选择
 - 数据模型引用

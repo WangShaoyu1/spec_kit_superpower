@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#!
 .SYNOPSIS
-Update agent context files with information from plan.md (PowerShell version)
+Update agent context files with information from module plan files (PowerShell version)
 
 .DESCRIPTION
 Mirrors the behavior of scripts/bash/update-agent-context.sh:
@@ -106,7 +106,7 @@ function Validate-Environment {
         exit 1
     }
     if (-not (Test-Path $NEW_PLAN)) {
-        Write-Err "No plan.md found at $NEW_PLAN"
+        Write-Err "No module plan found at $NEW_PLAN"
         Write-Info 'Ensure you are working on a feature with a corresponding spec directory'
         if (-not $HAS_GIT) { Write-Info 'Use: $env:SPECIFY_FEATURE=your-feature-name or create a new feature first' }
         exit 1

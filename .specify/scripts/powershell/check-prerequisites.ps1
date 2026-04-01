@@ -9,16 +9,20 @@
 #
 # OPTIONS:
 #   -Json               Output in JSON format
+#   -RequirePlan        Require module plan to exist
 #   -RequireTasks       Require tasks/ directory or tasks.md to exist (for implementation phase)
 #   -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
+#   -RequireDesign      Require pd-all/ + ad/ + dd/ (or ad.md / dd.md) to exist
 #   -PathsOnly          Only output path variables (no validation)
 #   -Help, -h           Show help message
 
 [CmdletBinding()]
 param(
     [switch]$Json,
+    [switch]$RequirePlan,
     [switch]$RequireTasks,
     [switch]$IncludeTasks,
+    [switch]$RequireDesign,
     [switch]$PathsOnly,
     [switch]$Help
 )
@@ -34,17 +38,19 @@ Consolidated prerequisite checking for Spec-Driven Development workflow.
 
 OPTIONS:
   -Json               Output in JSON format
+  -RequirePlan        Require module plan to exist
   -RequireTasks       Require tasks.md to exist (for implementation phase)
   -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
+  -RequireDesign      Require pd-all/ + ad/ + dd/ (or ad.md / dd.md) to exist
   -PathsOnly          Only output path variables (no prerequisite validation)
   -Help, -h           Show this help message
 
 EXAMPLES:
-  # Check task prerequisites (plan.md required)
-  .\check-prerequisites.ps1 -Json
+  # Check task prerequisites (spec.md + module plan + design docs required)
+  .\check-prerequisites.ps1 -Json -RequirePlan -RequireDesign
   
-  # Check implementation prerequisites (plan.md + tasks/ required)
-  .\check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
+  # Check implementation prerequisites (spec.md + module plan + design docs + tasks/ required)
+  .\check-prerequisites.ps1 -Json -RequirePlan -RequireDesign -RequireTasks -IncludeTasks
   
   # Get feature paths only (no validation)
   .\check-prerequisites.ps1 -PathsOnly
@@ -69,18 +75,44 @@ if ($PathsOnly) {
         [PSCustomObject]@{
             REPO_ROOT    = $paths.REPO_ROOT
             BRANCH       = $paths.CURRENT_BRANCH
+            ACTIVE_FEATURE = $paths.ACTIVE_FEATURE
             FEATURE_DIR  = $paths.FEATURE_DIR
             FEATURE_SPEC = $paths.FEATURE_SPEC
             IMPL_PLAN    = $paths.IMPL_PLAN
+            LEGACY_PLAN  = $paths.LEGACY_PLAN
+            PLANS_DIR    = $paths.PLANS_DIR
+            MODULE_PLAN  = $paths.MODULE_PLAN
+            ACTIVE_MODULE = $paths.ACTIVE_MODULE
+            ACTIVE_TASK_SLUG = $paths.ACTIVE_TASK_SLUG
+            TASKS_DIR    = $paths.TASKS_DIR
+            TASKS_FILE   = $paths.TASKS_FILE
             TASKS        = $paths.TASKS
+            PD_ALL_DIR   = $paths.PD_ALL_DIR
+            AD_DIR       = $paths.AD_DIR
+            AD_FILE      = $paths.AD_FILE
+            DD_DIR       = $paths.DD_DIR
+            DD_FILE      = $paths.DD_FILE
         } | ConvertTo-Json -Compress
     } else {
         Write-Output "REPO_ROOT: $($paths.REPO_ROOT)"
         Write-Output "BRANCH: $($paths.CURRENT_BRANCH)"
+        Write-Output "ACTIVE_FEATURE: $($paths.ACTIVE_FEATURE)"
         Write-Output "FEATURE_DIR: $($paths.FEATURE_DIR)"
         Write-Output "FEATURE_SPEC: $($paths.FEATURE_SPEC)"
         Write-Output "IMPL_PLAN: $($paths.IMPL_PLAN)"
+        Write-Output "LEGACY_PLAN: $($paths.LEGACY_PLAN)"
+        Write-Output "PLANS_DIR: $($paths.PLANS_DIR)"
+        Write-Output "MODULE_PLAN: $($paths.MODULE_PLAN)"
+        Write-Output "ACTIVE_MODULE: $($paths.ACTIVE_MODULE)"
+        Write-Output "ACTIVE_TASK_SLUG: $($paths.ACTIVE_TASK_SLUG)"
+        Write-Output "TASKS_DIR: $($paths.TASKS_DIR)"
+        Write-Output "TASKS_FILE: $($paths.TASKS_FILE)"
         Write-Output "TASKS: $($paths.TASKS)"
+        Write-Output "PD_ALL_DIR: $($paths.PD_ALL_DIR)"
+        Write-Output "AD_DIR: $($paths.AD_DIR)"
+        Write-Output "AD_FILE: $($paths.AD_FILE)"
+        Write-Output "DD_DIR: $($paths.DD_DIR)"
+        Write-Output "DD_FILE: $($paths.DD_FILE)"
     }
     exit 0
 }
@@ -92,10 +124,31 @@ if (-not (Test-Path $paths.FEATURE_DIR -PathType Container)) {
     exit 1
 }
 
-if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
-    Write-Output "ERROR: plan.md not found in $($paths.FEATURE_DIR)"
-    Write-Output "Run /speckit.plan first to create the implementation plan."
+if (-not (Test-Path $paths.FEATURE_SPEC -PathType Leaf)) {
+    Write-Output "ERROR: spec.md not found in $($paths.FEATURE_DIR)"
+    Write-Output "Run /speckit.specify first to create the feature specification."
     exit 1
+}
+
+if ($RequirePlan) {
+    if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
+        Write-Output "ERROR: implementation plan not found for active module in $($paths.FEATURE_DIR)"
+        Write-Output "Expected module plan path: $($paths.IMPL_PLAN)"
+        Write-Output "Run /speckit.plan first to create the module implementation plan."
+        exit 1
+    }
+}
+
+if ($RequireDesign) {
+    $hasPdAll = Test-Path $paths.PD_ALL_DIR -PathType Container
+    $hasAd = (Test-Path $paths.AD_DIR -PathType Container) -or (Test-Path $paths.AD_FILE -PathType Leaf)
+    $hasDd = (Test-Path $paths.DD_DIR -PathType Container) -or (Test-Path $paths.DD_FILE -PathType Leaf)
+
+    if (-not $hasPdAll -or -not $hasAd -or -not $hasDd) {
+        Write-Output "ERROR: Required design documents are incomplete in $($paths.FEATURE_DIR)"
+        Write-Output "Run /speckit.design-pd -> /speckit.design-ad -> /speckit.design-dd before continuing."
+        exit 1
+    }
 }
 
 # Check for tasks/ directory (or legacy tasks.md) if required
@@ -129,7 +182,13 @@ if ($IncludeTasks) {
 if ($Json) {
     # JSON output
     [PSCustomObject]@{ 
+        BRANCH = $paths.CURRENT_BRANCH
+        ACTIVE_FEATURE = $paths.ACTIVE_FEATURE
         FEATURE_DIR = $paths.FEATURE_DIR
+        FEATURE_SPEC = $paths.FEATURE_SPEC
+        IMPL_PLAN = $paths.IMPL_PLAN
+        ACTIVE_MODULE = $paths.ACTIVE_MODULE
+        ACTIVE_TASK_SLUG = $paths.ACTIVE_TASK_SLUG
         AVAILABLE_DOCS = $docs 
     } | ConvertTo-Json -Compress
 } else {

@@ -88,10 +88,10 @@ python -m app.scripts.init_db
 ### 启动后端
 
 ```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8005
 ```
 
-后端 API 文档：http://localhost:8000/docs
+后端 API 文档：http://localhost:8005/docs
 
 ## 4. 前端环境搭建
 
@@ -104,7 +104,7 @@ npm install
 # 复制环境配置
 cp .env.example .env.local
 # 编辑 API 地址
-# VITE_API_BASE_URL=http://localhost:8000/api/v1
+# VITE_API_BASE_URL=http://localhost:8005/api/v1
 
 # 启动开发服务器
 npm run dev
@@ -159,10 +159,10 @@ python -m scripts.export_onnx \
 
 ```bash
 # 获取当前版本
-curl http://localhost:8000/v1/dialog/version
+curl http://localhost:8005/v1/dialog/version
 
 # 对话解析
-curl -X POST http://localhost:8000/v1/dialog/parse \
+curl -X POST http://localhost:8005/v1/dialog/parse \
   -H "Content-Type: application/json" \
   -d '{
     "device_id": "test_device_001",
@@ -175,7 +175,7 @@ curl -X POST http://localhost:8000/v1/dialog/parse \
   }'
 
 # 健康检查
-curl http://localhost:8000/v1/health
+curl http://localhost:8005/v1/health
 ```
 
 ## 7. 运行测试
