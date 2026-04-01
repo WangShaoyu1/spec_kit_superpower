@@ -135,6 +135,13 @@ def get_model_or_404(session: Session, model_id: str) -> LibraryModelVersion:
     return model
 
 
+def get_dataset_or_404(session: Session, library_id: str, dataset_id: str) -> LibraryDataset:
+    dataset = session.get(LibraryDataset, dataset_id)
+    if dataset is None or dataset.library_id != library_id:
+        raise ApiError(404, "DATASET-404-NOT-FOUND", "目标数据集不存在")
+    return dataset
+
+
 def create_default_datasets(session: Session, library: CommandLibrary):
     validation = load_validation_set()
     cases = validation["cases"]
@@ -371,6 +378,27 @@ def get_library_detail(
             "models": [serialize_model(item) for item in models],
             "evaluation_runs": [serialize_evaluation_run(item) for item in evaluation_runs],
             "partial_requirements": ["FR-050 Partial"],
+        },
+    )
+
+
+@router.get("/intent-libraries/{library_id}/datasets/{dataset_id}")
+def get_dataset_detail(
+    library_id: str,
+    dataset_id: str,
+    request: Request,
+    _: UserAccount = Depends(require_capability("intent_library_read")),
+    session: Session = Depends(get_db),
+):
+    library = get_library_or_404(session, library_id)
+    dataset = get_dataset_or_404(session, library_id, dataset_id)
+    samples = parse_json_field(dataset.payload_json, [])
+    return response_envelope(
+        request,
+        data={
+            "library": serialize_library(library, []),
+            "dataset": serialize_dataset(dataset),
+            "samples": samples,
         },
     )
 

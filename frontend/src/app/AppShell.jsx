@@ -1,4 +1,5 @@
 import {
+  AppstoreOutlined,
   BarChartOutlined,
   BookOutlined,
   DatabaseOutlined,
@@ -6,9 +7,9 @@ import {
   RobotOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { Button, Card, Layout, Menu, Tag, Typography } from 'antd'
-import { useMemo } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Button, Card, Drawer, Layout, Menu, Tag, Typography } from 'antd'
+import { useMemo, useState } from 'react'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 
 const { Content, Sider } = Layout
 const { Paragraph, Title } = Typography
@@ -18,11 +19,6 @@ function buildModuleItems(capabilities) {
   const capabilitySet = new Set(capabilities)
 
   return [
-    {
-      key: '/',
-      icon: <DatabaseOutlined />,
-      label: <Link to="/">总览驾驶舱</Link>,
-    },
     {
       key: '/user-mgmt',
       icon: <UserOutlined />,
@@ -63,69 +59,51 @@ function buildModuleItems(capabilities) {
 }
 
 const MODULE_CARDS = [
-  { key: 'pd-user-mgmt', title: '用户管理', tone: 'gold', state: '已完成 browser 验证' },
-  { key: 'pd-intent-library', title: '指令库管理', tone: 'blue', state: '已完成 browser 验证' },
-  { key: 'pd-knowledge-base', title: '知识库管理', tone: 'cyan', state: '已完成 browser 验证' },
-  { key: 'pd-dialog-profile', title: '对话方案', tone: 'purple', state: '已完成 browser 验证' },
-  { key: 'pd-batch-test', title: '批量测试', tone: 'volcano', state: '已完成 browser 验证' },
-  { key: 'pd-monitoring', title: '监控仪表盘', tone: 'geekblue', state: '已完成 browser 验证' },
+  { key: 'user-mgmt', title: '用户管理', tagClass: 'module-tag module-tag--a', state: '验收可用', summary: '账号、角色、权限矩阵与重置密码。' },
+  { key: 'intent-library', title: '指令库管理', tagClass: 'module-tag module-tag--b', state: '验收可用', summary: '指令库列表、训练、评测与发布。' },
+  { key: 'knowledge-base', title: '知识库管理', tagClass: 'module-tag module-tag--c', state: '验收可用', summary: '分类、文档上传、过滤与回读。' },
+  { key: 'dialog-profiles', title: '对话方案', tagClass: 'module-tag module-tag--d', state: '验收可用', summary: '方案编辑、发布与手动测试。' },
+  { key: 'batch-tests', title: '批量测试', tagClass: 'module-tag module-tag--e', state: '验收可用', summary: '生成样例、执行测试与查看报告。' },
+  { key: 'monitoring', title: '监控中心', tagClass: 'module-tag module-tag--f', state: '验收可用', summary: '运行指标、设备日志与告警规则。' },
 ]
 
-function DashboardPage() {
+function OverviewPanel() {
   return (
     <div className="page-stack">
       <section className="hero-panel">
-        <div className="hero-grid">
-          <div>
-            <div className="hero-eyebrow">Formal Rollout</div>
-            <Title level={1} className="hero-title">
-              SmartChef 正式研发主控台
-            </Title>
-            <Paragraph className="hero-paragraph">
-              当前仓库已切离试点入口，正式 `backend/` 与 `frontend/` 将承接后续模块化研发。
-              先完成 `pd-user-mgmt` 的文档再生与实现，再按 harness 顺序推进其他模块。
-            </Paragraph>
-            <div className="metric-row">
-              <div className="metric-card">
-                <div className="metric-label">当前阶段</div>
-                <div className="metric-value">Browser Verified</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">最近完成模块</div>
-                <div className="metric-value">Monitoring</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">运行约束</div>
-                <div className="metric-value">Local PG</div>
-              </div>
-            </div>
+        <div className="hero-eyebrow">Platform Overview</div>
+        <Title level={2} className="hero-title" style={{ fontFamily: 'var(--font-display)' }}>
+          平台概览
+        </Title>
+        <Paragraph className="hero-paragraph">
+          当前后台已接入用户管理、指令库、知识库、对话方案、批量测试和监控中心六个业务模块，可直接进入对应页面完成验收与回归。
+        </Paragraph>
+        <div className="metric-row">
+          <div className="metric-card">
+            <div className="metric-label">已接入模块</div>
+            <div className="metric-value">6</div>
           </div>
-          <aside className="spotlight-card">
-            <div className="hero-eyebrow">Harness Discipline</div>
-            <Title level={3} style={{ color: '#fff', marginTop: 12 }}>
-              模块先后顺序与浏览器验证已被固定
-            </Title>
-            <Paragraph style={{ color: 'rgba(248, 251, 255, 0.78)' }}>
-              现在的壳层只暴露正式入口，不再回退到试点路径；后续每个模块都将按
-              <code style={{ margin: '0 6px', color: '#ffd48b' }}>
-                ad -&gt; dd -&gt; tasks -&gt; implement -&gt; browser
-              </code>
-              顺序推进。
-            </Paragraph>
-          </aside>
+          <div className="metric-card">
+            <div className="metric-label">当前数据库</div>
+            <div className="metric-value">PostgreSQL</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-label">当前重点</div>
+            <div className="metric-value">手动验收</div>
+          </div>
         </div>
       </section>
 
       <div className="module-grid">
         {MODULE_CARDS.map((card) => (
           <Card key={card.key} className="module-card" variant="borderless">
-            <Title level={4} style={{ color: '#f8fbff', marginTop: 0 }}>
+            <Title level={4} style={{ fontFamily: 'var(--font-display)', color: 'var(--ink)', marginTop: 0, fontWeight: 600 }}>
               {card.title}
             </Title>
-            <Paragraph style={{ color: 'rgba(214, 224, 236, 0.76)' }}>
-              {card.key}
+            <Paragraph style={{ color: 'var(--ink-muted)' }}>
+              {card.summary}
             </Paragraph>
-            <Tag color={card.tone}>{card.state}</Tag>
+            <Tag className={card.tagClass}>{card.state}</Tag>
           </Card>
         ))}
       </div>
@@ -133,14 +111,18 @@ function DashboardPage() {
   )
 }
 
-export function AppShell({ capabilities = DEFAULT_CAPABILITIES }) {
+export function AppShell({ capabilities = DEFAULT_CAPABILITIES, onLogout = () => {} }) {
   const location = useLocation()
+  const [overviewOpen, setOverviewOpen] = useState(false)
   const moduleItems = useMemo(() => buildModuleItems(capabilities), [capabilities])
+  const firstAvailablePath = useMemo(() => {
+    return moduleItems.find((item) => !item.disabled)?.key ?? '/user-mgmt'
+  }, [moduleItems])
   const selectedKeys = useMemo(() => {
     if (location.pathname === '/user-mgmt') {
       return ['/user-mgmt']
     }
-    if (location.pathname === '/intent-library') {
+    if (location.pathname.startsWith('/intent-library')) {
       return ['/intent-library']
     }
     if (location.pathname.startsWith('/knowledge-base')) {
@@ -155,18 +137,19 @@ export function AppShell({ capabilities = DEFAULT_CAPABILITIES }) {
     if (location.pathname.startsWith('/monitoring')) {
       return ['/monitoring']
     }
-    return ['/']
-  }, [location.pathname])
+    return [firstAvailablePath]
+  }, [firstAvailablePath, location.pathname])
+
+  if (location.pathname === '/') {
+    return <Navigate to={firstAvailablePath} replace />
+  }
 
   return (
     <Layout className="shell-layout">
       <Sider width={276} className="shell-sider">
         <div className="brand-block">
-          <div className="brand-kicker">Spec Harness Console</div>
           <div className="brand-title">SmartChef</div>
-          <div className="brand-copy">
-            正式前端壳。试点入口已经退出，后续模块按 harness 顺序逐个接入。
-          </div>
+          <div className="brand-copy">管理后台</div>
         </div>
         <Menu
           mode="inline"
@@ -177,13 +160,32 @@ export function AppShell({ capabilities = DEFAULT_CAPABILITIES }) {
       </Sider>
       <Layout>
         <Content className="shell-content">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
-            <div className="status-chip">正式骨架已建立</div>
-            <Button type="default" size="large">
-              Local PG via temp_data/manage_services.py
-            </Button>
+          <div className="shell-toolbar">
+            <div className="status-chip">当前阶段: 手动验收</div>
+            <div className="shell-actions">
+              <Button
+                aria-label="平台概览"
+                icon={<AppstoreOutlined />}
+                size="large"
+                onClick={() => setOverviewOpen(true)}
+              >
+                平台概览
+              </Button>
+              <Button type="default" size="large" onClick={onLogout}>
+                退出登录
+              </Button>
+            </div>
           </div>
-          {location.pathname === '/' ? <DashboardPage /> : <Outlet />}
+          <Outlet />
+          <Drawer
+            title="平台概览"
+            width={1200}
+            open={overviewOpen}
+            onClose={() => setOverviewOpen(false)}
+            className="overview-drawer"
+          >
+            <OverviewPanel />
+          </Drawer>
         </Content>
       </Layout>
     </Layout>

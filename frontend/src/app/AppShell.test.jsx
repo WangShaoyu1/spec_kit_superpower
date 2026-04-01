@@ -1,6 +1,6 @@
 import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +25,7 @@ function renderShell(initialPath) {
         <Routes>
           <Route path="/" element={<AppShell />}>
             <Route path="user-mgmt" element={<UserMgmtPage token="token-admin" />} />
+            <Route path="intent-library/*" element={<div>指令库占位页</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -61,19 +62,40 @@ describe('AppShell', () => {
     vi.clearAllMocks()
   })
 
-  it('renders the formal console menu', () => {
-    renderShell('/')
+  it('renders the business shell without rollout copy in the main menu', () => {
+    renderShell('/user-mgmt')
 
     expect(screen.getByText('SmartChef')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '用户管理' })).toBeInTheDocument()
     expect(screen.getAllByText('指令库管理').length).toBeGreaterThan(0)
-    expect(screen.getByText('Spec Harness Console')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '总览驾驶舱' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Spec Harness Console')).not.toBeInTheDocument()
+    expect(screen.queryByText(/正式前端壳|harness 顺序/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '平台概览' })).toBeInTheDocument()
   })
 
   it('renders the user management entry route', () => {
     renderShell('/user-mgmt')
 
-    expect(screen.getByRole('heading', { name: '账号管理' })).toBeInTheDocument()
-    expect(screen.getByText('新建账号')).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: '账号管理' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('新建账号').length).toBeGreaterThan(0)
+  })
+
+  it('opens the overview drawer from the top action area', () => {
+    renderShell('/user-mgmt')
+
+    fireEvent.click(screen.getAllByRole('button', { name: '平台概览' })[0])
+
+    expect(screen.getAllByText('平台概览').length).toBeGreaterThan(1)
+    expect(screen.getByText('已接入模块')).toBeInTheDocument()
+  })
+
+  it('keeps the intent library menu selected on nested routes', () => {
+    const { container } = renderShell('/intent-library/lib_001/test')
+
+    const selectedIntentEntry = container.querySelector('.ant-menu-item-selected a[href="/intent-library"]')
+
+    expect(selectedIntentEntry).not.toBeNull()
+    expect(screen.getByText('指令库占位页')).toBeInTheDocument()
   })
 })

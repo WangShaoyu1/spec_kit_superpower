@@ -15,6 +15,7 @@ function resolveApiBase() {
 }
 
 const API_BASE = resolveApiBase()
+let authFailureHandler = null
 
 
 async function request(path, options = {}) {
@@ -22,12 +23,29 @@ async function request(path, options = {}) {
   const payload = await response.json()
 
   if (!response.ok || payload.code !== '000000') {
+    if ((response.status === 401 || payload.code === 'AUTH-401') && typeof authFailureHandler === 'function') {
+      authFailureHandler(payload)
+      const error = new Error(payload.message || '未登录或会话已失效')
+      error.payload = payload
+      error.handledAuthFailure = true
+      throw error
+    }
     const error = new Error(payload.message || '请求失败')
     error.payload = payload
     throw error
   }
 
   return payload.data
+}
+
+
+export function setAuthFailureHandler(handler) {
+  authFailureHandler = handler
+}
+
+
+export function isAuthFailureError(error) {
+  return error?.payload?.code === 'AUTH-401' || error?.handledAuthFailure === true
 }
 
 
@@ -127,6 +145,13 @@ export function createIntentLibrary(token, payload) {
 
 export function fetchIntentLibraryDetail(token, libraryId) {
   return request(`/api/v1/intent-libraries/${libraryId}`, {
+    headers: authHeaders(token),
+  })
+}
+
+
+export function fetchIntentDatasetDetail(token, libraryId, datasetId) {
+  return request(`/api/v1/intent-libraries/${libraryId}/datasets/${datasetId}`, {
     headers: authHeaders(token),
   })
 }

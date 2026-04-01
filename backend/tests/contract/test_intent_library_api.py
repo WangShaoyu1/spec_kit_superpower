@@ -164,3 +164,24 @@ def test_single_test_returns_intent_slots_and_latency(client: TestClient, admin_
     assert payload["confidence"] >= 0.9
     assert payload["slots"]["device"] == "烤箱"
     assert payload["latency_ms"] > 0
+
+
+def test_dataset_detail_returns_samples_for_dataset_management_page(client: TestClient, admin_token: str):
+    library = create_library(client, admin_token, "zh_dataset_v1")
+    detail = client.get(
+        f"/api/v1/intent-libraries/{library['id']}",
+        headers=auth_headers(admin_token),
+    ).json()["data"]
+    dataset = next(item for item in detail["datasets"] if item["dataset_type"] == "training")
+
+    response = client.get(
+        f"/api/v1/intent-libraries/{library['id']}/datasets/{dataset['id']}",
+        headers=auth_headers(admin_token),
+    )
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["dataset"]["id"] == dataset["id"]
+    assert payload["dataset"]["sample_count"] == dataset["sample_count"]
+    assert len(payload["samples"]) == dataset["sample_count"]
+    assert payload["samples"][0]["intent_key"]
+    assert "display_name" in payload["samples"][0]
