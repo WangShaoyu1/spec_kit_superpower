@@ -1,0 +1,174 @@
+{
+  "version": "1.0",
+  "state_order": [
+    "not_started",
+    "ad_ready",
+    "dd_ready",
+    "tasks_ready",
+    "implementing",
+    "browser_verified",
+    "done"
+  ],
+  "resource_locks": {
+    "frontend_dev_server": 1,
+    "backend_dev_server": 1,
+    "browser_sessions": 1,
+    "module_in_implement": 1
+  },
+  "modules": [
+    {
+      "module_key": "pd-user-mgmt",
+      "task_slug": "user-mgmt",
+      "display_name": "用户管理",
+      "order": 1,
+      "depends_on": [],
+      "critical": false,
+      "allow_parallel_design": true,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "permission_visibility",
+          "form_reset",
+          "result_readback"
+        ]
+      }
+    },
+    {
+      "module_key": "pd-intent-library",
+      "task_slug": "intent-library",
+      "display_name": "指令库管理",
+      "order": 2,
+      "depends_on": [
+        "pd-user-mgmt"
+      ],
+      "critical": true,
+      "allow_parallel_design": false,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "training_state_transition",
+          "batch_eval_feedback",
+          "result_readback"
+        ],
+        "performance_targets": {
+          "response_p95_ms": 2000,
+          "accuracy_signal_required": true,
+          "command_intent_accuracy_min": 0.95,
+          "slot_f1_min": 0.9,
+          "validation_set_path": ".specify/harness/core-validation-set.json",
+          "validation_case_count_min": 39,
+          "required_slot_case_count_min": 21
+        }
+      }
+    },
+    {
+      "module_key": "pd-knowledge-base",
+      "task_slug": "knowledge-base",
+      "display_name": "知识库管理",
+      "order": 3,
+      "depends_on": [
+        "pd-intent-library"
+      ],
+      "critical": false,
+      "allow_parallel_design": true,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "upload_feedback",
+          "indexing_result_readback",
+          "empty_state"
+        ]
+      }
+    },
+    {
+      "module_key": "pd-dialog-profile",
+      "task_slug": "dialog-profile",
+      "display_name": "对话方案",
+      "order": 4,
+      "depends_on": [
+        "pd-intent-library",
+        "pd-knowledge-base"
+      ],
+      "critical": true,
+      "allow_parallel_design": false,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "binding_consistency",
+          "publish_gate_feedback",
+          "chat_result_readback"
+        ],
+        "performance_targets": {
+          "response_p95_ms": 2000,
+          "accuracy_signal_required": true,
+          "routing_accuracy_min": 0.95,
+          "command_intent_accuracy_min": 0.95,
+          "validation_set_path": ".specify/harness/core-validation-set.json",
+          "validation_case_count_min": 39,
+          "required_slot_case_count_min": 21,
+          "context_probe_required": true
+        }
+      }
+    },
+    {
+      "module_key": "pd-batch-test",
+      "task_slug": "batch-test",
+      "display_name": "批量测试（对话方案）",
+      "order": 5,
+      "depends_on": [
+        "pd-dialog-profile"
+      ],
+      "critical": false,
+      "allow_parallel_design": false,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "case_count_consistency",
+          "latency_feedback",
+          "accuracy_feedback"
+        ],
+        "performance_targets": {
+          "command_response_p95_ms": 200,
+          "knowledge_response_p95_ms": 2000,
+          "accuracy_min": 0.95,
+          "threshold_source": {
+            "command_response_p95_ms": "spec.md SC-002",
+            "knowledge_response_p95_ms": "spec.md SC-003",
+            "accuracy_min": "spec.md US8"
+          }
+        }
+      }
+    },
+    {
+      "module_key": "pd-monitoring",
+      "task_slug": "monitoring",
+      "display_name": "监控仪表盘",
+      "order": 6,
+      "depends_on": [
+        "pd-batch-test"
+      ],
+      "critical": false,
+      "allow_parallel_design": false,
+      "browser_stage": {
+        "required": true,
+        "ui_smoke": true,
+        "business_e2e": true,
+        "quality_probes": [
+          "log_visibility",
+          "metric_non_zero",
+          "alert_feedback"
+        ]
+      }
+    }
+  ]
+}
