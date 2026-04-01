@@ -72,11 +72,11 @@ export function MonitoringAlertRulesPage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">Alert Governance</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>告警规则</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">告警规则</h2>
+            <p className="page-lede">
               管理准确率、延迟和错误率相关规则，并回读最近触发事件。
             </p>
           </div>

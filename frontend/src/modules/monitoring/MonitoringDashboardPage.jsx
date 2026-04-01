@@ -116,11 +116,11 @@ export function MonitoringDashboardPage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">Runtime Observatory</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>监控仪表盘</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">监控仪表盘</h2>
+            <p className="page-lede">
               统一回读运行态指标、请求日志与最近告警，避免发布后“看不见、查不清、反应慢”。
             </p>
           </div>
@@ -196,52 +196,67 @@ export function MonitoringDashboardPage({ token }) {
       <Card className="module-card" variant="borderless" loading={loading}>
         <div className="page-stack">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
-            <strong style={{ color: '#fff' }}>请求日志</strong>
+            <strong className="page-section-strong">请求日志</strong>
             <Tag color="purple">真实筛选后回读</Tag>
           </div>
 
-          <Form form={form} layout="inline" onFinish={handleSearch} initialValues={filters}>
-            <Form.Item name="window" label="时间窗口">
-              <Select
-                aria-label="时间窗口"
-                style={{ width: 150 }}
-                options={WINDOW_OPTIONS}
-              />
-            </Form.Item>
-            <Form.Item name="device_id" label="设备 ID">
-              <Input aria-label="设备 ID" placeholder="例如 device_a" />
-            </Form.Item>
-            <Form.Item name="route" label="路由类型">
-              <Select
-                aria-label="路由类型"
-                allowClear
-                style={{ width: 160 }}
-                options={ROUTE_OPTIONS}
-                placeholder="全部路由"
-              />
-            </Form.Item>
-            <Form.Item name="intent" label="意图">
-              <Input aria-label="意图" placeholder="例如 device.control" />
-            </Form.Item>
-            <Form.Item name="latency_min_ms" label="最小耗时 (ms)">
-              <Input aria-label="最小耗时 (ms)" placeholder="最小值" />
-            </Form.Item>
-            <Form.Item name="latency_max_ms" label="最大耗时 (ms)">
-              <Input aria-label="最大耗时 (ms)" placeholder="最大值" />
-            </Form.Item>
-            <Form.Item name="is_error" label="异常状态">
-              <Select
-                aria-label="异常状态"
-                style={{ width: 140 }}
-                options={ERROR_OPTIONS}
-              />
-            </Form.Item>
-            <Form.Item>
-              <Space>
-                <Button type="primary" htmlType="submit">筛选日志</Button>
-                <Button onClick={() => navigate('/monitoring/device-logs')}>进入链路排查</Button>
-              </Space>
-            </Form.Item>
+          <Form
+            form={form}
+            layout="vertical"
+            className="monitoring-logs-filter-form"
+            onFinish={handleSearch}
+            initialValues={filters}
+          >
+            <Row gutter={[20, 20]}>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="window" label="时间窗口">
+                  <Select aria-label="时间窗口" options={WINDOW_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="device_id" label="设备 ID">
+                  <Input aria-label="设备 ID" placeholder="例如 device_a" allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="route" label="路由类型">
+                  <Select
+                    aria-label="路由类型"
+                    allowClear
+                    options={ROUTE_OPTIONS}
+                    placeholder="全部路由"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="intent" label="意图">
+                  <Input aria-label="意图" placeholder="例如 device.control" allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="latency_min_ms" label="最小耗时 (ms)">
+                  <Input aria-label="最小耗时 (ms)" placeholder="最小值" inputMode="numeric" allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="latency_max_ms" label="最大耗时 (ms)">
+                  <Input aria-label="最大耗时 (ms)" placeholder="最大值" inputMode="numeric" allowClear />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6}>
+                <Form.Item name="is_error" label="异常状态">
+                  <Select aria-label="异常状态" options={ERROR_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={8} xl={6} className="monitoring-logs-filter-actions-col">
+                <Space wrap size="middle">
+                  <Button type="primary" htmlType="submit">
+                    筛选日志
+                  </Button>
+                  <Button onClick={() => navigate('/monitoring/device-logs')}>进入链路排查</Button>
+                </Space>
+              </Col>
+            </Row>
           </Form>
 
           <Table

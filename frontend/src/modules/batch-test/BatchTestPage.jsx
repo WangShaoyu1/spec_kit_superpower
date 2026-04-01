@@ -67,11 +67,11 @@ export function BatchTestPage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">Batch Regression Console</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>批量测试</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">批量测试</h2>
+            <p className="page-lede">
               统一管理对话方案回归批次，跟踪用例数量、执行状态、准确率与响应时延。
             </p>
           </div>
@@ -109,7 +109,7 @@ export function BatchTestPage({ token }) {
 
       <Card className="module-card" variant="borderless" loading={loading}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <strong style={{ color: '#fff' }}>批次目录</strong>
+          <strong className="page-section-strong">批次目录</strong>
           <Badge count={directory.items.length} />
         </div>
 
@@ -118,19 +118,14 @@ export function BatchTestPage({ token }) {
             {directory.items.map((item) => (
               <Card
                 key={item.id}
+                className={`page-tile${item.status === 'completed' ? ' page-tile--done' : ''}`}
                 variant="borderless"
-                style={{
-                  background: item.status === 'completed'
-                    ? 'linear-gradient(135deg, rgba(22, 52, 74, 0.88), rgba(13, 21, 34, 0.94))'
-                    : 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
               >
                 <div className="page-stack">
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div>
-                      <div style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>{item.name}</div>
-                      <div style={{ color: 'rgba(214, 224, 236, 0.72)', marginTop: 6 }}>
+                      <div className="page-tile-title">{item.name}</div>
+                      <div className="page-tile-meta">
                         被测方案: {item.profile_name}
                       </div>
                     </div>

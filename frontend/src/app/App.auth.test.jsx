@@ -15,6 +15,7 @@ function jsonResponse(payload) {
 describe('App auth flow', () => {
   beforeEach(() => {
     localStorage.clear()
+    window.history.pushState({}, '', '/')
     vi.restoreAllMocks()
   })
 
@@ -88,7 +89,7 @@ describe('App auth flow', () => {
 
     fireEvent.change(screen.getAllByLabelText('用户名')[0], { target: { value: 'admin' } })
     fireEvent.change(screen.getAllByLabelText('密码')[0], { target: { value: 'Abc12345' } })
-    fireEvent.click(screen.getByRole('button', { name: '登录系统' }))
+    fireEvent.click(screen.getByRole('button', { name: '进入控制台' }))
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: '账号管理' })).toBeInTheDocument()
@@ -105,5 +106,79 @@ describe('App auth flow', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer token-admin' }),
       }),
     )
+  })
+
+  it('logs out from the shell and returns to the login screen', async () => {
+    window.history.pushState({}, '', '/user-mgmt')
+    localStorage.setItem(
+      'smartchef-session',
+      JSON.stringify({
+        access_token: 'token-admin',
+        capabilities: ['user_manage'],
+      }),
+    )
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          code: '000000',
+          message: 'success',
+          data: {
+            items: [],
+            summary: { total: 0, admin_count: 0, pm_count: 0, tester_count: 0 },
+          },
+        }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({
+          code: '000000',
+          message: 'success',
+          data: { items: [] },
+        }),
+      )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '账号管理' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '退出登录' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('管理员登录')).toBeInTheDocument()
+    })
+    expect(localStorage.getItem('smartchef-session')).toBeNull()
+  })
+
+  it('returns to the login screen when an API request responds with AUTH-401', async () => {
+    window.history.pushState({}, '', '/user-mgmt')
+    localStorage.setItem(
+      'smartchef-session',
+      JSON.stringify({
+        access_token: 'token-admin',
+        capabilities: ['user_manage'],
+      }),
+    )
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    fetchSpy.mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: false,
+        json: async () => ({
+          code: 'AUTH-401',
+          message: '未登录或会话已失效',
+          data: null,
+        }),
+      }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByText('管理员登录')).toBeInTheDocument()
+    })
+    expect(localStorage.getItem('smartchef-session')).toBeNull()
   })
 })

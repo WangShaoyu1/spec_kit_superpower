@@ -91,8 +91,8 @@ export function DialogProfileTestPage({ token }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
           <div>
             <div className="hero-eyebrow">Manual Test</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>{profile?.name ?? '手动测试'}</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.76)' }}>
+            <h2 className="page-title">{profile?.name ?? '手动测试'}</h2>
+            <p className="page-lede">
               会话隔离、设备上下文模拟和调试 trace 全部以后端真实回读为准。
             </p>
           </div>
@@ -105,26 +105,18 @@ export function DialogProfileTestPage({ token }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 320px', gap: 18 }}>
         <Card className="module-card" variant="borderless" loading={loading}>
-          <div style={{ color: '#fff', fontWeight: 700, marginBottom: 12 }}>测试会话</div>
+          <div className="chat-panel-label">测试会话</div>
           <div className="page-stack">
             {sessions.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => void loadSession(item.id)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  borderRadius: 16,
-                  border: item.id === currentSessionId ? '1px solid rgba(255,176,77,0.7)' : '1px solid rgba(255,255,255,0.08)',
-                  background: item.id === currentSessionId ? 'rgba(255,176,77,0.08)' : 'rgba(255,255,255,0.03)',
-                  color: '#fff',
-                  padding: 14,
-                  cursor: 'pointer',
-                }}
+                className={`chat-session-item${item.id === currentSessionId ? ' chat-session-item--active' : ''}`}
+                style={{ width: '100%' }}
               >
-                <div style={{ fontWeight: 700 }}>{item.name}</div>
-                <div style={{ color: 'rgba(214, 224, 236, 0.72)', marginTop: 6 }}>消息数 {item.message_count}</div>
+                <div className="chat-session-title">{item.name}</div>
+                <div className="chat-session-meta">消息数 {item.message_count}</div>
               </button>
             ))}
           </div>
@@ -137,18 +129,12 @@ export function DialogProfileTestPage({ token }) {
                 {currentDetail.messages.map((item) => (
                   <div
                     key={item.id}
-                    style={{
-                      alignSelf: item.role === 'assistant' ? 'stretch' : 'stretch',
-                      borderRadius: 18,
-                      padding: 14,
-                      background: item.role === 'assistant' ? 'rgba(255,176,77,0.08)' : 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                    }}
+                    className={`chat-msg${item.role === 'assistant' ? ' chat-msg--assistant' : ' chat-msg--user'}`}
                   >
-                    <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>{item.role === 'assistant' ? '助手' : '用户'}</div>
-                    <div style={{ color: 'rgba(230, 237, 247, 0.9)' }}>{item.text}</div>
+                    <div className="chat-msg-role">{item.role === 'assistant' ? '助手' : '用户'}</div>
+                    <div className="chat-msg-text">{item.text}</div>
                     {item.response_time_ms !== null && item.response_time_ms !== undefined ? (
-                      <div style={{ color: 'rgba(214, 224, 236, 0.65)', marginTop: 8 }}>
+                      <div className="chat-msg-foot">
                         响应耗时 {item.response_time_ms} ms
                       </div>
                     ) : null}
@@ -173,7 +159,7 @@ export function DialogProfileTestPage({ token }) {
         <Card className="module-card" variant="borderless" loading={loading}>
           <div className="page-stack">
             <div>
-              <div style={{ color: '#fff', fontWeight: 700, marginBottom: 12 }}>设备上下文</div>
+              <div className="chat-panel-label">设备上下文</div>
               <Input.TextArea
                 aria-label="设备上下文"
                 rows={10}

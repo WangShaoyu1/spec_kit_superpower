@@ -11,13 +11,14 @@ if "pytest" in sys.modules:
 
     os.environ["DATABASE_URL"] = get_pytest_database_url()
     os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("DATABASE_RUN_CREATE_ALL", "true")
 
 from app.main import create_app
 
 
 @pytest.fixture(autouse=True)
 def _reset_postgres_public_schema():
-    """每个用例前重建 public schema，避免共享 smartchef_test 时数据与唯一键冲突。"""
+    """每个用例前重建 public schema，避免共享 smartchef_v2_test 时数据与唯一键冲突。"""
     url = os.environ["DATABASE_URL"]
     if not url.startswith("postgresql"):
         yield
@@ -36,6 +37,7 @@ def app():
         {
             "app_env": "test",
             "database_url": os.environ["DATABASE_URL"],
+            "database_run_create_all": True,
             "seed_admin_password": "Abc12345",
         }
     )

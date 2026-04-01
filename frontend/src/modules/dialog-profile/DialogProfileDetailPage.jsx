@@ -95,7 +95,7 @@ export function DialogProfileDetailPage({ token }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
               <div>
                 <div className="hero-eyebrow">Dialog Profile Detail</div>
-                <h2 style={{ color: '#fff', marginBottom: 8 }}>{detail.profile.name}</h2>
+                <h2 className="page-title">{detail.profile.name}</h2>
                 <Space wrap>
                   <Tag color={detail.profile.status === 'published' ? 'green' : 'default'}>{detail.profile.status}</Tag>
                   <Tag color="purple">{detail.profile.llm_model}</Tag>

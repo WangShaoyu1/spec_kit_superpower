@@ -2,9 +2,9 @@
 
 import os
 
-# 与 test_config 中 smartchef_test 一致；勿与开发库 smartchef 混用。
+# 与 test_config 中 smartchef_v2_test 一致；勿与开发库 smartchef_v2 混用。
 DEFAULT_PYTEST_DATABASE_URL = (
-    "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/smartchef_test"
+    "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/smartchef_v2_test"
 )
 
 

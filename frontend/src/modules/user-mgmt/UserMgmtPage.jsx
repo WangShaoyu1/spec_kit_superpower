@@ -6,20 +6,21 @@ import {
   createUser,
   fetchPermissionMatrix,
   fetchUsers,
+  isAuthFailureError,
   resetUserPassword,
   updateUserRole,
 } from '../../services/api'
 
 const ROLE_LABELS = {
-  admin: { label: '系统管理员', color: 'red' },
-  pm: { label: '产品经理', color: 'blue' },
-  tester: { label: '测试人员', color: 'green' },
+  admin: { label: '系统管理员', className: 'role-tag role-tag--admin' },
+  pm: { label: '产品经理', className: 'role-tag role-tag--pm' },
+  tester: { label: '测试人员', className: 'role-tag role-tag--tester' },
 }
 
 
 function RoleTag({ role }) {
-  const meta = ROLE_LABELS[role] ?? { label: role, color: 'default' }
-  return <Tag color={meta.color}>{meta.label}</Tag>
+  const meta = ROLE_LABELS[role] ?? { label: role, className: 'role-tag' }
+  return <Tag className={meta.className}>{meta.label}</Tag>
 }
 
 
@@ -42,6 +43,10 @@ export function UserMgmtPage({ token }) {
       ])
       setDirectory(usersData)
       setPermissionMatrix(matrixData.items)
+    } catch (error) {
+      if (!isAuthFailureError(error)) {
+        throw error
+      }
     } finally {
       setLoading(false)
     }
@@ -95,11 +100,11 @@ export function UserMgmtPage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">User Management</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>账号管理</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">账号管理</h2>
+            <p className="page-lede">
               正式实现账号创建、角色调整、启停用、密码重置与权限矩阵回读。
             </p>
           </div>

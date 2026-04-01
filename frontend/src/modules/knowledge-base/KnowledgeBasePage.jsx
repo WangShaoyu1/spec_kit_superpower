@@ -78,11 +78,11 @@ export function KnowledgeBasePage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">Knowledge Base</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>知识库管理</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">知识库管理</h2>
+            <p className="page-lede">
               管理知识分类、上传文档、查看过滤结果，并验证检索是否真实命中。
             </p>
           </div>
@@ -119,7 +119,7 @@ export function KnowledgeBasePage({ token }) {
         <Col span={8}>
           <Card className="module-card" variant="borderless" loading={loading}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <strong style={{ color: '#fff' }}>知识分类</strong>
+              <strong className="page-section-strong">知识分类</strong>
               <Badge count={directory.categories.length} />
             </div>
             <div className="page-stack">
@@ -128,21 +128,12 @@ export function KnowledgeBasePage({ token }) {
                   key={item.id}
                   type="button"
                   onClick={() => void loadDirectory(item.id)}
-                  style={{
-                    textAlign: 'left',
-                    width: '100%',
-                    borderRadius: 16,
-                    border: item.id === selectedCategoryId ? '1px solid rgba(255,176,77,0.7)' : '1px solid rgba(255,255,255,0.08)',
-                    background: item.id === selectedCategoryId ? 'rgba(255,176,77,0.08)' : 'rgba(255,255,255,0.02)',
-                    padding: 14,
-                    color: '#fff',
-                    cursor: 'pointer',
-                  }}
+                  className={`page-picker-btn${item.id === selectedCategoryId ? ' page-picker-btn--active' : ''}`}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{item.icon} {item.name}</div>
-                      <div style={{ marginTop: 6, color: 'rgba(214, 224, 236, 0.76)', fontSize: 13 }}>{item.description}</div>
+                      <div className="page-tile-meta">{item.description}</div>
                     </div>
                     <Tag color={STATUS_META[item.status]?.color}>{STATUS_META[item.status]?.label ?? item.status}</Tag>
                   </div>
@@ -158,7 +149,7 @@ export function KnowledgeBasePage({ token }) {
               <div className="page-stack">
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
                   <div>
-                    <h3 style={{ color: '#fff', marginBottom: 8 }}>{selectedCategory.icon} {selectedCategory.name}</h3>
+                    <h3 className="page-subtitle">{selectedCategory.icon} {selectedCategory.name}</h3>
                     <Space wrap>
                       <Tag color={STATUS_META[selectedCategory.status]?.color}>{STATUS_META[selectedCategory.status]?.label ?? selectedCategory.status}</Tag>
                       <Tag>{selectedCategory.document_count} 个文档</Tag>

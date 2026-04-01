@@ -168,7 +168,7 @@ update evaluation_run(status=succeeded, metrics, analysis)
 if metrics meet testable baseline:
     set model status=testable
     unset sibling testable flags in same library
-else:
+            else:
     set model status=trained
 ```
 

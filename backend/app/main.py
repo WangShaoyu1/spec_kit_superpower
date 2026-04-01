@@ -38,7 +38,11 @@ def create_app(overrides: dict[str, Any] | None = None) -> FastAPI:
         tls_root_cert=settings.database_tls_root_cert,
     )
     engine, session_factory = build_session_factory(settings.database_url, connect_args=database_connect_args)
-    Base.metadata.create_all(engine)
+    if settings.database_run_create_all:
+        Base.metadata.create_all(engine)
+        logger.info("Database schema synchronized via SQLAlchemy create_all (env=%s)", settings.app_env)
+    else:
+        logger.info("Database schema is expected to be managed by Alembic migrations (env=%s)", settings.app_env)
     with session_factory() as session:
         seed_database(session, settings)
 
@@ -115,7 +119,7 @@ def create_app(overrides: dict[str, Any] | None = None) -> FastAPI:
 
 
 # uvicorn app.main:app — 模块导入即挂载全部路由；/docs 与业务 API 始终同一套 OpenAPI。
-# pytest 在 conftest 中将 DATABASE_URL 指向独立 PG 测试库（默认 smartchef_test），勿与开发库混用。
+# pytest 在 conftest 中将 DATABASE_URL 指向独立 PG 测试库（默认 smartchef_v2_test），勿与开发库混用。
 app = create_app()
 
 

@@ -121,7 +121,7 @@ export function BatchTestDetailPage({ token }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
               <div>
                 <div className="hero-eyebrow">Batch Test Detail</div>
-                <h2 style={{ color: '#fff', marginBottom: 8 }}>{batch.name}</h2>
+                <h2 className="page-title">{batch.name}</h2>
                 <Space wrap>
                   <Tag color={STATUS_META[batch.status]?.color}>{STATUS_META[batch.status]?.label ?? batch.status}</Tag>
                   <Tag color="blue">{batch.profile_name}</Tag>

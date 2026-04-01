@@ -65,11 +65,11 @@ export function DialogProfilePage({ token }) {
   return (
     <div className="page-stack">
       <Card className="module-card" variant="borderless">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div className="page-header-row">
           <div>
             <div className="hero-eyebrow">Dialog Profile</div>
-            <h2 style={{ color: '#fff', marginBottom: 8 }}>对话方案</h2>
-            <p style={{ margin: 0, color: 'rgba(214, 224, 236, 0.78)' }}>
+            <h2 className="page-title">对话方案</h2>
+            <p className="page-lede">
               管理大模型、人设、路由策略、发布门禁与手动测试入口。
             </p>
           </div>
@@ -104,7 +104,7 @@ export function DialogProfilePage({ token }) {
 
       <Card className="module-card" variant="borderless" loading={loading}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <strong style={{ color: '#fff' }}>方案目录</strong>
+          <strong className="page-section-strong">方案目录</strong>
           <Badge count={directory.items.length} />
         </div>
 
@@ -113,17 +113,14 @@ export function DialogProfilePage({ token }) {
             {directory.items.map((item) => (
               <Card
                 key={item.id}
+                className={`page-tile${item.status === 'published' ? ' page-tile--done' : ''}`}
                 variant="borderless"
-                style={{
-                  background: item.status === 'published' ? 'linear-gradient(135deg, rgba(35, 69, 53, 0.9), rgba(19, 26, 39, 0.92))' : 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
               >
                 <div className="page-stack">
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <div>
-                      <div style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>{item.name}</div>
-                      <div style={{ color: 'rgba(214, 224, 236, 0.72)', marginTop: 6 }}>
+                      <div className="page-tile-title">{item.name}</div>
+                      <div className="page-tile-meta">
                         {item.persona_name} · {item.llm_model}
                       </div>
                     </div>

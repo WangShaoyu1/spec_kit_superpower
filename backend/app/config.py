@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "SmartChef Backend"
     app_env: str = "local"
     # 技术选型：仅 PostgreSQL（psycopg 驱动）。禁止使用 SQLite 等作为业务库。
-    database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/smartchef"
+    database_url: str = "postgresql+psycopg://postgres:postgres@127.0.0.1:5432/smartchef_v2"
     database_require_tls: bool = False
     database_tls_mode: str = "require"
     database_tls_root_cert: str | None = None

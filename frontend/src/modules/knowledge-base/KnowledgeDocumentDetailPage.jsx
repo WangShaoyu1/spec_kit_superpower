@@ -62,7 +62,7 @@ export function KnowledgeDocumentDetailPage({ token }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
               <div>
                 <div className="hero-eyebrow">Knowledge Detail</div>
-                <h2 style={{ color: '#fff', marginBottom: 8 }}>{document.name}</h2>
+                <h2 className="page-title">{document.name}</h2>
                 <Space wrap>
                   <Tag color={document.format === 'json' ? 'blue' : 'green'}>{document.format}</Tag>
                   <Tag color="gold">索引版本 v{document.index_version}</Tag>
