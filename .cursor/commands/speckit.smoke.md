@@ -86,6 +86,7 @@ $ARGUMENTS
 3. 数据库已初始化（种子数据已导入）
 4. 至少有一个可登录的用户账号
 5. 若是模块级验证，先运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage browser -Module <target-module> -Json`
+6. 目标模块存在 `ai-pd/ai-<module>.md`，并作为 smoke 的能力核对主输入
 
 ## 执行流程
 
@@ -95,7 +96,9 @@ $ARGUMENTS
 2. 执行登录操作（使用默认 admin 账号或用户指定的账号）
 3. 确认登录成功，进入主界面
 4. 若是模块级验证，读取 `module-rollout.json` 中该模块的 `browser_stage` 配置，确认 `ui_smoke / business_e2e / quality_probes`
-5. 读取当前模块 plan / `tasks/` 中该范围对应模块的核心业务链路与显式未完成声明
+   - 若模块为 `critical`，必须显式看到 `page_boundary_parity` 与 `route_navigation_chain`
+   - 若缺少上述探针，直接按 `BLOCKER` 结束，不得进入“手工补脑”式 smoke
+5. 优先读取当前模块 `ai-pd/ai-<module>.md`，再读取当前模块 plan / `tasks/` 中该范围对应模块的核心业务链路与显式未完成声明
 6. 若目标模块仍存在 `Stub / Blocked By` 且影响核心链路，必须在报告中明确标记为未通过，禁止用"页面可访问"替代结论
 
 ### Phase 2: 逐页验证
@@ -107,6 +110,7 @@ $ARGUMENTS
 - 确认页面不白屏、不显示 404/403
 - 确认页面主要内容区域已渲染（非空白或永久 loading）
 - 空数据时确认有 Empty 占位组件（非白屏）
+- 对 critical 模块，必须核对 PD 定义的页面边界是否都存在正式路由入口，不允许用单页聚合替代多页主流程
 
 #### 检查 2: 控制台健康
 - 检查浏览器 console 输出：
@@ -152,13 +156,15 @@ $ARGUMENTS
 - 直接输入受限页面 URL → 应跳转 403 页面而非白屏
 
 #### 检查 8: PD 功能符合性
-- 读取当前页面对应的 PD 交互稿（`specs/{branch}/pd-all/pd-<module>/`）
+- 读取当前页面对应的 AI-PD 与 PD 交互稿（`specs/{branch}/ai-pd/ai-<module>.md` + `specs/{branch}/pd-all/pd-<module>/`）
 - 对照核查（不要求排版一致，只核对功能覆盖度）：
+  - AI-PD 中定义的 capability / action / data / exception，页面上是否可验证
+  - PD 中定义的页面数、详情页/子页和主导航链路，页面上是否存在
   - PD 中定义的按钮/操作入口，页面上是否存在
   - PD 中定义的状态流转（如 草稿→发布→归档），页面上是否可触达
   - PD 中定义的表单字段，新增/编辑弹窗中是否齐全
   - PD 中定义的筛选/搜索条件，页面上是否实现
-  - **排除项**：各页面的「说明」按钮及其 Drawer 内容属于 AD/DD 逻辑说明文档，不属于产品功能，**不纳入** PD 覆盖率计算
+  - **排除项**：仅允许排除 AI-PD 中标记为 `instructional / non-actionable-note` 的内容；不能仅因其位于 Drawer/Modal 就自动排除
   - **功能差距过大时标记为严重**，缺少个别字段标记为一般
   - **PD 符合性为必检维度**：即使其他 8 项检查全部通过，PD 功能覆盖率不足仍应标记页面为「未通过」
   - 发现 PD 差距时 MUST 自动生成缺陷文件（category: "PD 功能缺失"），无需人工触发
@@ -220,6 +226,7 @@ $ARGUMENTS
 - 严重问题 MUST 修复
 - 一般问题 SHOULD 修复
 - PD 功能差距过大的，建议回到 /speckit.defects 走需求回溯路径
+- **页面边界/路由矩阵缺失为一票否决项**：critical 模块若缺少 PD 已定义页面或主导航链路，整体冒烟未通过
 - **PD 功能符合性为一票否决项**：任何页面 PD 覆盖率 < 80% 即视为整体冒烟未通过
 - **业务链路真实性为一票否决项**：任何模块存在假成功 / 假进度 / 假统计 / 501 桩实现，整体冒烟未通过
 - 如需创建缺陷: 复制 `_template.md` → `D0xx.md`

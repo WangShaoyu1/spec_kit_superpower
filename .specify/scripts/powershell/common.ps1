@@ -130,6 +130,58 @@ function Get-ModuleStatePath {
     Join-Path $RepoRoot '.specify/harness/module-state.json'
 }
 
+function Convert-ModuleKeyToTaskSlug {
+    param([string]$ModuleKey)
+
+    if ([string]::IsNullOrWhiteSpace($ModuleKey)) {
+        return ''
+    }
+
+    if ($ModuleKey -match '^pd-') {
+        return ($ModuleKey -replace '^pd-', '')
+    }
+
+    return $ModuleKey
+}
+
+function Resolve-RequestedModule {
+    param(
+        [string]$RepoRoot,
+        [string]$Module
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Module)) {
+        return $null
+    }
+
+    $rolloutPath = Get-ModuleRolloutPath -RepoRoot $RepoRoot
+    if (Test-Path $rolloutPath -PathType Leaf) {
+        try {
+            $rollout = Get-Content -LiteralPath $rolloutPath -Raw -Encoding utf8 | ConvertFrom-Json
+            $matchedModule = @(
+                $rollout.modules |
+                    Where-Object { $_.module_key -eq $Module -or $_.task_slug -eq $Module } |
+                    Select-Object -First 1
+            )
+            if ($matchedModule.Count -gt 0) {
+                return [PSCustomObject]@{
+                    MODULE_KEY = [string]$matchedModule[0].module_key
+                    TASK_SLUG  = [string]$matchedModule[0].task_slug
+                    STATE      = ''
+                }
+            }
+        } catch {
+            # Fall back to a path-derived task slug below.
+        }
+    }
+
+    return [PSCustomObject]@{
+        MODULE_KEY = $Module
+        TASK_SLUG  = Convert-ModuleKeyToTaskSlug -ModuleKey $Module
+        STATE      = ''
+    }
+}
+
 function Resolve-CurrentPlanModule {
     param(
         [string]$RepoRoot
@@ -178,6 +230,10 @@ function Resolve-CurrentPlanModule {
 }
 
 function Get-FeaturePathsEnv {
+    param(
+        [string]$Module
+    )
+
     $repoRoot = Get-RepoRoot
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
@@ -185,7 +241,12 @@ function Get-FeaturePathsEnv {
     $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $activeFeature
     $plansDir = Join-Path $featureDir 'plans'
     $legacyPlan = Join-Path $featureDir 'plan.md'
-    $currentModule = Resolve-CurrentPlanModule -RepoRoot $repoRoot
+    $currentModule =
+        if ([string]::IsNullOrWhiteSpace($Module)) {
+            Resolve-CurrentPlanModule -RepoRoot $repoRoot
+        } else {
+            Resolve-RequestedModule -RepoRoot $repoRoot -Module $Module
+        }
     $modulePlan = $null
     if ($currentModule -and $currentModule.TASK_SLUG) {
         $modulePlan = Join-Path $plansDir ("plan-" + $currentModule.TASK_SLUG + ".md")
@@ -215,6 +276,7 @@ function Get-FeaturePathsEnv {
         TASKS_FILE     = Join-Path $featureDir 'tasks.md'
         TASKS          = Join-Path $featureDir 'tasks'
         PD_ALL_DIR     = Join-Path $featureDir 'pd-all'
+        AI_PD_DIR    = Join-Path $featureDir 'ai-pd'
         AD_DIR         = Join-Path $featureDir 'ad'
         AD_FILE        = Join-Path $featureDir 'ad.md'
         DD_DIR         = Join-Path $featureDir 'dd'

@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createIntentLibrary,
+  createIntentDataset,
+  deleteIntentLibrary,
   downloadIntentModel,
   evaluateIntentModel,
+  fetchIntentDatasetDetail,
   fetchIntentLibraries,
   fetchIntentLibraryDetail,
   publishIntentModel,
   runIntentModelSingleTest,
+  saveIntentDatasetDetail,
   trainIntentLibraryModel,
 } from './api'
 
@@ -25,11 +29,12 @@ describe('intent-library api', () => {
     vi.restoreAllMocks()
   })
 
-  it('requests the intent-library directory and detail with auth headers', async () => {
+  it('requests the intent-library directory, detail and dataset detail with auth headers', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => success({ items: [] }))
 
     await fetchIntentLibraries('token-admin')
     await fetchIntentLibraryDetail('token-admin', 'lib_001')
+    await fetchIntentDatasetDetail('token-admin', 'lib_001', 'ds_train')
 
     expect(fetchSpy).toHaveBeenNthCalledWith(
       1,
@@ -45,9 +50,16 @@ describe('intent-library api', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer token-admin' }),
       }),
     )
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('/api/v1/intent-libraries/lib_001/datasets/ds_train'),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer token-admin' }),
+      }),
+    )
   })
 
-  it('sends create, train, evaluate, publish, download and single-test requests', async () => {
+  it('sends create, delete, dataset and model requests', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => success({}))
 
     await createIntentLibrary('token-admin', {
@@ -56,6 +68,16 @@ describe('intent-library api', () => {
       language: 'zh',
       description: '正式指令库',
       default_thresholds: { command_intent_accuracy_min: 0.95 },
+    })
+    await deleteIntentLibrary('token-admin', 'lib_001')
+    await createIntentDataset('token-admin', 'lib_001', {
+      name: '训练集C',
+      dataset_type: 'training',
+      source: 'llm',
+      sample_count: 12,
+    })
+    await saveIntentDatasetDetail('token-admin', 'lib_001', 'ds_train', {
+      samples: [{ intent_key: 'device.on', display_name: '打开设备' }],
     })
     await trainIntentLibraryModel('token-admin', 'lib_001', { training_dataset_id: 'ds_train', version_name: 'v1.0.0' })
     await evaluateIntentModel('token-admin', 'model_001', {
@@ -69,6 +91,18 @@ describe('intent-library api', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining('/api/v1/intent-libraries'),
       expect.objectContaining({ method: 'POST' }),
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/intent-libraries/lib_001'),
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/intent-libraries/lib_001/datasets'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/intent-libraries/lib_001/datasets/ds_train'),
+      expect.objectContaining({ method: 'PUT' }),
     )
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining('/api/v1/intent-libraries/lib_001/models/train'),

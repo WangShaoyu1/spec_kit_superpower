@@ -39,21 +39,28 @@
 - [ ] CHK008 成功判定基于真实数据/状态回传，而不是 toast、硬编码文案或 mock 值
 - [ ] CHK009 异步链路已验证成功态与失败态，且前端能正确展示
 
+## AI-PD 能力与隐藏交互
+
+- [ ] CHK010 已对照 AI-PD 检查 `visible_ui`
+- [ ] CHK011 已对照 AI-PD 检查 `hidden_interactions`
+- [ ] CHK012 所有标记为 `ui-capability / domain-rule` 的隐藏交互都有单独验证项
+- [ ] CHK013 没有把承载真实产品能力的隐藏交互误判为 `instructional / non-actionable-note`
+
 ## 消费契约与反假成功
 
-- [ ] CHK010 前端请求字段名与后端契约一致
-- [ ] CHK011 分页/下载/数组或对象返回形态与页面真实消费方式一致
-- [ ] CHK012 不存在假成功提示、假进度、假统计、placeholder 被当作完成
+- [ ] CHK014 前端请求字段名与后端契约一致
+- [ ] CHK015 分页/下载/数组或对象返回形态与页面真实消费方式一致
+- [ ] CHK016 不存在假成功提示、假进度、假统计、placeholder 被当作完成
 
 ## 显式未完成项
 
-- [ ] CHK013 已记录 Deferred / Stub / Out of Scope / Blocked By（如有）
-- [ ] CHK014 未完成项没有被计入“已完成”或“通过”
+- [ ] CHK017 已记录 Deferred / Stub / Out of Scope / Blocked By（如有）
+- [ ] CHK018 未完成项没有被计入“已完成”或“通过”
 
 ## 验证证据
 
-- [ ] 已附上测试、构建、Review 或 Smoke 的结果引用
-- [ ] 已说明每项结论对应的证据来源（命令输出、截图、报告、任务 ID）
+- [ ] CHK019 已附上测试、构建、Review 或 Smoke 的结果引用
+- [ ] CHK020 已说明每项结论对应的证据来源（命令输出、截图、报告、任务 ID）
 
 ## 备注
 

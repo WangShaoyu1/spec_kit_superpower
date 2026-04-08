@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-本交互原型基于 `pd-template.md` v4.0 规范，定义指令库管理模块的目标交互链路（指令库 CRUD → 数据集管理 → 模型训练/评估/测试/发布）。
+本交互原型基于 `pd-template.md` v4.4 规范，定义指令库管理模块的目标交互链路（指令库 CRUD → 数据集管理 → 模型训练/评估/测试/发布）。
 
 **技术栈**: React 18 + Ant Design 6.x (CDN UMD, 无脚手架) + Babel Standalone + Dayjs
 
@@ -77,6 +77,91 @@ detail.html (详情) → 点击测试 → test.html (模型测试: 单条对话 
 detail.html (详情) → 点击数据集 → datasets.html (数据集)
 datasets.html (数据集列表) → 点击管理数据 → dataset-detail.html (意图数据管理)
 ```
+
+## 页面能力清单（AI / harness 试点）
+
+本节不是对 HTML 的重复说明，而是把后续 `DD / plan / tasks / implement / smoke` 必须继承的页面语义结构化落盘。
+
+### index.html
+
+- `page_goal`: 快速检索、筛选并管理所有指令库，一目了然掌握各库模型容量和发布状态
+- `primary_user_flows`:
+  - 进入列表页 → 通过名称/Key/语种筛选 → 定位目标库 → 点击行进入详情
+  - 点击新建 → 填写 library_key / 名称 / 语种 → 提交 → 列表回读新增项
+  - 点击删除 → 确认弹窗 → 列表移除（published 状态禁止删除）
+
+### detail.html
+
+- `page_goal`: 管理单个指令库的模型生命周期，从创建训练任务到评估、测试、发布、归档
+- `primary_user_flows`:
+  - 进入详情 → 查看模型版本列表 → 点击新建训练 → 选择训练集 → 提交 → 状态变为 training → 轮询至 trained
+  - 选择 trained 模型 → 发布 → 确认弹窗(版本对比+勾选+倒计时) → published
+  - 选择 testable/published 模型 → 点击测试 → 跳转 test.html
+
+### datasets.html
+
+- `page_goal`: 统一管理指令库的训练数据集和评估数据集，支持手工创建和 LLM 合成扩充
+- `primary_user_flows`:
+  - 进入列表 → 点击新建数据集 → 填写名称/类型 → 提交 → 列表回读
+  - 点击 LLM 合成 → 选择数据集/模型/样本数/提示词 → 提交 → 展示生成结果条数
+  - 点击管理数据 → 跳转 dataset-detail.html
+
+### dataset-detail.html
+
+- `page_goal`: 维护意图、词槽、实体和问法数据，并确保保存/导入结果真实回读
+- `primary_user_flows`:
+  - 进入数据管理页 → 保存意图配置 → 列表回读最新值
+  - 打开相似问/排除问 Drawer → 新增训练样本 → Drawer 列表回读新增项
+  - 打开实体批量导入 Modal → 导入实体值/同义词 → 实体列表同步回读
+- `page_boundary`: 下级页面（从 `datasets.html` 进入）
+- `user_visible_ui`:
+  - 意图数据 Table（`intent_key`、中文名、词槽引用、追问状态、操作）
+  - 词槽卡片（系统词槽只读、自定义词槽可编辑）
+  - 统计卡（意图数、词槽数、实体数、相似问数、排除问数）
+  - 入口按钮（新增意图、管理相似问、管理词槽、批量导入）
+- `interactive_containers`:
+  - `functional-hidden-ui`: 意图配置 Drawer
+  - `functional-hidden-ui`: 相似问 / 排除问 Drawer
+  - `functional-hidden-ui`: 自定义词槽 Drawer
+  - `functional-hidden-ui`: 实体批量导入 Modal
+  - `functional-hidden-ui`: 新增问法 Modal
+  - `explanatory-only`: 数据模型 / 批量导入说明 / 易错点标签页
+- `capability_checklist`:
+  - CRUD 意图定义（`intent_key`、中文名、描述）
+  - 配置命中话术 / 未命中话术，支持 `{slot}` 变量占位
+  - 配置追问开关与追问文案
+  - 管理系统词槽引用与自定义词槽
+  - 管理实体值与同义词
+  - 管理相似问（正样本）与排除问（反例）
+  - 支持 Excel / 文本 / 粘贴三类实体导入
+- `action_contracts`:
+  - `保存意图`: 必填字段合法后写回意图定义，成功信号为列表回读出现最新值
+  - `新增相似问/排除问`: 成功信号为 Drawer 列表回读新增项，失败需给出表单级错误
+  - `保存词槽`: 成功信号为词槽卡片与实体列表回读更新
+  - `批量导入实体`: 成功信号为实体值列表与同义词同步回读；若未实现，必须显式延期
+- `data_contracts`:
+  - 意图字段：`intent_key`、`name_zh`、`description`、`has_followup`、`followup_prompt`
+  - 话术字段：`hit_response`、`miss_response`
+  - 词槽字段：`slot_key`、`required`、`value_type`
+  - 实体字段：`entity_value`、`synonyms`
+  - 训练语料字段：`similar_questions`、`negative_examples`
+- `business_rules`:
+  - “命中/未命中话术”属于系统回复，不等于“相似问/排除问”
+  - “词槽”与“实体值/同义词”是两层结构，不可混淆
+  - 实体数量超过 `50` 时默认建议批量导入
+  - 相似问用于正样本训练，排除问用于负样本约束
+- `fr_mapping`:
+  - `FR-002`: 指令配置管理（意图 / 词槽 / 追问 / 命中 / 未命中话术）
+  - `FR-003`: 训练数据维护（相似问 / 排除问 / 实体值 / 词槽）
+  - `FR-049`: 训练集字段与导入约束
+
+### test.html
+
+- `page_goal`: 验证模型推理质量，通过单条对话式测试和库内批量评估确认模型可用性
+- `primary_user_flows`:
+  - 选择模型 → 新建会话 → 输入测试文本 → 发送 → 查看意图/置信度/槽位/耗时
+  - 新建批量测试 → 填写测试输入 → 执行 → 查看每条结果的实际 vs 预期对比
+  - 切换到批量测试 Tab → 查看历史批次 → 点击查看智能分析报告
 
 ## 需求追溯矩阵 (FR → PD)
 
@@ -214,6 +299,6 @@ python -m http.server 8080
 
 **创建时间**: 2026-03-13
 **最后更新**: 2026-03-22 (v3.4 基线重做：页面边界/FR 追溯/风险口径对齐)
-**基于模板**: pd-template.md v4.0
+**基于模板**: pd-template.md v4.4
 **PD 模块**: intent-library
 **对应 spec.md**: v1.4 (FR-002, FR-003, FR-039~FR-054)

@@ -1,219 +1,197 @@
 ---
-version: 1.0
+version: 2.0
 scope: pd-intent-library
 based_on:
   - specs/master/spec.md
-  - specs/master/pd-all/pd-index.md
+  - specs/master/ai-pd/ai-intent-library.md
+  - specs/master/ai-pd/ai-intent-library.checklist.md
   - specs/master/pd-all/pd-intent-library/README.md
   - specs/master/pd-all/pd-intent-library/index.html
   - specs/master/pd-all/pd-intent-library/detail.html
   - specs/master/pd-all/pd-intent-library/datasets.html
   - specs/master/pd-all/pd-intent-library/dataset-detail.html
   - specs/master/pd-all/pd-intent-library/test.html
-  - .specify/harness/module-rollout.json
-  - .specify/harness/core-validation-set.json
+reference_only:
+  - backend/app/api/intent_library.py
+  - frontend/src/modules/intent-library/
 ---
 
 # 指令库管理模块架构设计
 
-## 1. 模块职责与边界
+## 1. 设计前提
 
-| 子模块 | 职责 | 不负责 |
-|--------|------|--------|
-| `library directory` | 指令库列表、语种、唯一 `library_key`、模型数量上限提示 | 对话方案绑定逻辑本身 |
-| `library detail` | 模型版本列表、状态流转、发布/testable 切换、模型下载 | 设备端实际推理加载 |
-| `dataset management` | 训练集/评估集列表、绑定关系、导入方式与样本量可见性 | Excel 解析引擎实现细节 |
-| `dataset content` | 意图、槽位、追问、相似问/排除问、实体值维护 | 运行时语言检测 |
-| `model testing` | 单条测试、批量评估、阈值快照、智能分析回读 | 对话方案级跨方案横向测试 |
+- 本版 AD 以 `ai-pd/ai-intent-library.md` 为唯一主输入，重新建立 `intent-library` 的后续研发链。
+- `pd-all/pd-intent-library/` 只负责页面边界、导航链和视觉语义，不再直接替代 AI-PD 的能力与契约定义。
+- 已存在代码和旧 `AD / DD / plan / tasks` 仅作为只读参考，不代表当前有效基线。
+- `FR-050` 继续按 `Partial` 管理：允许库级默认阈值和任务级覆盖快照，但不宣称继承链路展示已闭环。
 
-## 2. 条件准入口径
+## 2. 模块拆分
 
-- 本模块允许进入 `AD / DD / plan / tasks`，但仍属于**条件准入**
-- 唯一显式例外是 `FR-050`：当前只确认存在“库级默认阈值 + 任务级覆盖入口”，尚未完成“继承/覆盖链路”的完整 UI 呈现
-- 因此下游文档必须持续保留 `FR-050 Partial`，不得把阈值继承逻辑误判为已闭环
+| 子域 | 页面/入口 | 核心职责 | 明确不负责 |
+|------|-----------|----------|------------|
+| `library-directory` | `intent-library.index` | 指令库检索、筛选、创建、删除与进入详情 | 模型生命周期操作 |
+| `model-lifecycle` | `intent-library.detail` | 模型版本列表、训练、发布、归档、下载、导航到数据集/测试 | 训练数据内容编辑 |
+| `dataset-catalog` | `intent-library.datasets` | 训练集/评估集目录、导入、LLM 合成、跳转数据详情 | 单条 intent/slot/entity 编辑 |
+| `dataset-content` | `intent-library.dataset-detail` | intent/slot/entity/synonym/sample 深交互维护 | 训练任务调度、跨库绑定 |
+| `model-testing` | `intent-library.test` | 单条测试、批量评估、分析摘要、返回详情 | 对话方案级横向批量测试 |
 
-## 3. 模块关系与调用
+## 3. 架构总览
 
-| 调用方 | 被调方 | 通信方式 | 同步/异步 | 失败策略 |
-|--------|--------|---------|----------|---------|
-| `frontend/modules/intent-library` | `GET /api/v1/intent-libraries` | REST | 同步 | 保留当前筛选与分页，显示错误态 |
-| `frontend/modules/intent-library` | `POST /api/v1/intent-libraries` | REST | 同步 | 表单保留输入，回显字段错误 |
-| `frontend/modules/intent-library` | `POST /api/v1/intent-libraries/{id}/models/train` | REST + background job | 异步 | 明确展示真实排队/失败状态，禁止演示文案假成功 |
-| `frontend/modules/intent-library` | `POST /api/v1/models/{id}/evaluate` | REST + background job | 异步 | 任务失败时保留结果快照与错误原因 |
-| `frontend/modules/intent-library` | `POST /api/v1/models/{id}/publish` | REST | 同步 | 失败时维持原 published/testable 关系 |
-| `intent library service` | `dataset service` | 领域调用 | 同步 | 数据集绑定失败即训练/评估任务创建失败 |
-| `intent library service` | `training/evaluation worker` | 后台任务 | 异步 | 状态机与审计日志必须真实回写 |
+```mermaid
+flowchart LR
+    indexPage["IndexPage"]
+    detailPage["DetailPage"]
+    datasetsPage["DatasetsPage"]
+    datasetDetailPage["DatasetDetailPage"]
+    testPage["TestPage"]
 
-## 4. 核心数据流
+    libraryApi["IntentLibraryAPI"]
+    datasetApi["DatasetDetailAPI"]
+    evalApi["EvaluationAPI"]
+    stateEngine["LifecycleStateEngine"]
+    pg["PostgreSQL"]
 
-### 4.1 指令库创建闭环
+    indexPage --> libraryApi
+    detailPage --> libraryApi
+    datasetsPage --> libraryApi
+    datasetDetailPage --> datasetApi
+    testPage --> evalApi
 
-**触发点**: PM 提交“新建指令库”弹窗  
-**涉及模块**: 前端列表页、API 层、IntentLibraryService、PostgreSQL  
-**对应 FR**: FR-039, FR-043
+    libraryApi --> stateEngine
+    datasetApi --> pg
+    evalApi --> stateEngine
+    stateEngine --> pg
+```
+
+## 4. 页面边界与所有权
+
+| page_id | route | 页面所有者 | 页面必须承接 | 不允许再做的事 |
+|---------|-------|------------|--------------|----------------|
+| `intent-library.index` | `/intent-library` | `IntentLibraryPage` | 筛选、创建、删除、进入详情 | 把详情/测试内容塞回列表页 |
+| `intent-library.detail` | `/intent-library/:libraryId` | `IntentLibraryDetailPage` | 模型生命周期、数据集/测试导航、发布门禁反馈 | 直接承接数据集内容编辑 |
+| `intent-library.datasets` | `/intent-library/:libraryId/datasets` | `IntentLibraryDatasetsPage` | 数据集目录、导入、LLM 合成、进入数据详情 | 直接承接模型训练/发布 |
+| `intent-library.dataset-detail` | `/intent-library/:libraryId/datasets/:datasetId` | `IntentLibraryDatasetDetailPage` | intent/slot/entity/sample 深交互与导入 | 降级为只读样本列表页 |
+| `intent-library.test` | `/intent-library/:libraryId/test` | `IntentLibraryTestPage` | 单条测试和库内批量评估同页闭环 | 跳转到其它模块完成评估 |
+
+## 5. 服务边界
+
+| 服务/层 | 主要输入 | 主要输出 | 说明 |
+|---------|----------|----------|------|
+| `IntentLibraryDirectoryService` | 筛选条件、创建请求、删除请求 | 指令库目录、创建结果 | 对应 `index` 页 |
+| `IntentLibraryDetailService` | `library_id`、训练/发布/归档动作 | 详情快照、模型状态矩阵 | 对应 `detail` 页 |
+| `IntentDatasetCatalogService` | `library_id`、数据集创建/导入/LLM 合成动作 | 数据集目录、绑定状态 | 对应 `datasets` 页 |
+| `IntentDatasetContentService` | `library_id + dataset_id`、intent/slot/entity/sample 编辑动作 | 数据内容快照 | 对应 `dataset-detail` 页 |
+| `IntentModelTestService` | `model_id`、单条 utterance、评估请求 | 单条测试结果、评估记录、分析摘要 | 对应 `test` 页 |
+
+## 6. 核心交互链
+
+### 6.1 列表到详情
 
 ```mermaid
 sequenceDiagram
-    participant FE as Library UI
-    participant API as IntentLibrary API
-    participant SVC as IntentLibraryService
-    participant PG as PostgreSQL
+    participant FE as IndexPage
+    participant API as DirectoryAPI
+    participant DB as PostgreSQL
 
-    FE->>API: POST /api/v1/intent-libraries
-    API->>SVC: create_library(command)
-    SVC->>PG: 校验 library_key 全局唯一
-    alt key 已存在
-        SVC-->>API: LIB-409-KEY
-        API-->>FE: 409 + 字段错误
-    else 可创建
-        SVC->>PG: 写入 command_library
-        SVC->>PG: 写入审计日志
-        SVC-->>API: library snapshot
-        API-->>FE: 200 success
-        FE->>API: GET /api/v1/intent-libraries
-        API-->>FE: 列表与模型占用数回读
-    end
+    FE->>API: GET /intent-libraries?filters
+    API->>DB: query libraries + model summary
+    DB-->>API: rows
+    API-->>FE: directory snapshot
+    FE->>API: POST /intent-libraries
+    API-->>FE: created library
+    FE->>API: GET /intent-libraries
+    API-->>FE: readback list
+    FE->>FE: navigate detail route
 ```
 
-### 4.2 模型训练与评估闭环
-
-**触发点**: PM 在详情页点击“新建训练”或“批量评估”  
-**涉及模块**: 前端详情页/测试页、API 层、TrainingJobService、EvaluationService、PostgreSQL  
-**对应 FR**: FR-043, FR-044, FR-048, FR-049, FR-050, FR-052
+### 6.2 详情到训练/发布/测试
 
 ```mermaid
 sequenceDiagram
-    participant FE as Detail/Test UI
-    participant API as Model API
-    participant SVC as Training/Eval Service
-    participant JOB as Worker
-    participant PG as PostgreSQL
+    participant FE as DetailPage
+    participant API as DetailAPI
+    participant SVC as LifecycleService
+    participant DB as PostgreSQL
 
-    FE->>API: POST /models/{id}/train or /evaluate
-    API->>SVC: validate dataset binding + threshold snapshot
-    SVC->>PG: 写入 model_version / evaluation_run
-    SVC->>JOB: 投递后台任务
-    API-->>FE: 返回 queued/running 状态
-    JOB->>PG: 更新 training/evaluating -> trained/testable
-    JOB->>PG: 写入准确率、slot_f1、latency、分析报告
-    FE->>API: 轮询详情/评估结果
-    API-->>FE: 返回真实状态与结果快照
+    FE->>API: POST /intent-libraries/{id}/models/train
+    API->>SVC: validate dataset binding + model limit
+    SVC->>DB: create/update model version
+    API-->>FE: training snapshot
+    FE->>API: GET /intent-libraries/{id}
+    API-->>FE: status readback
+    FE->>API: POST /models/{id}/publish
+    API-->>FE: latest published/testable matrix
+    FE->>FE: navigate /test
 ```
 
-### 4.3 发布与 testable 唯一性闭环
-
-**触发点**: PM 在模型版本列表执行 `设为 testable` 或 `发布`  
-**涉及模块**: 详情页、API 层、PublishGuard、PostgreSQL  
-**对应 FR**: FR-045, FR-046, FR-047, FR-053, FR-054
+### 6.3 数据集目录到数据内容
 
 ```mermaid
 sequenceDiagram
-    participant FE as Detail UI
-    participant API as Publish API
-    participant SVC as Publish Service
-    participant PG as PostgreSQL
+    participant FE as DatasetsPage
+    participant API as DatasetCatalogAPI
+    participant Content as DatasetContentAPI
+    participant DB as PostgreSQL
 
-    FE->>API: POST /models/{id}/testable or /publish
-    API->>SVC: switch_model_state(model_id, action)
-    SVC->>PG: 读取同库其它模型状态
-    SVC->>PG: 自动取消旧 testable/published 标记
-    SVC->>PG: 更新目标模型状态与版本元数据
-    SVC->>PG: 写入审计日志
-    SVC-->>API: latest model matrix
-    API-->>FE: success + 最新状态快照
+    FE->>API: GET /intent-libraries/{id}
+    API-->>FE: datasets catalog
+    FE->>FE: navigate /datasets/{datasetId}
+    FE->>Content: GET /intent-libraries/{id}/datasets/{datasetId}
+    Content->>DB: load dataset payload
+    DB-->>Content: dataset detail snapshot
+    Content-->>FE: intent/slot/entity/sample data
 ```
 
-## 5. 接口契约
+## 7. 关键架构决策
 
-### 5.1 `GET /api/v1/intent-libraries`
+### 7.1 五页边界不可再压扁
 
-- **能力点**: `intent_library_read`
-- **输入**: `language/status/page/page_size`
-- **输出**: 指令库列表、模型数量、published/testable 摘要
+- `index/detail/datasets/dataset-detail/test` 五页必须持续存在独立路由和独立成功信号。
+- 任何“为了省实现而把 detail/test 合并回 index”的做法都视为架构退化。
 
-### 5.2 `POST /api/v1/intent-libraries`
+### 7.2 `dataset-detail` 是本轮最高风险页
 
-- **能力点**: `intent_library_write`
-- **输入**: `library_key/name/language/description/default_thresholds`
-- **约束**:
-  - `library_key` 全局唯一且创建后不可修改
-  - 语言固定 `zh/en`
-  - `default_thresholds` 只定义库级默认值，不等价于任务级覆盖快照
+- 该页的 `ui-capability` 明确包含 `intent 配置 Drawer`、`相似问/排除问 Drawer`、`词槽 Drawer`、`实体导入 Modal`。
+- 架构上必须把它视为独立能力域，而不是 `datasets` 页的附属只读视图。
+- 若本轮无法全部闭环，必须在 `DD / plan / tasks` 中继续显式登记 `Deferred`，但不可省略接口和页面边界设计。
 
-### 5.3 `GET /api/v1/intent-libraries/{library_id}`
+### 7.3 真实回读优先于提示文案
 
-- **能力点**: `intent_library_read`
-- **输出**: 指令库详情、模型版本列表、状态机说明、数据集绑定摘要、阈值默认值
+- 创建、删除、训练、发布、评估、导入都必须依赖真实回读或明确错误，不允许只用 toast 表示成功。
+- critical probe `result_readback`、`training_state_transition`、`batch_eval_feedback` 必须能从架构上被证明。
 
-### 5.4 `POST /api/v1/intent-libraries/{library_id}/datasets`
+## 8. 下游接口面
 
-- **能力点**: `intent_library_write`
-- **输入**: `dataset_type(training/evaluation)`、来源(`manual/llm/import`)与字段映射
-- **输出**: 数据集记录与绑定状态
+| 页面 | 主要 API | 用途 |
+|------|----------|------|
+| `index` | `GET /api/v1/intent-libraries` | 列表、筛选、状态摘要 |
+| `index` | `POST /api/v1/intent-libraries` | 创建指令库 |
+| `index` | `DELETE /api/v1/intent-libraries/{library_id}` | 删除未发布指令库 |
+| `detail` | `GET /api/v1/intent-libraries/{library_id}` | 详情与模型状态 |
+| `detail` | `POST /api/v1/intent-libraries/{library_id}/models/train` | 发起训练 |
+| `detail` | `POST /api/v1/models/{model_id}/publish` | 发布模型 |
+| `detail` | `GET /api/v1/models/{model_id}/download` | 下载元数据 |
+| `datasets` | `POST /api/v1/intent-libraries/{library_id}/datasets` | 新建/导入数据集 |
+| `dataset-detail` | `GET /api/v1/intent-libraries/{library_id}/datasets/{dataset_id}` | 数据详情读取 |
+| `test` | `POST /api/v1/models/{model_id}/single-test` | 单条测试 |
+| `test` | `POST /api/v1/models/{model_id}/evaluate` | 批量评估 |
 
-### 5.5 `POST /api/v1/models/{model_id}/train`
+## 9. Browser / Harness 对齐
 
-- **能力点**: `model_train`
-- **输入**: `training_dataset_id`、可选超参与说明
-- **输出**: `draft -> training` 真实任务状态
-- **失败语义**: 模型数量超限、训练集 1:1 绑定冲突、数据集为空、任务投递失败
+| probe | 架构承接点 | 必须证明 |
+|------|------------|---------|
+| `page_boundary_parity` | 五条独立路由和独立页面组件 | 无聚合占位页 |
+| `route_navigation_chain` | `index -> detail -> datasets -> dataset-detail -> test` | 返回链和菜单高亮正确 |
+| `capability_parity` | `dataset-detail` 的 hidden_interactions 与页面能力清单 | 不遗漏 Drawer / Modal 真能力 |
+| `training_state_transition` | `detail` + lifecycle service | `draft -> training -> trained` 真实变化 |
+| `batch_eval_feedback` | `test` + evaluation service | 评估指标和分析摘要来自真实接口 |
+| `result_readback` | 全页 | 创建/导入/状态切换后可回读 |
 
-### 5.6 `POST /api/v1/models/{model_id}/evaluate`
+## 10. 风险与约束
 
-- **能力点**: `model_test_manage`
-- **输入**:
-  - `evaluation_dataset_id`
-  - `threshold_override`
-- **输出**:
-  - 任务状态
-  - `threshold_snapshot`
-  - 评估结果引用
-- **FR-050 约束**:
-  - 允许任务级单次覆盖
-  - 覆盖结果必须快照化保存
-  - 库级默认值与任务级覆盖的继承展示仍属 `Partial`
-
-### 5.7 `POST /api/v1/models/{model_id}/publish`
-
-- **能力点**: `model_publish`
-- **输入**: 发布说明、产物格式确认
-- **输出**: 最新 published/testable 关系、下载元数据
-
-### 5.8 `GET /api/v1/models/{model_id}/download`
-
-- **能力点**: `intent_library_read`
-- **输出**: 产物地址、格式、版本摘要、兼容环境说明
-
-## 6. 浏览器阶段与性能门槛
-
-| 项目 | 冻结值 | 来源 |
-|------|--------|------|
-| `response_p95_ms` | `2000` | `.specify/harness/module-rollout.json` |
-| `command_intent_accuracy_min` | `0.95` | `spec.md` SC-001 |
-| `slot_f1_min` | `0.90` | 本轮 critical 模块冻结门槛 |
-| `validation_set_path` | `.specify/harness/core-validation-set.json` | 由 `temp_data/config.json` 生成 |
-| `validation_case_count_min` | `39` | `temp_data/config.json` |
-| `required_slot_case_count_min` | `21` | `temp_data/config.json` |
-
-## 7. FR 追溯
-
-| FR | 需求 | 设计落实 |
-|----|------|---------|
-| FR-039 | 指令库管理、唯一 key | 列表 + 创建契约 + 不可修改约束 |
-| FR-043 | 单库模型上限 5 | 详情页/训练入口容量检查 |
-| FR-044 | 模型状态机 | 训练/评估/发布数据流 |
-| FR-045/046 | testable/published 唯一性 | 发布与切换服务 |
-| FR-048/049 | 训练/评估数据集口径 | 数据集管理与导入契约 |
-| FR-050 | 阈值默认值 + 任务覆盖 | `threshold_snapshot`，但保持 `Partial` 声明 |
-| FR-051/052 | 单条测试 + 批量评估 + 分析 | `test.html` 与评估任务返回 |
-| FR-053 | 能力点控制发布/测试管理 | API capability guard |
-| FR-054 | 模型下载 | 下载接口与版本元数据 |
-
-## 8. 风险与缓解
-
-| 风险 | 影响 | 缓解 |
-|------|------|------|
-| `FR-050` 部分覆盖 | 任务级阈值继承可能被误解为已闭环 | 在 DD/plan/tasks 持续标记 `Partial`，禁止宣称 100% 完成 |
-| 异步训练假成功 | UI 看似成功但后台未真实执行 | 所有训练/评估入口必须返回真实 job id 与状态，browser stage 检查状态回读 |
-| 数据集样本统计失真 | PM 误判覆盖度与质量 | 样本量、必填槽位覆盖和阈值快照均以后端回读为准 |
-| 产物下载与发布解耦不清 | published 模型无法在 Python/C++ 双端验证 | 在任务阶段补充元数据和下载验证链路 |
+| 风险 | 影响 | 架构缓解 |
+|------|------|----------|
+| `FR-050 Partial` 被误判为闭环 | 下游宣称完成度失真 | 在 DD/plan/tasks 持续保留 `Partial` |
+| `dataset-detail` 继续只读化 | AI-PD 页面能力无法承接 | 把深交互列为独立能力域和任务域 |
+| 发布/训练只有 toast | browser 无法证明真实成功 | 统一要求详情页与测试页读取真实状态快照 |
+| 旧实现叙事残留 | 误把历史结论当当前真相 | 所有下游文件头显式引用 AI-PD，新证据重建 |

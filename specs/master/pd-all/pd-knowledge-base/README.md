@@ -57,6 +57,24 @@ index.html (知识库列表) → 点击文档行 → detail.html (文档详情/�
 | pd-dialog-profile/detail.html → index.html | 对话方案配置时需要引用知识库能力与分类信息 |
 | index.html → detail.html | 从文档列表进入文档详情与检索验证 |
 
+## 页面能力清单
+
+### index.html
+
+- `page_goal`: 统一管理知识库分类与文档，完成文档上传、解析和索引建立
+- `primary_user_flows`:
+  - 点击新建分类 → 填写分类名 → 提交 → 左栏分类列表回读
+  - 选择分类 → 点击上传文档 → 拖拽 JSON/Markdown 文件 → 系统解析过滤 → 文档列表出现新行
+  - 点击文档行 → 跳转 detail.html 查看详情与检索测试
+
+### detail.html
+
+- `page_goal`: 预览文档解析内容并验证检索质量，确认索引后知识可被正确命中
+- `primary_user_flows`:
+  - 进入文档详情 → 查看解析后的内容段落与过滤字段对比
+  - 输入检索关键词 → 点击检索测试 → 查看命中结果与相关度评分
+  - 确认检索质量 → 返回文档列表
+
 ## 产出物合规检查表 (vs pd-template.md v4.1)
 
 | 模板条款 | 状态 | 说明 |

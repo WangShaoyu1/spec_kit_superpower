@@ -47,6 +47,18 @@ class SingleTestRequest(BaseModel):
     utterance: str = Field(min_length=1, max_length=300)
 
 
+class CreateDatasetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    dataset_type: str
+    source: str
+    sample_count: int = Field(default=0, ge=0)
+    entries: list[str] = Field(default_factory=list)
+
+
+class SaveDatasetDetailRequest(BaseModel):
+    samples: list[dict[str, Any]] = Field(default_factory=list)
+
+
 @lru_cache(maxsize=1)
 def load_validation_set() -> dict[str, Any]:
     return json.loads(VALIDATION_SET_PATH.read_text(encoding="utf-8"))
@@ -208,7 +220,7 @@ def maybe_finish_evaluation(session: Session, run: EvaluationRun):
     snapshot = parse_json_field(run.threshold_snapshot_json, {})
     metrics = {
         "command_intent_accuracy": 0.96,
-        "slot_f1": max(0.92, float(snapshot.get("slot_f1_min", 0.9))),
+        "slot_f1": 0.92,
         "response_p95_ms": 1800,
     }
     analysis = {
@@ -224,16 +236,26 @@ def maybe_finish_evaluation(session: Session, run: EvaluationRun):
     run.analysis_json = json.dumps(analysis, ensure_ascii=False)
     run.finished_at = utc_now()
 
-    siblings = session.execute(
-        select(LibraryModelVersion).where(LibraryModelVersion.library_id == model.library_id)
-    ).scalars().all()
-    for sibling in siblings:
-        sibling.is_testable = sibling.id == model.id
-        if sibling.id != model.id and sibling.status == "testable":
-            sibling.status = "trained"
+    meets_thresholds = (
+        metrics["command_intent_accuracy"] >= float(snapshot.get("command_intent_accuracy_min", 0))
+        and metrics["slot_f1"] >= float(snapshot.get("slot_f1_min", 0))
+        and metrics["response_p95_ms"] <= int(snapshot.get("response_p95_ms", 999999))
+    )
 
-    model.status = "testable"
-    model.is_testable = True
+    if meets_thresholds:
+        siblings = session.execute(
+            select(LibraryModelVersion).where(LibraryModelVersion.library_id == model.library_id)
+        ).scalars().all()
+        for sibling in siblings:
+            sibling.is_testable = sibling.id == model.id
+            if sibling.id != model.id and sibling.status == "testable":
+                sibling.status = "trained"
+        model.status = "testable"
+        model.is_testable = True
+    else:
+        model.status = "trained"
+        model.is_testable = False
+
     model.artifact_format = model.artifact_format or "zip"
     model.artifact_uri = model.artifact_uri or f"/artifacts/{model.id}.zip"
     model.metrics_json = json.dumps(metrics, ensure_ascii=False)
@@ -265,9 +287,22 @@ def advance_library_state(session: Session, library_id: str | None = None):
         session.commit()
 
 
+def validate_threshold_override(override: dict[str, Any]) -> dict[str, Any]:
+    allowed_fields = {"command_intent_accuracy_min", "slot_f1_min", "response_p95_ms"}
+    normalized: dict[str, Any] = {}
+    for key, value in override.items():
+        if key not in allowed_fields:
+            raise ApiError(422, "EVAL-422-THRESHOLD", "阈值参数不合法")
+        try:
+            normalized[key] = int(value) if key == "response_p95_ms" else float(value)
+        except (TypeError, ValueError):
+            raise ApiError(422, "EVAL-422-THRESHOLD", "阈值参数不合法") from None
+    return normalized
+
+
 def build_threshold_snapshot(library: CommandLibrary, override: dict[str, Any]) -> dict[str, Any]:
     defaults = parse_json_field(library.default_thresholds_json, {})
-    snapshot = {**defaults, **override}
+    snapshot = {**defaults, **validate_threshold_override(override)}
     snapshot["partial_requirement"] = "FR-050 Partial"
     return snapshot
 
@@ -298,6 +333,60 @@ def classify_utterance(utterance: str) -> dict[str, Any]:
     }
 
 
+def normalize_dataset_samples(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = []
+    seen_intent_keys: set[str] = set()
+    for index, sample in enumerate(samples, start=1):
+        intent_key = str(sample.get("intent_key") or f"intent_{index}").strip()
+        display_name = str(sample.get("display_name") or intent_key)
+        if intent_key in seen_intent_keys:
+            raise ApiError(422, "DATASET-422-INTENT-KEY", "同一数据集内 intent_key 必须唯一")
+        seen_intent_keys.add(intent_key)
+        normalized.append(
+            {
+                "intent_key": intent_key,
+                "display_name": display_name,
+                "required_slots": sample.get("required_slots", []),
+                "optional_slots": sample.get("optional_slots", []),
+                "prompt_samples": sample.get("prompt_samples", []),
+                "negative_samples": sample.get("negative_samples", []),
+                "entities": sample.get("entities", []),
+            }
+        )
+    return normalized
+
+
+def build_generated_dataset_samples(dataset_name: str, sample_count: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "intent_key": f"{dataset_name}_intent_{index + 1}",
+            "display_name": f"{dataset_name}样本{index + 1}",
+            "required_slots": [],
+            "optional_slots": [],
+            "prompt_samples": [f"{dataset_name}示例问法 {index + 1}"],
+            "negative_samples": [],
+            "entities": [],
+        }
+        for index in range(sample_count)
+    ]
+
+
+def build_imported_dataset_samples(dataset_name: str, entries: list[str]) -> list[dict[str, Any]]:
+    cleaned_entries = [item.strip() for item in entries if str(item).strip()]
+    return [
+        {
+            "intent_key": f"{dataset_name}_import_{index + 1}",
+            "display_name": entry,
+            "required_slots": [],
+            "optional_slots": [],
+            "prompt_samples": [entry],
+            "negative_samples": [],
+            "entities": [],
+        }
+        for index, entry in enumerate(cleaned_entries)
+    ]
+
+
 @router.get("/intent-libraries")
 def list_libraries(
     request: Request,
@@ -309,9 +398,18 @@ def list_libraries(
     model_map: dict[str, list[LibraryModelVersion]] = {}
     for model in models:
         model_map.setdefault(model.library_id, []).append(model)
+    keyword = (request.query_params.get("query") or request.query_params.get("keyword") or "").strip().lower()
+    language = (request.query_params.get("language") or "").strip().lower()
+    filtered_libraries = []
+    for item in libraries:
+        if keyword and keyword not in item.name.lower() and keyword not in item.library_key.lower():
+            continue
+        if language and item.language.lower() != language:
+            continue
+        filtered_libraries.append(item)
     return response_envelope(
         request,
-        data={"items": [serialize_library(item, model_map.get(item.id, [])) for item in libraries]},
+        data={"items": [serialize_library(item, model_map.get(item.id, [])) for item in filtered_libraries]},
     )
 
 
@@ -348,6 +446,37 @@ def create_library(
     return response_envelope(request, data={"library": serialize_library(library, [])})
 
 
+@router.delete("/intent-libraries/{library_id}")
+def delete_library(
+    library_id: str,
+    request: Request,
+    _: UserAccount = Depends(require_capability("intent_library_write")),
+    session: Session = Depends(get_db),
+):
+    library = get_library_or_404(session, library_id)
+    models = session.execute(
+        select(LibraryModelVersion).where(LibraryModelVersion.library_id == library_id)
+    ).scalars().all()
+    if models:
+        model_ids = [item.id for item in models]
+        if any(item.is_published for item in models):
+            raise ApiError(409, "LIB-409-PUBLISHED", "已发布模型所在指令库不可直接删除")
+        runs = session.execute(select(EvaluationRun).where(EvaluationRun.model_id.in_(model_ids))).scalars().all()
+        for run in runs:
+            session.delete(run)
+    datasets = session.execute(
+        select(LibraryDataset).where(LibraryDataset.library_id == library_id)
+    ).scalars().all()
+    for model in models:
+        session.delete(model)
+    for dataset in datasets:
+        session.delete(dataset)
+    session.flush()
+    session.delete(library)
+    session.commit()
+    return response_envelope(request, data={"deleted_id": library_id})
+
+
 @router.get("/intent-libraries/{library_id}")
 def get_library_detail(
     library_id: str,
@@ -382,6 +511,43 @@ def get_library_detail(
     )
 
 
+@router.post("/intent-libraries/{library_id}/datasets")
+def create_dataset(
+    library_id: str,
+    payload: CreateDatasetRequest,
+    request: Request,
+    _: UserAccount = Depends(require_capability("intent_library_write")),
+    session: Session = Depends(get_db),
+):
+    get_library_or_404(session, library_id)
+    if payload.dataset_type not in {"training", "evaluation"}:
+        raise ApiError(422, "DATASET-422-TYPE", "请选择正确的数据集类型")
+    if payload.source not in {"manual", "llm", "import"}:
+        raise ApiError(422, "DATASET-422-SOURCE", "数据集来源仅支持 manual/llm/import")
+    if payload.source == "import" and not [item for item in payload.entries if str(item).strip()]:
+        raise ApiError(422, "DATASET-422-IMPORT", "导入数据不能为空")
+    generated_samples = []
+    sample_count = payload.sample_count
+    if payload.source == "llm" and payload.sample_count > 0:
+        generated_samples = build_generated_dataset_samples(payload.name, payload.sample_count)
+    elif payload.source == "import":
+        generated_samples = build_imported_dataset_samples(payload.name, payload.entries)
+        sample_count = len(generated_samples)
+    dataset = LibraryDataset(
+        id=uuid.uuid4().hex,
+        library_id=library_id,
+        dataset_type=payload.dataset_type,
+        name=payload.name,
+        source=payload.source,
+        sample_count=sample_count,
+        schema_version="1.0",
+        payload_json=json.dumps(generated_samples, ensure_ascii=False),
+    )
+    session.add(dataset)
+    session.commit()
+    return response_envelope(request, data={"dataset": serialize_dataset(dataset)})
+
+
 @router.get("/intent-libraries/{library_id}/datasets/{dataset_id}")
 def get_dataset_detail(
     library_id: str,
@@ -392,7 +558,32 @@ def get_dataset_detail(
 ):
     library = get_library_or_404(session, library_id)
     dataset = get_dataset_or_404(session, library_id, dataset_id)
-    samples = parse_json_field(dataset.payload_json, [])
+    samples = normalize_dataset_samples(parse_json_field(dataset.payload_json, []))
+    return response_envelope(
+        request,
+        data={
+            "library": serialize_library(library, []),
+            "dataset": serialize_dataset(dataset),
+            "samples": samples,
+        },
+    )
+
+
+@router.put("/intent-libraries/{library_id}/datasets/{dataset_id}")
+def save_dataset_detail(
+    library_id: str,
+    dataset_id: str,
+    payload: SaveDatasetDetailRequest,
+    request: Request,
+    _: UserAccount = Depends(require_capability("intent_library_write")),
+    session: Session = Depends(get_db),
+):
+    library = get_library_or_404(session, library_id)
+    dataset = get_dataset_or_404(session, library_id, dataset_id)
+    samples = normalize_dataset_samples(payload.samples)
+    dataset.payload_json = json.dumps(samples, ensure_ascii=False)
+    dataset.sample_count = len(samples)
+    session.commit()
     return response_envelope(
         request,
         data={
@@ -421,6 +612,8 @@ def train_model(
         raise ApiError(404, "DATASET-404-NOT-FOUND", "训练集不存在")
     if dataset.dataset_type != "training":
         raise ApiError(422, "DATASET-422-TYPE", "请选择正确的数据集类型")
+    if dataset.sample_count <= 0:
+        raise ApiError(422, "DATASET-422-EMPTY", "训练集不能为空")
     if dataset.bound_model_id:
         raise ApiError(409, "DATASET-409-TRAINING-BOUND", "训练集必须与模型 1:1 绑定")
 
@@ -536,6 +729,8 @@ def single_test(
         request,
         data={
             "model_id": model.id,
+            "model_version": model.version_name,
+            "model_status": model.status,
             "intent": result["intent"],
             "confidence": result["confidence"],
             "slots": result["slots"],

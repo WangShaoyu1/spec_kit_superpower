@@ -2,6 +2,16 @@
 
 ## 单问题反馈模板
 
+### 分级口径
+- `BLOCKER`: 核心页面缺失、主路由链路缺失、核心业务链路跑不通、计划链路断裂、结构性缺口未被 browser/harness 证明闭环
+- `WARNING`: 功能存在但证据不足、非主链路体验偏差、已知风险已显式继承但尚未收口
+- `INFO`: 纯表达优化、文档卫生、不会改变主流程可用性的改进项
+
+### Harness 对照
+- `status=blocked` 或命中任一 `GATE-PLAN-* / GATE-BROWSER-* / GATE-IMPL-002`，审核结论不得高于 `不通过`
+- critical 模块若缺少 `page_boundary_parity`、`route_navigation_chain`、`capability_parity` 证据，不得写“有条件通过”
+- `INFO` 只能用于不改变主流程可用性的偏差，不能拿来承接“缺页面 / 缺跳转 / 缺主流程”
+
 ### 基本信息
 - 编号:
 - 级别: `BLOCKER / WARNING / INFO`
@@ -39,6 +49,14 @@
 - 目标 FR:
 - 当前 harness 状态:
 - 本轮审核结论: `通过 / 有条件通过 / 不通过`
+
+### 关键检查清单
+- [ ] 当前模块 plan 存在且被 `tasks-<module>.md` 显式引用
+- [ ] 页面边界与 PD 一致，关键子页不是单页聚合伪装
+- [ ] `page_boundary_parity`、`route_navigation_chain` 与 `capability_parity` 已有 browser 证据
+- [ ] 列表型页面默认使用 `Table`；若不用，必须在 PD/plan 中写明例外原因
+- [ ] 所有成功提示都伴随真实回读或状态收敛证据
+- [ ] Drawer / Modal / Popover 中承载真实产品能力的交互已被标记为 `functional-hidden-ui` 并纳入验收
 
 ### 已确认闭环
 - 
@@ -87,3 +105,6 @@
 - 没有回归，不得把整改标成完成。
 - 没有同步 `tasks/*.md` / `module-state.json` / 审核报告，不得宣称验收收口。
 - 若规范、实现、测试三者冲突，先登记为“规范冲突”，再决定归责。
+- 任何“缺页面 / 缺详情页 / 缺跳转 / 缺主流程”类问题，默认按 `BLOCKER` 处理，不得降级为 `INFO`。
+- 任何“列表页不用 `Table` 且无显式设计例外”类问题，至少按 `WARNING` 处理，并回溯到 PD / UI 规范。
+- 任何“Drawer / Modal 内已有产品语义，但实现/任务/测试未承接”类问题，至少按 `WARNING` 处理；若影响主流程或核心配置能力，直接按 `BLOCKER` 处理。

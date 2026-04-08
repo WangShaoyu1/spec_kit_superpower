@@ -7,8 +7,8 @@
 | FR | 主题 | 承接交付物 | 主要证据 | 审核状态 | 备注 |
 |----|------|------------|----------|----------|------|
 | FR-001 | 角色权限管理 | `user-mgmt` UI + admin API | `frontend/src/modules/user-mgmt/*`, `backend/app/api/user_mgmt.py`, `backend/tests/contract/test_user_api.py` | Closed | 主链路闭环，剩余问题仅为权限矩阵表达层面的 `INFO` 级偏差 |
-| FR-002 | 指令配置管理 | `intent-library` | `pd-all/pd-intent-library/README.md`, `frontend/src/modules/intent-library/*`, `backend/app/api/intent_library.py` | Partial | React 实现范围小于 PD 页面集合 |
-| FR-003 | 训练数据维护 | `intent-library` | 同上 | Partial | 后端与部分页面存在，完整数据集管理仍需继续核 |
+| FR-002 | 指令配置管理 | `intent-library` | `pd-all/pd-intent-library/README.md`, `plans/plan-intent-library.md`, `frontend/src/modules/intent-library/*`, `backend/app/api/intent_library.py` | Partial | `5` 页边界已恢复，但 `dataset-detail` 仍以只读样本展示为主，意图/槽位/追问编辑深度不足 |
+| FR-003 | 训练数据维护 | `intent-library` | 同上 | Partial | 数据集详情页已恢复，仍需继续补齐训练数据编辑深度与批量维护能力 |
 | FR-004 | 知识库上传/解析/索引 | `knowledge-base` | `frontend/src/modules/knowledge-base/*`, `backend/app/api/knowledge_base.py`, `backend/tests/*knowledge*` | Partial | 主链路存在，真实索引能力需继续验收 |
 | FR-005 | 知识检索 | `knowledge-base` | 同上 | Partial | 可见检索主线，生产问答命中质量需另证 |
 | FR-006 | 分类与文档管理 | `knowledge-base` | 同上 | Closed | 分类、文档、过滤与详情主线较完整 |
@@ -53,10 +53,10 @@
 | FR-045 | `testable/published` 唯一 | `intent-library` | flow tests + API | Closed | 已有测试覆盖 |
 | FR-046 | 同时 `testable+published` | `intent-library` | API/tests + PD docs | Closed | 已有规则表达与实现 |
 | FR-047 | 发布前校验库已发布模型 | `dialog-profile` | `dialog_profile.py`, `DialogProfileDetailPage.jsx`, tests | Closed | 门禁真实存在 |
-| FR-048 | 训练集/评估集关联规则 | `intent-library` | API/tests + PD docs | Partial | 文档口径明确，前端完整页面未全实现 |
-| FR-049 | 训练/评估导入口径 | `intent-library` | PD docs + API/tests | Partial | 后端部分具备，前端页面覆盖有限 |
+| FR-048 | 训练集/评估集关联规则 | `intent-library` | `pd-intent-library/README.md`, `plan-intent-library.md`, `intent_library.py`, `IntentLibraryDatasetsPage.jsx`, 相关 tests | Partial | 页面边界与回读已恢复，但列表页仍未统一使用 `Table`，绑定关系的交互深度也仍偏薄 |
+| FR-049 | 训练/评估导入口径 | `intent-library` | PD docs + API/tests + `IntentLibraryDatasetsPage.jsx` | Partial | 后端口径与页面入口存在，导入与数据编辑深度仍需继续验收 |
 | FR-050 | 阈值继承与快照 | `intent-library` | `pd-index.md`, `pd-intent-library/README.md`, API/tests | Partial | 当前活文档链正确保留 Partial，不可误报完成 |
-| FR-051 | 单条+批量测试入口 | `intent-library` | API/tests + PD docs | Partial | API 有，React 交互覆盖仍偏薄 |
-| FR-052 | 自动智能分析 | `intent-library` | API/tests + PD docs | Partial | 有分析结构，但 UI 展示完整性待补 |
+| FR-051 | 单条+批量测试入口 | `intent-library` | `IntentLibraryTestPage.jsx`, `IntentLibraryRoutes.test.jsx`, `intent_library.py`, browser smoke | Partial | 测试页与双 Tab 已恢复，但单条测试结果仍偏启发式，不足以完全等价当前模型推理 |
+| FR-052 | 自动智能分析 | `intent-library` | `IntentLibraryTestPage.jsx`, `intent_library.py`, 相关 tests | Partial | 评估分析摘要已可见，但完整分析深度仍弱于 PD 交互稿预期 |
 | FR-053 | 发布/测试能力点控制 | `intent-library` | `constants.py`, shell/UI, tests | Partial | 有能力点模型，仍需端到端角色验收 |
 | FR-054 | 平台无关模型下载 | `intent-library` | API/docs/tests | Partial | 下载元数据有证据，Python/C++ 一致性验收未见实证 |

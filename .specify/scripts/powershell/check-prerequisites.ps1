@@ -9,16 +9,18 @@
 #
 # OPTIONS:
 #   -Json               Output in JSON format
+#   -Module             Resolve plan paths for a specific module key/task slug
 #   -RequirePlan        Require module plan to exist
 #   -RequireTasks       Require tasks/ directory or tasks.md to exist (for implementation phase)
 #   -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
-#   -RequireDesign      Require pd-all/ + ad/ + dd/ (or ad.md / dd.md) to exist
+#   -RequireDesign      Require pd-all/ + ai-pd/ + ad/ + dd/ (or ad.md / dd.md) to exist
 #   -PathsOnly          Only output path variables (no validation)
 #   -Help, -h           Show help message
 
 [CmdletBinding()]
 param(
     [switch]$Json,
+    [string]$Module,
     [switch]$RequirePlan,
     [switch]$RequireTasks,
     [switch]$IncludeTasks,
@@ -38,14 +40,18 @@ Consolidated prerequisite checking for Spec-Driven Development workflow.
 
 OPTIONS:
   -Json               Output in JSON format
+  -Module             Resolve paths for a specific module key/task slug
   -RequirePlan        Require module plan to exist
   -RequireTasks       Require tasks.md to exist (for implementation phase)
   -IncludeTasks       Include tasks/ (or tasks.md) in AVAILABLE_DOCS list
-  -RequireDesign      Require pd-all/ + ad/ + dd/ (or ad.md / dd.md) to exist
+  -RequireDesign      Require pd-all/ + ai-pd/ + ad/ + dd/ (or ad.md / dd.md) to exist
   -PathsOnly          Only output path variables (no prerequisite validation)
   -Help, -h           Show this help message
 
 EXAMPLES:
+  # Check a specific module plan
+  .\check-prerequisites.ps1 -Json -RequirePlan -Module pd-intent-library
+
   # Check task prerequisites (spec.md + module plan + design docs required)
   .\check-prerequisites.ps1 -Json -RequirePlan -RequireDesign
   
@@ -63,14 +69,14 @@ EXAMPLES:
 . "$PSScriptRoot/common.ps1"
 
 # Get feature paths and validate branch
-$paths = Get-FeaturePathsEnv
+$paths = Get-FeaturePathsEnv -Module $Module
 
 if (-not (Test-FeatureBranch -Branch $paths.CURRENT_BRANCH -HasGit:$paths.HAS_GIT)) { 
     exit 1 
 }
 
-# If paths-only mode, output paths and exit (support combined -Json -PathsOnly)
-if ($PathsOnly) {
+# If paths-only mode is used without validation requirements, output paths and exit
+if ($PathsOnly -and -not ($RequirePlan -or $RequireTasks -or $RequireDesign)) {
     if ($Json) {
         [PSCustomObject]@{
             REPO_ROOT    = $paths.REPO_ROOT
@@ -82,12 +88,14 @@ if ($PathsOnly) {
             LEGACY_PLAN  = $paths.LEGACY_PLAN
             PLANS_DIR    = $paths.PLANS_DIR
             MODULE_PLAN  = $paths.MODULE_PLAN
+            REQUESTED_MODULE = $Module
             ACTIVE_MODULE = $paths.ACTIVE_MODULE
             ACTIVE_TASK_SLUG = $paths.ACTIVE_TASK_SLUG
             TASKS_DIR    = $paths.TASKS_DIR
             TASKS_FILE   = $paths.TASKS_FILE
             TASKS        = $paths.TASKS
             PD_ALL_DIR   = $paths.PD_ALL_DIR
+            AI_PD_DIR  = $paths.AI_PD_DIR
             AD_DIR       = $paths.AD_DIR
             AD_FILE      = $paths.AD_FILE
             DD_DIR       = $paths.DD_DIR
@@ -103,12 +111,14 @@ if ($PathsOnly) {
         Write-Output "LEGACY_PLAN: $($paths.LEGACY_PLAN)"
         Write-Output "PLANS_DIR: $($paths.PLANS_DIR)"
         Write-Output "MODULE_PLAN: $($paths.MODULE_PLAN)"
+        Write-Output "REQUESTED_MODULE: $Module"
         Write-Output "ACTIVE_MODULE: $($paths.ACTIVE_MODULE)"
         Write-Output "ACTIVE_TASK_SLUG: $($paths.ACTIVE_TASK_SLUG)"
         Write-Output "TASKS_DIR: $($paths.TASKS_DIR)"
         Write-Output "TASKS_FILE: $($paths.TASKS_FILE)"
         Write-Output "TASKS: $($paths.TASKS)"
         Write-Output "PD_ALL_DIR: $($paths.PD_ALL_DIR)"
+        Write-Output "AI_PD_DIR: $($paths.AI_PD_DIR)"
         Write-Output "AD_DIR: $($paths.AD_DIR)"
         Write-Output "AD_FILE: $($paths.AD_FILE)"
         Write-Output "DD_DIR: $($paths.DD_DIR)"
@@ -132,7 +142,8 @@ if (-not (Test-Path $paths.FEATURE_SPEC -PathType Leaf)) {
 
 if ($RequirePlan) {
     if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
-        Write-Output "ERROR: implementation plan not found for active module in $($paths.FEATURE_DIR)"
+        $targetLabel = if ($Module) { $Module } else { 'active module' }
+        Write-Output "ERROR: implementation plan not found for $targetLabel in $($paths.FEATURE_DIR)"
         Write-Output "Expected module plan path: $($paths.IMPL_PLAN)"
         Write-Output "Run /speckit.plan first to create the module implementation plan."
         exit 1
@@ -141,12 +152,13 @@ if ($RequirePlan) {
 
 if ($RequireDesign) {
     $hasPdAll = Test-Path $paths.PD_ALL_DIR -PathType Container
+    $hasAiPd = Test-Path $paths.AI_PD_DIR -PathType Container
     $hasAd = (Test-Path $paths.AD_DIR -PathType Container) -or (Test-Path $paths.AD_FILE -PathType Leaf)
     $hasDd = (Test-Path $paths.DD_DIR -PathType Container) -or (Test-Path $paths.DD_FILE -PathType Leaf)
 
-    if (-not $hasPdAll -or -not $hasAd -or -not $hasDd) {
+    if (-not $hasPdAll -or -not $hasAiPd -or -not $hasAd -or -not $hasDd) {
         Write-Output "ERROR: Required design documents are incomplete in $($paths.FEATURE_DIR)"
-        Write-Output "Run /speckit.design-pd -> /speckit.design-ad -> /speckit.design-dd before continuing."
+        Write-Output "Run /speckit.design-pd -> /speckit.transform-pd -> /speckit.design-ad -> /speckit.design-dd before continuing."
         exit 1
     }
 }
@@ -167,6 +179,7 @@ $docs = @()
 
 # Design documents (new workflow: pd-all/, ad/, dd/)
 if (Test-Path $paths.PD_ALL_DIR -PathType Container) { $docs += 'pd-all/' }
+if (Test-Path $paths.AI_PD_DIR -PathType Container) { $docs += 'ai-pd/' }
 if (Test-Path $paths.AD_DIR -PathType Container) { $docs += 'ad/' }
 elseif (Test-Path $paths.AD_FILE -PathType Leaf) { $docs += 'ad.md' }
 if (Test-Path $paths.DD_DIR -PathType Container) { $docs += 'dd/' }
@@ -187,6 +200,8 @@ if ($Json) {
         FEATURE_DIR = $paths.FEATURE_DIR
         FEATURE_SPEC = $paths.FEATURE_SPEC
         IMPL_PLAN = $paths.IMPL_PLAN
+        AI_PD_DIR = $paths.AI_PD_DIR
+        REQUESTED_MODULE = $Module
         ACTIVE_MODULE = $paths.ACTIVE_MODULE
         ACTIVE_TASK_SLUG = $paths.ACTIVE_TASK_SLUG
         AVAILABLE_DOCS = $docs 
@@ -194,10 +209,12 @@ if ($Json) {
 } else {
     # Text output
     Write-Output "FEATURE_DIR:$($paths.FEATURE_DIR)"
+    Write-Output "AI_PD_DIR:$($paths.AI_PD_DIR)"
     Write-Output "AVAILABLE_DOCS:"
     
     # Show status of design documents
     Test-DirHasFiles -Path $paths.PD_ALL_DIR -Description 'pd-all/' | Out-Null
+    Test-DirHasFiles -Path $paths.AI_PD_DIR -Description 'ai-pd/' | Out-Null
     if (Test-Path $paths.AD_DIR -PathType Container) {
         Test-DirHasFiles -Path $paths.AD_DIR -Description 'ad/' | Out-Null
     } else {

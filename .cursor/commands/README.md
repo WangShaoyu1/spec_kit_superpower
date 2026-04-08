@@ -14,26 +14,31 @@
 │                          ↓                                                  │
 │   /speckit.design-pd                                                        │
 │   ├── 输入: spec.md                                                         │
-│   ├── 输出: pd-all/ (模块化产品交互设计)                                     │
-│   └── 检查点: 页面映射、状态矩阵、异常处理                                    │
+│   ├── 输出: pd-all/ (HumanPD: 模块化产品交互设计)                            │
+│   └── 检查点: 页面映射、状态矩阵、异常处理、每页 `page_goal / primary_user_flows` │
+│                          ↓                                                  │
+│   /speckit.transform-pd                                                     │
+│   ├── 输入: pd-all/ + spec.md                                               │
+│   ├── 输出: ai-pd/ (AI-PD: AI 主输入)                                    │
+│   └── 检查点: capability IDs、动作契约、异常流、语义分类完整；缺少页面级 `goal/flows` 直接 blocker │
 │                          ↓                                                  │
 │   /speckit.design-ad                                                        │
-│   ├── 输入: spec.md + pd-all/                                               │
+│   ├── 输入: spec.md + ai-pd/ + pd-all/                                    │
 │   ├── 输出: ad/ (模块化架构设计)                                             │
 │   └── 检查点: 模块结构、数据流、接口契约                                      │
 │                          ↓                                                  │
 │   /speckit.design-dd                                                        │
-│   ├── 输入: spec.md + pd-all/ + ad/                                         │
+│   ├── 输入: spec.md + ai-pd/ + pd-all/ + ad/                              │
 │   ├── 输出: dd/ (模块化详细设计)                                             │
 │   └── 检查点: 数据模型、状态机、算法、错误码                                  │
 │                          ↓                                                  │
 │   /speckit.plan                                                             │
-│   ├── 输入: spec.md + pd-all/ + ad/ + dd/                                   │
+│   ├── 输入: spec.md + ai-pd/ + pd-all/ + ad/ + dd/                        │
 │   ├── 输出: plans/plan-<module>.md (实施规划桥梁)                           │
 │   └── 检查点: 阶段规划、测试策略、风险识别                                    │
 │                          ↓                                                  │
 │   /speckit.tasks                                                            │
-│   ├── 输入: pd-all/ + ad/ + dd/ + plans/plan-<module>.md                    │
+│   ├── 输入: ai-pd/ + pd-all/ + ad/ + dd/ + plans/plan-<module>.md         │
 │   ├── 输出: tasks/ (按 PD 模块拆分的任务目录, TDD 强制)                      │
 │   └── 检查点: 每模块独立可测、依赖清晰、覆盖全部 PD 交互                     │
 │                          ↓                                                  │
@@ -71,6 +76,44 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+## 研发主链与 Harness
+
+### 研发主链
+
+```text
+spec
+  -> HumanPD (pd-all/)
+  -> AI-PD (ai-pd/)
+  -> AD
+  -> DD
+  -> plan
+  -> tasks
+  -> implement
+  -> smoke
+  -> review / 验收
+```
+
+### Harness 的位置
+
+`harness` 不是单独插在主链中的一个产物阶段，而是贯穿 `AI-PD -> AD -> DD -> plan -> tasks -> implement -> smoke` 的执行控制层与门禁层。
+
+```text
+研发产物流:
+spec -> HumanPD -> AI-PD -> AD -> DD -> plan -> tasks -> implement -> smoke -> review
+
+Harness 治理层:
+          [前置检查 / gate / 模块状态 / 风险继承 / browser probes]
+          └────────────────────────────────────────────────────────┘
+```
+
+### Harness 负责什么
+
+- 检查阶段输入是否齐全
+- 检查上游风险是否被下游显式继承
+- 控制模块推进顺序与状态流转
+- 在 `tasks / implement / browser` 等阶段执行 gate
+- 防止跳过文档链直接进入实现或验收
+
 ## 命令详解
 
 ### 1. /speckit.specify - 需求澄清
@@ -93,13 +136,37 @@
 - 需要定义交互细节时
 - 前后端协作前
 
-**输出**: `specs/{branch}/pd-all/`（含 pd-hub.html 统一入口 + pd-index.md 索引 + pd-<module>/ 各模块原型）
+**输出**: `specs/{branch}/pd-all/`（HumanPD：含 pd-hub.html 统一入口 + pd-index.md 索引 + pd-<module>/ 各模块原型）
 
 **关键产出**:
 - 页面与需求映射表
 - 页面状态矩阵
 - 异常处理规范
 - 可交互 HTML 原型
+- 每个 HTML 页面对应的页面能力清单，其中 `page_goal` 与 `primary_user_flows` 为必填
+
+---
+
+### 2.5 /speckit.transform-pd - PD 转 AI-PD
+**目的**: 将 HumanPD 转换为 AI、harness 和下游文档优先消费的 AI-PD
+
+**使用场景**:
+- `/speckit.design-pd` 完成后
+- 进入 AD/DD/plan/tasks 前
+- 需要把人类 PD 转成 AI 最佳阅读范式时
+
+**输出**: `specs/{branch}/ai-pd/`（README.md 索引 + ai-<module>.md + ai-<module>.checklist.md）
+
+**关键产出**:
+- 页面级结构化语义块
+- capability IDs
+- action/data/rule/exception 契约
+- 隐藏交互语义分类
+
+**关键前置约束**:
+- `pd-all/pd-<module>/README.md` 中每个 HTML 页面都必须显式提供 `page_goal`
+- `pd-all/pd-<module>/README.md` 中每个 HTML 页面都必须显式提供 `primary_user_flows`
+- 若缺失，`validate-stage-gates.ps1` 会触发 `GATE-PD-003`，下游不得继续
 
 ---
 
@@ -107,7 +174,7 @@
 **目的**: 定义系统模块结构、数据流向和接口契约
 
 **使用场景**:
-- pd-all/ 完成后（或同时进行）
+- ai-pd/ 完成后（pd-all/ 作为视觉参考）
 - 需要技术方案决策时
 - 多模块协作前
 
@@ -160,7 +227,7 @@
 ---
 
 ### 6. /speckit.tasks - 任务拆解
-**目的**: 基于 PD 交互模块拆解为独立的任务文件（PD 是首要驱动源，AD/DD 提供实现细节，plan 提供阶段规划，TDD 强制）
+**目的**: 基于 AI-PD 拆解为独立的任务文件（AI-PD 是首要驱动源，HumanPD 作为视觉参考，AD/DD 提供实现细节，plan 提供阶段规划，TDD 强制）
 
 **使用场景**:
 - 所有设计文档 + 模块 plan 完成后

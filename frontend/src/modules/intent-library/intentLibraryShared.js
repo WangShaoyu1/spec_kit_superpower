@@ -12,14 +12,29 @@ export function getFirstEvaluationDataset(detail) {
   return detail?.datasets?.find((item) => item.dataset_type === 'evaluation') ?? null
 }
 
+export function getTestableModel(detail) {
+  if (!detail?.models?.length) {
+    return null
+  }
+
+  return detail.models.find((item) => item.is_testable || item.is_published) ?? null
+}
+
+export function getPublishableModel(detail) {
+  return (
+    detail?.models?.find((item) => item.is_published)
+    ?? detail?.models?.find((item) => item.is_testable && item.status === 'testable')
+    ?? null
+  )
+}
+
 export function getPrimaryModel(detail) {
   if (!detail?.models?.length) {
     return null
   }
 
   return (
-    detail.models.find((item) => item.is_testable)
-    ?? detail.models.find((item) => item.is_published)
+    getTestableModel(detail)
     ?? detail.models[detail.models.length - 1]
   )
 }

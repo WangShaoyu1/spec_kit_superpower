@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 
 . "$PSScriptRoot/common.ps1"
 
-$paths = Get-FeaturePathsEnv
+$paths = Get-FeaturePathsEnv -Module $Module
 $issues = New-Object System.Collections.Generic.List[object]
 
 function Add-Issue {
@@ -106,7 +106,201 @@ function Get-ModuleStateValue {
     return [string]$entry[0].Value
 }
 
+function Get-TargetTaskSlug {
+    param(
+        $TargetModuleConfig,
+        [string]$RequestedModule,
+        [string]$ActiveTaskSlug
+    )
+
+    if ($TargetModuleConfig -and $TargetModuleConfig.task_slug) {
+        return [string]$TargetModuleConfig.task_slug
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ActiveTaskSlug)) {
+        return $ActiveTaskSlug
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedModule)) {
+        return ($RequestedModule -replace '^pd-', '')
+    }
+
+    return ''
+}
+
+function Get-ModuleTasksPath {
+    param(
+        [string]$FeatureDir,
+        [string]$TaskSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskSlug)) {
+        return ''
+    }
+
+    $candidate = Join-Path (Join-Path $FeatureDir 'tasks') ("tasks-" + $TaskSlug + ".md")
+    if (Test-Path $candidate -PathType Leaf) {
+        return $candidate
+    }
+
+    return ''
+}
+
+function Get-ModuleAiPdPath {
+    param(
+        [string]$AiPdDir,
+        [string]$TaskSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskSlug)) {
+        return ''
+    }
+
+    $markdownCandidate = Join-Path $AiPdDir ("ai-" + $TaskSlug + ".md")
+    if (Test-Path $markdownCandidate -PathType Leaf) {
+        return $markdownCandidate
+    }
+
+    $yamlCandidate = Join-Path $AiPdDir ("ai-" + $TaskSlug + ".yaml")
+    if (Test-Path $yamlCandidate -PathType Leaf) {
+        return $yamlCandidate
+    }
+
+    return ''
+}
+
+function Get-ModuleAiPdChecklistPath {
+    param(
+        [string]$AiPdDir,
+        [string]$TaskSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskSlug)) {
+        return ''
+    }
+
+    $candidate = Join-Path $AiPdDir ("ai-" + $TaskSlug + ".checklist.md")
+    if (Test-Path $candidate -PathType Leaf) {
+        return $candidate
+    }
+
+    return ''
+}
+
+function Test-TasksReferencesPlan {
+    param(
+        [string]$TasksText,
+        [string]$TaskSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TasksText) -or [string]::IsNullOrWhiteSpace($TaskSlug)) {
+        return $false
+    }
+
+    $planFileName = "plan-$TaskSlug.md"
+    return $TasksText -match [regex]::Escape($planFileName)
+}
+
+function Test-ReferencesModuleAiPd {
+    param(
+        [string]$Text,
+        [string]$ModuleAiPdPath,
+        [string]$TaskSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    if (-not [string]::IsNullOrWhiteSpace($TaskSlug)) {
+        $candidates.Add(("ai-pd/ai-" + $TaskSlug + ".md")) | Out-Null
+        $candidates.Add(("ai-pd/ai-" + $TaskSlug + ".yaml")) | Out-Null
+        $candidates.Add(("ai-" + $TaskSlug + ".md")) | Out-Null
+        $candidates.Add(("ai-" + $TaskSlug + ".yaml")) | Out-Null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ModuleAiPdPath)) {
+        $fileName = [System.IO.Path]::GetFileName($ModuleAiPdPath)
+        if (-not [string]::IsNullOrWhiteSpace($fileName)) {
+            $candidates.Add($fileName) | Out-Null
+        }
+    }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if ($Text -match [regex]::Escape($candidate)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Test-HasPageCapabilityChecklist {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    return (
+        $Text -match '页面能力清单' -and
+        $Text -match 'functional-hidden-ui|explanatory-only|interactive_containers|capability_checklist'
+    )
+}
+
+function Test-PdContainsHiddenInteractions {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $false
+    }
+
+    return $Text -match 'Drawer|抽屉|Modal|弹窗|Popover|Collapse|说明抽屉|说明按钮'
+}
+
+function Get-MissingPageSemanticAnchors {
+    param(
+        [string]$ReadmeText,
+        [string[]]$HtmlFileNames
+    )
+
+    $missing = New-Object System.Collections.Generic.List[string]
+
+    if ([string]::IsNullOrWhiteSpace($ReadmeText)) {
+        foreach ($htmlFileName in @($HtmlFileNames)) {
+            $missing.Add(($htmlFileName + ':missing-section')) | Out-Null
+        }
+        return @($missing.ToArray())
+    }
+
+    foreach ($htmlFileName in @($HtmlFileNames)) {
+        if ([string]::IsNullOrWhiteSpace($htmlFileName)) {
+            continue
+        }
+
+        $pattern = '(?s)###\s+' + [regex]::Escape($htmlFileName) + '\s*(.*?)(?=\r?\n###\s+[a-z0-9-]+\.html|\r?\n##\s+|\z)'
+        $match = [regex]::Match($ReadmeText, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if (-not $match.Success) {
+            $missing.Add(($htmlFileName + ':missing-section')) | Out-Null
+            continue
+        }
+
+        $sectionText = $match.Groups[1].Value
+        if ($sectionText -notmatch [regex]::Escape('`page_goal`')) {
+            $missing.Add(($htmlFileName + ':page_goal')) | Out-Null
+        }
+        if ($sectionText -notmatch [regex]::Escape('`primary_user_flows`')) {
+            $missing.Add(($htmlFileName + ':primary_user_flows')) | Out-Null
+        }
+    }
+
+    return @($missing.ToArray())
+}
+
 $pdIndexPath = Join-Path $paths.PD_ALL_DIR 'pd-index.md'
+$aiPdReadmePath = Join-Path $paths.AI_PD_DIR 'README.md'
 $rulesPath = Join-Path $paths.REPO_ROOT '.cursor/rules/specify-rules.mdc'
 $rolloutPath = Join-Path $paths.REPO_ROOT '.specify/harness/module-rollout.json'
 $moduleStatePath = Join-Path $paths.REPO_ROOT '.specify/harness/module-state.json'
@@ -116,6 +310,10 @@ $rolloutConfig = Read-JsonFile -Path $rolloutPath
 $moduleStateConfig = Read-JsonFile -Path $moduleStatePath
 $targetModuleConfig = $null
 $targetModuleState = ''
+$moduleReadmeText = ''
+$moduleHtmlText = ''
+$moduleAiPdPath = ''
+$moduleAiPdChecklistPath = ''
 
 if (-not (Test-Path $paths.FEATURE_SPEC -PathType Leaf)) {
     Add-Issue -Code 'GATE-COMMON-001' -Severity 'BLOCKER' -Message 'spec.md 缺失，无法进入下一阶段。' -Path $paths.FEATURE_SPEC -Hint '先运行 /speckit.specify 或补齐 spec.md'
@@ -127,6 +325,14 @@ if (-not (Test-Path $paths.PD_ALL_DIR -PathType Container)) {
 
 if (-not (Test-Path $pdIndexPath -PathType Leaf)) {
     Add-Issue -Code 'GATE-COMMON-003' -Severity 'BLOCKER' -Message 'pd-index.md 缺失，无法建立模块索引。' -Path $pdIndexPath -Hint '补齐 pd-all/pd-index.md'
+}
+
+if (-not (Test-Path $paths.AI_PD_DIR -PathType Container)) {
+    Add-Issue -Code 'GATE-COMMON-005' -Severity 'BLOCKER' -Message 'ai-pd/ 缺失，无法把 HumanPD 转为 AI 主输入。' -Path $paths.AI_PD_DIR -Hint '先运行 /speckit.transform-pd 或补齐 ai-pd/'
+}
+
+if ((Test-Path $paths.AI_PD_DIR -PathType Container) -and -not (Test-Path $aiPdReadmePath -PathType Leaf)) {
+    Add-Issue -Code 'GATE-COMMON-006' -Severity 'BLOCKER' -Message 'ai-pd/ 缺少 README.md，无法建立 AI-PD 模块索引。' -Path $aiPdReadmePath -Hint '补齐 ai-pd/README.md'
 }
 
 if ($rulesText -match 'PD_FEATURE_GAP_ROOT_CAUSE_ANALYSIS') {
@@ -144,6 +350,28 @@ foreach ($readmePath in $pdReadmes) {
         }
     }
 }
+
+$pdModuleDirs = Get-ChildItem -Path $paths.PD_ALL_DIR -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'pd-*' }
+foreach ($pdModuleDir in @($pdModuleDirs)) {
+    $moduleReadmePath = Join-Path $pdModuleDir.FullName 'README.md'
+    if (-not (Test-Path $moduleReadmePath -PathType Leaf)) {
+        continue
+    }
+
+    $moduleHtmlFiles = Get-ModuleHtmlFiles -ModuleDir $pdModuleDir.FullName
+    if ($moduleHtmlFiles.Count -eq 0) {
+        continue
+    }
+
+    $missingPageAnchors = Get-MissingPageSemanticAnchors -ReadmeText (Read-TextFile -Path $moduleReadmePath) -HtmlFileNames @($moduleHtmlFiles | ForEach-Object { $_.Name })
+    if ($missingPageAnchors.Count -gt 0) {
+        Add-Issue -Code 'GATE-PD-003' -Severity 'BLOCKER' -Message ('PD 页面能力清单缺少必填页面语义字段 `page_goal / primary_user_flows`: ' + ($missingPageAnchors -join ', ')) -Path $moduleReadmePath -Hint '为每个 HTML 页面补齐 README 中对应的 `page_goal` 与 `primary_user_flows`'
+    }
+}
+
+$targetTaskSlug = ''
+$moduleTasksPath = ''
+$moduleTasksText = ''
 
 $pdIndexText = Read-TextFile -Path $pdIndexPath
 if ($pdIndexText -match '条件准入|部分覆盖') {
@@ -177,6 +405,8 @@ if ($Module) {
     $moduleDir = Join-Path $paths.PD_ALL_DIR $Module
     $moduleReadmePath = Join-Path $moduleDir 'README.md'
     $moduleHtmlFiles = Get-ModuleHtmlFiles -ModuleDir $moduleDir
+    $moduleReadmeText = Read-TextFile -Path $moduleReadmePath
+    $moduleHtmlText = ($moduleHtmlFiles | ForEach-Object { Read-TextFile -Path $_.FullName }) -join "`n"
     if (
         -not (Test-Path $moduleDir -PathType Container) -or
         -not (Test-Path $moduleReadmePath -PathType Leaf) -or
@@ -187,6 +417,20 @@ if ($Module) {
 
     if ($pdIndexText -and $pdIndexText -notmatch [regex]::Escape($Module)) {
         Add-Issue -Code 'GATE-MODULE-003' -Severity 'BLOCKER' -Message '目标模块未出现在 pd-index.md 中。' -Path $pdIndexPath -Hint '先把模块登记到 pd-index.md'
+    }
+
+    $targetTaskSlug = Get-TargetTaskSlug -TargetModuleConfig $targetModuleConfig -RequestedModule $Module -ActiveTaskSlug $paths.ACTIVE_TASK_SLUG
+    $moduleTasksPath = Get-ModuleTasksPath -FeatureDir $paths.FEATURE_DIR -TaskSlug $targetTaskSlug
+    $moduleTasksText = Read-TextFile -Path $moduleTasksPath
+    $moduleAiPdPath = Get-ModuleAiPdPath -AiPdDir $paths.AI_PD_DIR -TaskSlug $targetTaskSlug
+    $moduleAiPdChecklistPath = Get-ModuleAiPdChecklistPath -AiPdDir $paths.AI_PD_DIR -TaskSlug $targetTaskSlug
+
+    if (-not $moduleAiPdPath) {
+        Add-Issue -Code 'GATE-MODULE-006' -Severity 'BLOCKER' -Message '目标模块缺少 ai-<module>.md / yaml，无法作为 AI 主输入继续下游阶段。' -Path $paths.AI_PD_DIR -Hint '为目标模块生成 ai-pd/ai-<module>.md'
+    }
+
+    if (-not $moduleAiPdChecklistPath) {
+        Add-Issue -Code 'GATE-MODULE-007' -Severity 'BLOCKER' -Message '目标模块缺少 ai-<module>.checklist.md，无法进入 AI-PD 人工校对约束链。' -Path $paths.AI_PD_DIR -Hint '为目标模块生成 ai-pd/ai-<module>.checklist.md'
     }
 
     if ($targetModuleConfig -and $moduleStateConfig -and $Stage -in @('implement', 'browser')) {
@@ -236,12 +480,37 @@ switch ($Stage) {
         }
 
         if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
-            Add-Issue -Code 'GATE-TASKS-001' -Severity 'BLOCKER' -Message '当前模块实施计划缺失，无法生成任务。' -Path $paths.IMPL_PLAN -Hint '先运行 /speckit.plan 生成 plans/plan-<module>.md'
+            $planIssueCode = if ($Module) { 'GATE-PLAN-001' } else { 'GATE-TASKS-001' }
+            Add-Issue -Code $planIssueCode -Severity 'BLOCKER' -Message '当前模块实施计划缺失，无法生成任务。' -Path $paths.IMPL_PLAN -Hint '先运行 /speckit.plan 生成 plans/plan-<module>.md'
         } elseif ($planText -notmatch '核心业务链路|真实成功信号') {
             Add-Issue -Code 'GATE-TASKS-001' -Severity 'BLOCKER' -Message '当前模块实施计划未显式定义核心业务链路或真实成功信号。' -Path $paths.IMPL_PLAN -Hint '在模块 plan 中补齐核心业务链路与真实成功信号'
         }
 
-        if ($pdRiskFiles.Count -gt 0 -and $planText -notmatch 'FR-050|部分覆盖|条件准入|Deferred|Out of Scope|Blocked By|Partial') {
+        if ($Module) {
+            if (-not $moduleTasksPath) {
+                Add-Issue -Code 'GATE-PLAN-002' -Severity 'BLOCKER' -Message '当前模块缺少与目标 plan 对应的 tasks-<module>.md 文件。' -Path (Join-Path $paths.TASKS_DIR ("tasks-$targetTaskSlug.md")) -Hint '先生成模块级 tasks 文件，再继续实现'
+            } elseif (-not (Test-TasksReferencesPlan -TasksText $moduleTasksText -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-PLAN-002' -Severity 'BLOCKER' -Message '模块 tasks 未显式引用对应的模块 plan，计划链路不可追踪。' -Path $moduleTasksPath -Hint '在 tasks 文件头部补齐 plans/plan-<module>.md 输入引用'
+            }
+
+            if (-not (Test-ReferencesModuleAiPd -Text $planText -ModuleAiPdPath $moduleAiPdPath -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-AIPD-001' -Severity 'BLOCKER' -Message '当前模块 plan 未显式引用 AI-PD，无法保证下游基于 AI 主输入规划。' -Path $paths.IMPL_PLAN -Hint '在 plan 中补齐 ai-pd/ai-<module>.md 输入引用'
+            }
+
+            if (-not (Test-ReferencesModuleAiPd -Text $moduleTasksText -ModuleAiPdPath $moduleAiPdPath -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-AIPD-002' -Severity 'BLOCKER' -Message '模块 tasks 未显式引用 AI-PD，任务拆解仍停留在直接读 HumanPD。' -Path $moduleTasksPath -Hint '在 tasks 文件中补齐 ai-pd/ai-<module>.md 输入引用'
+            }
+
+            if ((Test-PdContainsHiddenInteractions -Text ($moduleReadmeText + "`n" + $moduleHtmlText)) -and (-not (Test-HasPageCapabilityChecklist -Text $planText))) {
+                Add-Issue -Code 'GATE-PLAN-003' -Severity 'BLOCKER' -Message '当前模块 plan 缺少页面能力清单或未显式标记 functional-hidden-ui / explanatory-only。' -Path $paths.IMPL_PLAN -Hint '在模块 plan 中补齐页面能力清单，并显式区分隐藏交互分类'
+            }
+
+            if ((Test-PdContainsHiddenInteractions -Text ($moduleReadmeText + "`n" + $moduleHtmlText)) -and (-not (Test-HasPageCapabilityChecklist -Text $moduleTasksText))) {
+                Add-Issue -Code 'GATE-PLAN-004' -Severity 'BLOCKER' -Message '模块 tasks 未显式继承页面能力清单中的 functional-hidden-ui。' -Path $moduleTasksPath -Hint '在 tasks 文件中补齐页面能力承接矩阵与隐藏交互任务'
+            }
+        }
+
+        if ($pdRiskFiles.Count -gt 0 -and $planText -notmatch 'FR-050|部分覆盖|条件准入|Deferred|Out of Scope|Blocked By|Partial|待补齐|显式未完成') {
             Add-Issue -Code 'GATE-TASKS-002' -Severity 'BLOCKER' -Message 'PD 条件准入/部分覆盖尚未在当前模块 plan 中显式继承。' -Path $paths.IMPL_PLAN -Hint '把 PD 风险写入模块 plan 的风险/未完成声明'
         }
     }
@@ -259,15 +528,42 @@ switch ($Stage) {
         }
 
         if (-not (Test-Path $paths.IMPL_PLAN -PathType Leaf)) {
-            Add-Issue -Code 'GATE-TASKS-001' -Severity 'BLOCKER' -Message '进入实现前缺少当前模块实施计划。' -Path $paths.IMPL_PLAN -Hint '先运行 /speckit.plan 生成 plans/plan-<module>.md'
+            $planIssueCode = if ($Module) { 'GATE-PLAN-001' } else { 'GATE-TASKS-001' }
+            Add-Issue -Code $planIssueCode -Severity 'BLOCKER' -Message '进入实现前缺少当前模块实施计划。' -Path $paths.IMPL_PLAN -Hint '先运行 /speckit.plan 生成 plans/plan-<module>.md'
         }
 
         if (-not $tasksEntry) {
             Add-Issue -Code 'GATE-IMPL-001' -Severity 'BLOCKER' -Message '进入实现前缺少 tasks/ 或 tasks.md。' -Path $paths.TASKS_DIR -Hint '先运行 /speckit.tasks'
         }
 
+        if ($Module) {
+            if (-not $moduleTasksPath) {
+                Add-Issue -Code 'GATE-PLAN-002' -Severity 'BLOCKER' -Message '当前模块缺少与目标 plan 对应的 tasks-<module>.md 文件。' -Path (Join-Path $paths.TASKS_DIR ("tasks-$targetTaskSlug.md")) -Hint '先生成模块级 tasks 文件，再继续实现'
+            } elseif (-not (Test-TasksReferencesPlan -TasksText $moduleTasksText -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-PLAN-002' -Severity 'BLOCKER' -Message '模块 tasks 未显式引用对应的模块 plan，计划链路不可追踪。' -Path $moduleTasksPath -Hint '在 tasks 文件头部补齐 plans/plan-<module>.md 输入引用'
+            }
+
+            if (-not (Test-ReferencesModuleAiPd -Text $planText -ModuleAiPdPath $moduleAiPdPath -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-AIPD-001' -Severity 'BLOCKER' -Message '进入实现前，当前模块 plan 未显式引用 AI-PD。' -Path $paths.IMPL_PLAN -Hint '先在 plan 中补齐 ai-pd/ai-<module>.md 输入引用'
+            }
+
+            if (-not (Test-ReferencesModuleAiPd -Text $moduleTasksText -ModuleAiPdPath $moduleAiPdPath -TaskSlug $targetTaskSlug)) {
+                Add-Issue -Code 'GATE-AIPD-002' -Severity 'BLOCKER' -Message '进入实现前，模块 tasks 未显式引用 AI-PD。' -Path $moduleTasksPath -Hint '先在 tasks 中补齐 ai-pd/ai-<module>.md 输入引用'
+            }
+
+            if ((Test-PdContainsHiddenInteractions -Text ($moduleReadmeText + "`n" + $moduleHtmlText)) -and (-not (Test-HasPageCapabilityChecklist -Text $planText))) {
+                Add-Issue -Code 'GATE-PLAN-003' -Severity 'BLOCKER' -Message '进入实现前，当前模块 plan 缺少页面能力清单或未显式标记 functional-hidden-ui / explanatory-only。' -Path $paths.IMPL_PLAN -Hint '先补齐页面能力清单，再进入实现'
+            }
+
+            if ((Test-PdContainsHiddenInteractions -Text ($moduleReadmeText + "`n" + $moduleHtmlText)) -and (-not (Test-HasPageCapabilityChecklist -Text $moduleTasksText))) {
+                Add-Issue -Code 'GATE-PLAN-004' -Severity 'BLOCKER' -Message '进入实现前，模块 tasks 未显式继承页面能力清单中的 functional-hidden-ui。' -Path $moduleTasksPath -Hint '先在 tasks 中补齐页面能力承接矩阵与隐藏交互任务'
+            }
+        }
+
         $tasksText = ''
-        if (Test-Path $paths.TASKS_FILE -PathType Leaf) {
+        if ($moduleTasksPath) {
+            $tasksText = $moduleTasksText
+        } elseif (Test-Path $paths.TASKS_FILE -PathType Leaf) {
             $tasksText = Read-TextFile -Path $paths.TASKS_FILE
         } elseif (Test-Path $paths.TASKS_DIR -PathType Container) {
             $taskFiles = Get-ChildItem -Path $paths.TASKS_DIR -File -Filter '*.md' -ErrorAction SilentlyContinue
@@ -316,6 +612,18 @@ switch ($Stage) {
 
             if ($targetModuleConfig.critical -and (-not $browserStage.performance_targets)) {
                 Add-Issue -Code 'GATE-BROWSER-003' -Severity 'WARNING' -Message '重点模块尚未配置性能/准确率探针。' -Path $rolloutPath -Hint '为 critical 模块补齐 performance_targets'
+            }
+
+            if ($targetModuleConfig.critical) {
+                $requiredIaProbes = @('page_boundary_parity', 'route_navigation_chain')
+                $missingIaProbes = @($requiredIaProbes | Where-Object { $_ -notin $qualityProbes })
+                if ($missingIaProbes.Count -gt 0) {
+                    Add-Issue -Code 'GATE-BROWSER-004' -Severity 'BLOCKER' -Message ('重点模块缺少页面边界/路由矩阵探针: ' + ($missingIaProbes -join ', ')) -Path $rolloutPath -Hint '为 critical 模块补齐 page_boundary_parity 与 route_navigation_chain'
+                }
+
+                if ('capability_parity' -notin $qualityProbes) {
+                    Add-Issue -Code 'GATE-BROWSER-005' -Severity 'BLOCKER' -Message '重点模块缺少 capability_parity 探针，无法证明 functional-hidden-ui 与页面能力清单一致。' -Path $rolloutPath -Hint '为 critical 模块补齐 capability_parity'
+                }
             }
         }
     }

@@ -50,6 +50,9 @@
         "ui_smoke": true,
         "business_e2e": true,
         "quality_probes": [
+          "page_boundary_parity",
+          "route_navigation_chain",
+          "capability_parity",
           "training_state_transition",
           "batch_eval_feedback",
           "result_readback"
@@ -102,6 +105,9 @@
         "ui_smoke": true,
         "business_e2e": true,
         "quality_probes": [
+          "page_boundary_parity",
+          "route_navigation_chain",
+          "capability_parity",
           "binding_consistency",
           "publish_gate_feedback",
           "chat_result_readback"

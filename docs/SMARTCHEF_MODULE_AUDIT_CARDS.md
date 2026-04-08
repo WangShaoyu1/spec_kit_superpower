@@ -13,12 +13,16 @@
 
 ## `pd-intent-library`
 - 目标 FR: `FR-002,003,039~054`
-- 审查对象: `pd-all/pd-intent-library/README.md`, `ad/dd/tasks-intent-library`, `frontend/src/modules/intent-library/*`, `backend/app/api/intent_library.py`, 相关 tests
+- 审查对象: `pd-all/pd-intent-library/README.md`, `plans/plan-intent-library.md`, `tasks/tasks-intent-library.md`, `frontend/src/modules/intent-library/*`, `backend/app/api/intent_library.py`, 相关 tests
 - 已确认:
+  - `5` 页边界已恢复：列表、详情、数据集、数据集详情、测试页均有正式路由与页面承接
+  - `page_boundary_parity`、`route_navigation_chain` 已进入 critical 模块 browser probe 口径
   - `FR-050 Partial` 在活文档链、后端、前端警示里都被保留
   - 模型状态机、唯一性规则、下载元数据、阈值快照有实现和测试承接
 - 主要问题:
-  - React 实现明显小于 PD 五页面设计面
+  - 单条测试结果仍偏启发式，不足以完全等价为“当前模型推理结果”
+  - 列表页与数据集页仍未统一使用 `Table`
+  - `dataset-detail` 仍以只读样本展示为主，FR-002 / FR-003 深度不足
 - 审查结论: `Partial`
 
 ## `pd-knowledge-base`
@@ -76,9 +80,12 @@
 - 审查对象: `backend/app`, `backend/tests`, `.specify/harness/*`, `specs/master/tasks/*`, `specs/master/plans/*`
 - 已确认:
   - Harness 状态机、模块顺序、browser stage、quality probes 结构完整
+  - `check-prerequisites` / `validate-stage-gates` 已具备模块级 plan 强校验
+  - critical 模块已强制声明 `page_boundary_parity` 与 `route_navigation_chain`
   - 多个后台模块已经有 contract/integration/frontend 测试基础
   - `tasks-infra.md`、`tasks-user-mgmt.md` 以及多个模块任务文件的漂移已清理
   - 设备侧 runtime API、真实请求日志、AES-256 存储/TLS、设备维导出删除与语言路由都已落地
 - 主要问题:
   - Brave Search、迁移策略与更复杂的确认/澄清对话仍待后续版本继续实现
+  - 审计结论与模块状态虽已显著收敛，但仍需保持每轮实现后的增量同步
 - 审查结论: `Partial`

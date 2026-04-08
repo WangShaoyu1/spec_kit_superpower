@@ -127,8 +127,8 @@ export function resetUserPassword(token, userId) {
 }
 
 
-export function fetchIntentLibraries(token) {
-  return request('/api/v1/intent-libraries', {
+export function fetchIntentLibraries(token, params = {}) {
+  return request(withQuery('/api/v1/intent-libraries', params), {
     headers: authHeaders(token),
   })
 }
@@ -143,6 +143,14 @@ export function createIntentLibrary(token, payload) {
 }
 
 
+export function deleteIntentLibrary(token, libraryId) {
+  return request(`/api/v1/intent-libraries/${libraryId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  })
+}
+
+
 export function fetchIntentLibraryDetail(token, libraryId) {
   return request(`/api/v1/intent-libraries/${libraryId}`, {
     headers: authHeaders(token),
@@ -153,6 +161,24 @@ export function fetchIntentLibraryDetail(token, libraryId) {
 export function fetchIntentDatasetDetail(token, libraryId, datasetId) {
   return request(`/api/v1/intent-libraries/${libraryId}/datasets/${datasetId}`, {
     headers: authHeaders(token),
+  })
+}
+
+
+export function createIntentDataset(token, libraryId, payload) {
+  return request(`/api/v1/intent-libraries/${libraryId}/datasets`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  })
+}
+
+
+export function saveIntentDatasetDetail(token, libraryId, datasetId, payload) {
+  return request(`/api/v1/intent-libraries/${libraryId}/datasets/${datasetId}`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
   })
 }
 

@@ -1,13 +1,14 @@
 # Speckit Design-AD - 架构设计
 
 ## 目的
-将 spec.md 的功能需求和 PD 的交互设计，转化为**技术架构方案**，定义模块结构、数据流向和接口契约。
+将 spec.md 的功能需求和 AI-PD 的语义规格，转化为**技术架构方案**，定义模块结构、数据流向和接口契约。
 
 **核心规范**: `specs/_template/ad-template.md` — 所有 AD 设计 MUST 遵循此模板。
 
 ## 输入
 - `specs/{branch}/spec.md` - 业务需求 (含模块映射表 + FR 标签)
-- `specs/{branch}/pd-all/` - 模块化产品交互设计（pd-hub.html 统一入口 + pd-index.md 索引 + pd-<module>/ 各模块原型）
+- `specs/{branch}/pd-all/` - HumanPD（视觉参考层）
+- `specs/{branch}/ai-pd/` - AI-PD（AI 主输入）
 - `specs/_template/ad-template.md` - AD 设计规范 (框架级模板)
 
 ## 前置 Gate（MUST）
@@ -17,6 +18,7 @@
 3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage ad -Module <target-module> -Json`（非模块模式可省略 `-Module`）
 4. 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须先修上游制品，不得继续生成 AD
 5. 若返回 `WARNING`，必须在 AD 文档中显式继承风险，不得把条件准入能力默认视为已闭环
+6. 进入 AD 前，必须优先读取 `ai-pd/ai-<module>.md`；`pd-all/` 只用于补充视觉和导航参考
 
 ## 执行流程
 
@@ -99,8 +101,9 @@ specs/{branch}/ad/
 version: 1.0
 based_on: 
   - spec.md (含模块映射表 + FR 标签)
-  - pd-all/pd-index.md (PD 模块覆盖索引)
-  - pd-all/pd-<module>/ (该模块交互原型)
+  - ai-pd/ai-<module>.md (AI 主输入)
+  - pd-all/pd-index.md (HumanPD 索引)
+  - pd-all/pd-<module>/ (视觉参考)
 ---
 
 # 1. 模块职责与边界
@@ -115,7 +118,7 @@ based_on:
 - [ ] 模块职责清晰，无循环依赖
 - [ ] 核心流程有完整的数据流图
 - [ ] 接口契约包含：路径、输入、输出、错误码
-- [ ] PD 中的所有交互操作（CRUD、状态变更）都有对应 API
+- [ ] AI-PD 中的所有能力项与动作契约都有对应 API
 - [ ] 性能目标可量化验证
 - [ ] 已识别关键技术风险
 

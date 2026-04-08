@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Form, Input, List, Space, Tabs, Tag } from 'antd'
+import { Alert, Button, Card, Form, Input, List, Space, Tabs, Tag, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -7,7 +7,7 @@ import {
   fetchIntentLibraryDetail,
   runIntentModelSingleTest,
 } from '../../services/api'
-import { getFirstEvaluationDataset, getPrimaryModel } from './intentLibraryShared'
+import { getFirstEvaluationDataset, getPrimaryModel, getTestableModel } from './intentLibraryShared'
 
 export function IntentLibraryTestPage({ token }) {
   const navigate = useNavigate()
@@ -33,13 +33,18 @@ export function IntentLibraryTestPage({ token }) {
 
   const firstEvaluationDataset = getFirstEvaluationDataset(detail)
   const primaryModel = getPrimaryModel(detail)
+  const testableModel = getTestableModel(detail)
 
   async function handleSingleTest() {
-    if (!primaryModel || !singleTestText.trim()) return
-    const result = await runIntentModelSingleTest(token, primaryModel.id, {
-      utterance: singleTestText.trim(),
-    })
-    setSingleTestResult(result)
+    if (!testableModel || !singleTestText.trim()) return
+    try {
+      const result = await runIntentModelSingleTest(token, testableModel.id, {
+        utterance: singleTestText.trim(),
+      })
+      setSingleTestResult(result)
+    } catch (error) {
+      message.error(error.message || '单条测试执行失败')
+    }
   }
 
   async function handleEvaluate() {
@@ -74,6 +79,16 @@ export function IntentLibraryTestPage({ token }) {
                   label: '单条测试',
                   children: (
                     <Card title="单条测试" variant="borderless">
+                      <Alert
+                        type={testableModel ? 'info' : 'warning'}
+                        showIcon
+                        message="执行口径"
+                        description={
+                          testableModel
+                            ? `当前单条测试命中的是规则引擎兜底结果，执行模型 ${testableModel.version_name}（${testableModel.status}）。`
+                            : '当前没有可测试模型，请先完成训练与评估，让模型进入 testable 状态。'
+                        }
+                      />
                       <Form layout="vertical">
                         <Form.Item label="单条测试">
                           <Input.TextArea
@@ -83,17 +98,25 @@ export function IntentLibraryTestPage({ token }) {
                             rows={3}
                           />
                         </Form.Item>
-                        <Button type="primary" onClick={handleSingleTest} disabled={!primaryModel}>
+                        <Button type="primary" onClick={handleSingleTest} disabled={!testableModel}>
                           执行测试
                         </Button>
                       </Form>
                       {singleTestResult ? (
-                        <div style={{ marginTop: 16 }}>
+                        <div className="page-stack" style={{ marginTop: 16 }}>
                           <Space wrap>
                             <Tag color="blue">{singleTestResult.intent}</Tag>
                             <Tag color="green">置信度 {singleTestResult.confidence}</Tag>
                             <Tag color="purple">{singleTestResult.latency_ms} ms</Tag>
                           </Space>
+                          <Space wrap>
+                            <Tag>模型版本 {singleTestResult.model_version}</Tag>
+                            <Tag>当前状态 {singleTestResult.model_status}</Tag>
+                            <Tag color="orange">规则引擎结果</Tag>
+                          </Space>
+                          {singleTestResult.response ? (
+                            <Alert type="success" showIcon message="响应草案" description={singleTestResult.response} />
+                          ) : null}
                         </div>
                       ) : null}
                     </Card>

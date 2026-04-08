@@ -52,6 +52,24 @@ pd-dialog-profile/detail.html → 点击平台级批量测试 → index.html
 | pd-dialog-profile/detail.html → index.html | 从对话方案详情进入平台级批量测试 |
 | index.html → pd-dialog-profile | 选择和查看被测对话方案 |
 
+## 页面能力清单
+
+### index.html
+
+- `page_goal`: 管理对话方案的批量测试批次，创建新批次并发起执行
+- `primary_user_flows`:
+  - 点击新建批次 → 选择对话方案/版本 → 上传或生成用例 → 提交 → 列表回读新批次
+  - 选择已有批次 → 点击执行 → 状态从 draft → running → completed
+  - 点击批次行 → 跳转 detail.html 查看结果
+
+### detail.html
+
+- `page_goal`: 查看批量测试结果与智能分析报告，定位未达标用例并获取优化建议
+- `primary_user_flows`:
+  - 进入批次详情 → 查看用例级结果表格（预期 vs 实际、得分、耗时、达标）
+  - 点击智能分析 Tab → 查看准确率排名、混淆矩阵、归因分析、建议
+  - 筛选未达标用例 → 分析混淆模式 → 导出结果
+
 ## 产出物合规检查表 (vs pd-template.md v4.1)
 
 | 模板条款 | 状态 | 说明 |

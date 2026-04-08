@@ -1,13 +1,14 @@
 # Speckit Design-DD - 详细设计
 
 ## 目的
-将架构设计转化为**可编码的技术细节**，定义数据模型、状态机、算法逻辑和边界条件。
+将架构设计与 AI-PD 转化为**可编码的技术细节**，定义数据模型、状态机、算法逻辑和边界条件。
 
 **核心规范**: `specs/_template/dd-template.md` — 所有 DD 设计 MUST 遵循此模板。
 
 ## 输入
 - `specs/{branch}/spec.md` - 业务需求 (含模块映射表 + FR 标签)
-- `specs/{branch}/pd-all/` - 产品交互设计（交互操作 → API 完整性校验源）
+- `specs/{branch}/pd-all/` - HumanPD（交互与视觉参考）
+- `specs/{branch}/ai-pd/` - AI-PD（语义主输入）
 - `specs/{branch}/ad/` - 架构设计（ad-global.md + ad-<module>.md，或单文件 ad.md）
 - `specs/_template/dd-template.md` - DD 设计规范 (框架级模板)
 
@@ -18,6 +19,7 @@
 3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage dd -Module <target-module> -Json`（非模块模式可省略 `-Module`）
 4. 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须先修上游制品，不得继续生成 DD
 5. 若返回 `WARNING`，必须在 DD 文档中显式继承风险，不得把条件准入能力默认视为已设计完成
+6. 进入 DD 前，必须优先读取 `ai-pd/ai-<module>.md` 中的 capability / action / data / rule / exception 定义
 
 ## 执行流程
 
@@ -139,8 +141,9 @@ specs/{branch}/dd/
 version: 1.0
 based_on: 
   - spec.md
+  - ai-pd/ai-<module>.md
   - ad/ (ad-global.md + ad-<module>.md)
-  - pd-all/pd-<module>/ (交互原型)
+  - pd-all/pd-<module>/ (视觉参考)
 ---
 
 # 1. 数据模型（字段级、索引、关系、ER 图）
@@ -160,7 +163,7 @@ based_on:
 - [ ] 权限点粒度适合业务需求
 - [ ] 配置项有默认值和合法范围
 - [ ] 数字/字符串常量有明确的约束（长度、精度、枚举值）
-- [ ] AD 中定义的每个 API 端点都有对应的实现映射
+- [ ] AI-PD 中的每项能力和动作契约都能映射到 DD 定义
 
 ## 下一步
 DD 完成后，进入模块 plan 阶段：`/speckit.plan`，此时可以精确估算任务和依赖。

@@ -65,6 +65,32 @@ index.html (监控总览) → 点击告警规则 → alert-rules.html (规则配
 | index.html → device-logs.html | 从指标或设备入口进入请求链路排查 |
 | index.html → alert-rules.html | 从监控总览进入告警规则配置 |
 
+## 页面能力清单
+
+### index.html
+
+- `page_goal`: 实时掌握平台运行质量全貌（QPS、延迟、准确率、错误率），快速发现异常趋势
+- `primary_user_flows`:
+  - 进入仪表盘 → 查看统计卡片与趋势图 → 切换时间范围(1h/6h/24h/7d/30d)
+  - 发现异常指标 → 点击设备/会话 → 跳转 device-logs.html 排查
+  - 点击告警规则入口 → 跳转 alert-rules.html 配置
+
+### device-logs.html
+
+- `page_goal`: 按设备和会话维度排查请求链路，定位具体轮次的处理异常
+- `primary_user_flows`:
+  - 输入设备 ID → 搜索 → 查看该设备历史会话列表
+  - 点击会话行 → 展开单轮请求的完整处理链路（路由→NLU→知识→响应）
+  - 多维筛选（时间/路由/意图/耗时/异常）→ 缩小范围 → 定位问题请求
+
+### alert-rules.html
+
+- `page_goal`: 配置和管理告警规则，确保质量异常（准确率下降、延迟超标、错误率突增）能被及时发现
+- `primary_user_flows`:
+  - 点击新建规则 → 选择指标/运算符/阈值/时间窗口 → 提交 → 规则列表回读
+  - 切换规则启用/禁用状态 → 确认生效
+  - 查看告警事件历史 → 确认告警触发准确性
+
 ## 产出物合规检查表 (vs pd-template.md v4.1)
 
 | 模板条款 | 状态 | 说明 |

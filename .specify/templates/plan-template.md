@@ -1,7 +1,7 @@
 # 实施计划: [FEATURE]
 
 **分支**: `[###-feature-name]` | **日期**: [DATE] | **规范**: [link]
-**输入**: 来自 `/specs/[###-feature-name]/` 的完整设计文档链
+**输入**: 来自 `/specs/[###-feature-name]/` 的完整设计文档链（`spec.md + pd-all/ + ai-pd/ + ad/ + dd/`）
 
 **注意**: 此模板由 `/speckit.plan` 命令填充。模块 plan (`plans/plan-<module>.md`) 定位为"**实施规划桥梁**"——承上（设计文档）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与规划。
 
@@ -19,7 +19,8 @@
 | 检查项 | 结果 (OK/WARNING/BLOCKER) | 结论 / 处理动作 |
 |--------|---------------------------|----------------|
 | FR 在 spec / AD / DD 中是否存在冲突 | [OK/WARNING/BLOCKER] | [说明] |
-| PD 页面是否真实存在且被 AD 正确引用 | [OK/WARNING/BLOCKER] | [说明] |
+| HumanPD 页面是否真实存在且可映射到 AI-PD | [OK/WARNING/BLOCKER] | [说明] |
+| AI-PD 是否覆盖 capability / action / data / rule / exception / hidden_interactions | [OK/WARNING/BLOCKER] | [说明, 若缺失则不得继续只按页面名规划] |
 | plan 使用的源码路径是否与当前工程一致 | [OK/WARNING/BLOCKER] | [说明] |
 | PD 是否存在部分覆盖/待补充项 | [OK/WARNING/BLOCKER] | [说明, 以及如何下传到 tasks] |
 | 关键外部依赖/异步链路是否定义真实成功信号 | [OK/WARNING/BLOCKER] | [说明] |
@@ -54,15 +55,18 @@
 ```
 specs/[###-feature]/
 ├── spec.md              # 业务需求 (/speckit.specify 输出)
-├── pd-all/              # 产品交互设计 (/speckit.design-pd 输出)
+├── pd-all/              # HumanPD (/speckit.design-pd 输出)
 │   ├── pd-hub.html      # 统一查看入口（iframe 导航）
 │   ├── pd-index.md      # PD 模块覆盖索引
 │   └── pd-<module>/     # 各模块交互原型 (HTML)
-├── ad/                  # 架构设计 (/speckit.design-ad 输出)
+├── ai-pd/             # AI-PD (/speckit.transform-pd 输出)
+│   ├── README.md        # AI-PD 模块索引
+│   └── ai-<module>.md   # 各模块 AI-PD
+├── ad/                  # 架构设计 (/speckit.design-ad 输出, >3 模块时)
 │   ├── README.md        # AD 模块索引
 │   ├── ad-global.md     # 全局架构
 │   └── ad-<module>.md   # 各模块架构设计
-├── dd/                  # 详细设计 (/speckit.design-dd 输出)
+├── dd/                  # 详细设计 (/speckit.design-dd 输出, >3 模块时)
 │   ├── README.md        # DD 模块索引
 │   ├── dd-global.md     # 全局详设（共享实体/错误码/权限/配置）
 │   └── dd-<module>.md   # 各模块详细设计
@@ -75,6 +79,8 @@ specs/[###-feature]/
     ├── tasks-<module>.md # 各 PD 模块任务(TDD: 测试→后端→前端)
     └── tasks-refinement.md # 横切关注点 + 完善
 ```
+
+> 若模块数量较少，`AD/DD` 也可能以单文件 `ad.md` / `dd.md` 形式存在；plan 必须按当前 feature 的真实结构填写，而不是机械保留目录树占位。
 
 <!--
   注意: 旧流程中的 research.md、data-model.md、contracts/、quickstart.md 已由
@@ -134,8 +140,8 @@ ios/ 或 android/
   每个阶段有明确的目标、交付物和验收检查点.
   详细的数据模型、API 契约、状态机等在 AD/DD 中已定义，此处仅做阶段性引用.
 
-  设计链路: spec.md → PD → AD → DD → plan → tasks
-  PD 模块是阶段规划的首要组织单元, spec.md 的用户故事优先级用于排序参考.
+  设计链路: spec.md → HumanPD → AI-PD → AD → DD → plan → tasks
+  AI-PD capability 是阶段规划的首要组织单元, HumanPD 仅补充页面结构与视觉参考.
 -->
 
 ### 阶段 1: 基础设施
@@ -165,6 +171,29 @@ ios/ 或 android/
 |------|---------|------|------------------|---------|
 | [module-key] | [链路 1] | [入口操作] | [真实数据/状态/结果] | [integration/e2e/smoke] |
 | [module-key] | [链路 2（如需要）] | [入口操作] | [真实数据/状态/结果] | [integration/e2e/smoke] |
+
+## AI-PD 承接矩阵
+
+<!--
+  不是简单罗列页面名，而是把 AI-PD 中对实现真正有约束力的能力项结构化下传。
+  HumanPD 用于补充页面边界和入口，AI-PD 负责定义 capability、contract、rule、exception。
+-->
+
+| 页面 | `page_boundary` | `visible_ui` | `hidden_interactions` | `capabilities` | 真实成功信号 / 风险 |
+|------|-----------------|--------------|-----------------------|----------------|--------------------|
+| [page-key] | [page/drawer/modal/... ] | [Table/筛选器/统计卡/按钮] | [`ui-capability` / `domain-rule` / `instructional` / `non-actionable-note`] | [capability IDs + 标题] | [说明] |
+
+### 页面动作契约
+
+| 页面 | `action_id` / 动作 | 前置条件 | 成功信号 | 失败反馈 | 状态变化 / 对应 API |
+|------|--------------------|---------|---------|---------|--------------------|
+| [page-key] | [ACT-001 / 按钮或入口] | [说明] | [真实回读 / 状态切换 / 下载结果] | [toast / alert / inline error] | [API / route / local state] |
+
+### 数据契约 / 业务规则 / FR 映射
+
+| 页面 | `data_contracts` / `business_rules` | 关联字段 / payload | 关联 FR |
+|------|----------------------------------|--------------------|--------|
+| [page-key] | [DATA-001 / RULE-001 ...] | [字段 / 列 / payload] | [FR-xxx] |
 
 ## 显式未完成声明
 

@@ -3,12 +3,13 @@
 **核心规范**: `.specify/templates/plan-template.md` — 模块 plan (`plans/plan-<module>.md`) 的结构和格式 MUST 遵循此模板。
 
 ## 目的
-基于完成的设计文档（spec + pd + ad + dd），制定**可执行的技术实施计划**。
+基于完成的设计文档（spec + HumanPD + AI-PD + ad + dd），制定**可执行的技术实施计划**。
 模块 plan 定位为"**实施规划桥梁**"——承上（设计文档链）启下（tasks/ + 编码），不重复 AD/DD 已有的设计内容，聚焦于技术实施层面的决策与阶段规划。
 
 ## 输入（必须全部完成）
 - `specs/{branch}/spec.md` - 业务需求 (含模块映射表 + FR 标签) ✓
-- `specs/{branch}/pd-all/` - 模块化产品交互设计（含 pd-hub.html 统一入口 + pd-index.md 索引） ✓
+- `specs/{branch}/pd-all/` - HumanPD（含 pd-hub.html 统一入口 + pd-index.md 索引） ✓
+- `specs/{branch}/ai-pd/` - AI-PD（AI 主输入） ✓
 - `specs/{branch}/ad/` - 架构设计（含 README.md 索引 + ad-global.md + ad-<module>.md） ✓
 - `specs/{branch}/dd/` - 详细设计（含 README.md 索引 + dd-global.md + dd-<module>.md） ✓
 
@@ -17,7 +18,8 @@
 ### Phase 0: Pre-flight 一致性扫描
 在编写模块 plan 前, 必须先检查以下冲突并给出 `OK / WARNING / BLOCKER` 结论:
 - 同一 FR 在 `spec / AD / DD` 中是否存在口径冲突
-- `AD` 引用的 PD 页面或流程是否真实存在
+- `AD` 引用的 HumanPD 页面或流程是否真实存在
+- `AI-PD` 是否完整承接 capability / action / data / rule / exception
 - `plan` 将使用的源码路径是否与当前工程目录一致
 - `PD` 是否存在部分覆盖/待补充项, 以及这些项是否需要显式下传到 `tasks`
 - 关键异步链路是否已经定义真实成功信号、状态回传和失败处理
@@ -64,10 +66,11 @@
 ```yaml
 # specs/{branch}/plans/plan-<module>.md
 ---
-version: 2.0
+version: 2.1
 based_on:
   - spec.md
-  - pd-all/ (pd-index.md + pd-<module>/)
+  - ai-pd/ai-<module>.md
+  - pd-all/ (HumanPD: pd-index.md + pd-<module>/)
   - ad/ (ad-global.md + ad-<module>.md)
   - dd/ (dd-global.md + dd-<module>.md)
 ---

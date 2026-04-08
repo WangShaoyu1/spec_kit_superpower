@@ -15,6 +15,7 @@
 | 项目定位、用户故事、功能需求、模块映射 | `specs/<feature-branch>/spec.md` |
 | PD 交互设计覆盖状态、模块索引 | `specs/<feature-branch>/pd-all/pd-index.md` |
 | 某个模块的交互原型 | `specs/<feature-branch>/pd-all/pd-<module>/` |
+| AI 主输入语义规格 | `specs/<feature-branch>/ai-pd/ai-<module>.md` |
 | 实施计划、技术栈、阶段规划 | `specs/<feature-branch>/plans/plan-<module>.md` |
 | 架构设计（模块结构、API 契约、数据流） | `specs/<feature-branch>/ad/` (README.md → 索引) |
 | 详细设计（数据模型、状态机、算法、错误码） | `specs/<feature-branch>/dd/` (README.md → 索引) |
@@ -25,6 +26,7 @@
 
 - **后端**: Python 3.11+ / FastAPI + Pydantic v2 + SQLAlchemy async + Alembic
 - **前端**: React 18 + Vite + Ant Design 5 + Zustand (JavaScript, 不用 TypeScript)
+- **PD 原型**: 交互原型可按 `specs/_template/pd-template.md` 使用 React 18 + Ant Design 6 CDN；该版本口径仅适用于 PD 原型，不覆盖正式前端实现栈
 - **存储**: PostgreSQL 16 + pgvector + Redis 7.x
 - **大模型**: ZenMux API (`base_url=https://zenmux.ai/api/v1`, OpenAI 兼容)
 - **测试**: pytest + httpx (后端) / Vitest + Playwright (前端)
@@ -97,7 +99,10 @@
 5. **Plan 中的项目路径 MUST 与 tasks/implement 中的路径一致**
 6. **Code Review MUST 包含 PD 覆盖率维度**
 7. **浏览器冒烟验证中 PD 符合性为必检维度**：覆盖率不足即视为未通过
-8. **「说明」按钮及 Drawer 不纳入 PD 检查**：各页面的「说明」按钮及其弹出的 Drawer 内容属于 AD/DD 逻辑参考文档，不属于产品功能
+8. **承载产品能力的隐藏交互必须纳入 AI-PD 检查**：隐藏交互不能按是否位于 Drawer / Modal / Popover / 折叠面板中来判断是否重要；凡包含新增、编辑、删除、导入、导出、提交、状态切换、规则配置等真实产品能力，必须在 AI-PD 中标为 `ui-capability` 或 `domain-rule`，并计入 DD 规格、plan/tasks、implement、smoke 与 audit；只有纯解释性内容才允许标为 `instructional` 或 `non-actionable-note`
+9. **每个 PD 页面都必须转换为 AI-PD 页面语义块**：至少显式列出 `visible_ui`、`hidden_interactions`、`capabilities`、`action_contracts`、`data_contracts`、`business_rules`、`exception_flows`、`fr_mapping`；AI 与 harness 只能基于这份 AI-PD 判断“页面是否实现完成”
+10. **前端列表页默认使用 Ant Design `Table`**：正式系统中的目录页、列表页、管理页默认使用 `Table` 承载主数据；若使用 `List`、卡片流或其它非表格组件，必须在 PD README 与模块 plan 中显式写明例外原因，并证明信息密度与筛选/排序能力不受影响
+11. **每生成一个 `ai-<module>.md`，必须同步生成 `ai-<module>.checklist.md`**：该清单只覆盖高风险语义点，至少包含页面边界/父子关系、隐藏交互分类、capability 粒度、action_contract 成功信号、FR 范围、明显缺失规则/异常流；人工校对时必须直接修改 `ai-<module>.md`，`checklist` 仅供参考，既不得成为第二份语义真相源，也不得承担“是否已修改完成”的状态记录职责
 
 ## 跨阶段治理红线（证据驱动）
 

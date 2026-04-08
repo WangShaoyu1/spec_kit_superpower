@@ -66,6 +66,33 @@ detail.html (详情) → 点击发布 → 发布确认弹窗 (含校验)
 | detail.html → pd-batch-test | FR-012: 跳转平台级批量测试，用于不同对话方案的回归验证和横向比较 |
 | pd-intent-library/detail.html → detail.html | FR-047: 方案发布门禁引用指令库 published 状态 |
 
+## 页面能力清单
+
+### index.html
+
+- `page_goal`: 检索和管理所有对话方案，快速了解各方案的版本与发布状态
+- `primary_user_flows`:
+  - 点击新建方案 → 填写名称/LLM 模型/路由策略 → 提交 → 列表回读
+  - 点击方案行 → 跳转 detail.html 进入配置详情
+  - 筛选方案列表（按状态/名称）→ 定位目标方案
+
+### detail.html
+
+- `page_goal`: 完成对话方案的全部配置（指令库绑定、人设、阈值）并发布上线
+- `primary_user_flows`:
+  - 进入详情 → 绑定指令库(多选) → 配置指令阈值 Slider → 保存
+  - 点击人设管理 → 新建/编辑人设(名称/性格/语气) → 激活 → 保存
+  - 点击发布 → 门禁校验(指令库有 published 模型) → 版本对比 → 勾选确认 → 倒计时 → 发布成功
+  - 点击手动测试 → 跳转 test-chat.html
+
+### test-chat.html
+
+- `page_goal`: 通过对话式交互验证对话方案的端到端效果（路由、意图、槽位、闲聊）
+- `primary_user_flows`:
+  - 新建会话 → 输入测试文本 → 发送 → 查看 Bot 回复 + Debug 面板(路由/意图/置信度/耗时)
+  - 配置设备上下文(设备类型/型号/位置) → 发送同一文本 → 对比不同上下文下的路由结果
+  - 切换会话 → 对比不同会话的回复质量
+
 ## 产出物合规检查表 (vs pd-template.md v4.1)
 
 | 模板条款 | 状态 | 说明 |

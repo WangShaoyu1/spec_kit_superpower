@@ -28,11 +28,12 @@
 - 关键结果可回读
 - 空态/异常态存在
 - 关键操作响应时间可观测
+- AI-PD `hidden_interactions` 中的 `ui-capability / domain-rule` 已被真实验证（`capability_parity`）
 
 ## 重点模块附加要求
 
-- `pd-intent-library`: 必查训练状态流转、批量评估反馈、准确率信号
-- `pd-dialog-profile`: 必查方案绑定一致性、发布门禁、测试聊天结果
+- `pd-intent-library`: 必查训练状态流转、批量评估反馈、准确率信号、`dataset-detail` 深交互能力承接
+- `pd-dialog-profile`: 必查方案绑定一致性、发布门禁、测试聊天结果，以及隐藏交互中的关键配置能力
 
 ## 输出证据
 

@@ -1,8 +1,9 @@
 ---
-version: 4.3
-updated: 2026-03-17
+version: 4.4
+updated: 2026-04-02
 role: 从 spec.md 到交互原型的桥梁
 changelog: |
+  4.4: 新增 Drawer/Modal 语义分类与页面能力清单，要求区分 explanatory-only 与 functional-hidden-ui，提升 PD 对 AI / harness 的可操作性
   4.3: 所有PD产出物统一收纳至pd-all/目录(模块文件夹+pd-hub.html+pd-index.md)
   4.2: 新增§7.3 PD统一导航门户pd-hub.html规范(iframe浏览、树形导航、模块概览)；§7.4~§7.7编号顺延
   4.1: §7.1补充跨文档一致性说明(PD/AD/DD模块Key对齐, AD/DD>3模块拆文件夹)
@@ -82,7 +83,7 @@ spec.md (业务需求) → pd.md (产品交互设计) ← 本模板 → ad.md �
 - ❌ 没有返回路径导致用户迷失
 - ❌ 返回按钮单独占一行
 
-### 2.4 页面逻辑说明抽屉 [MUST]
+### 2.4 页面逻辑说明抽屉与隐藏交互分类 [MUST]
 
 **每个页面 MUST 包含"说明"按钮**，位于标题栏右侧，点击打开 Drawer。
 
@@ -101,11 +102,27 @@ spec.md (业务需求) → pd.md (产品交互设计) ← 本模板 → ad.md �
 | 业务逻辑 | 核心流程、计算逻辑 | 流程图、伪代码 |
 | 易错点 | 常见错误、注意事项 | Alert 组件 |
 
-**信息密度控制 [MUST]**：主页面只保留核心操作区（列表、筛选、按钮）。以下内容 MUST 放到抽屉中：
+**信息密度控制 [MUST]**：主页面只保留核心操作区（列表、筛选、按钮）。以下内容 MAY 放到抽屉中：
 - 详细的业务约束列表
 - 字段说明表格
 - 复杂的数据流向图 / G6 状态机
 - 操作交互流程说明
+
+但是必须严格区分两类内容：
+
+| 类型 | 标记 | 是否必须被实现/验收 | 说明 |
+|------|------|--------------------|------|
+| 解释性内容 | `explanatory-only` | 否 | 帮助理解数据流向、状态机、背景规则，不单独构成产品功能 |
+| 功能性隐藏交互 | `functional-hidden-ui` | **是** | 虽然视觉上位于 Drawer / Modal / Popover / 折叠面板中，但承载真实 CRUD、导入导出、状态切换、规则配置、参数编辑等能力 |
+
+**禁止**把承载真实产品能力的交互一律放进“说明”后，就在下游口径中视为“可不实现”。
+
+**判定规则 [MUST]**：若容器中允许用户执行以下任一动作，则该容器属于 `functional-hidden-ui`：
+- 新增 / 编辑 / 删除
+- 导入 / 导出 / 下载模板
+- 提交 / 发布 / 切换状态
+- 配置实体、词槽、阈值、映射关系、相似问、排除问等业务规则
+- 触发会改变真实业务状态的动作
 
 **说明按钮 Tooltip [SHOULD]**：
 ```jsx
@@ -116,7 +133,55 @@ spec.md (业务需求) → pd.md (产品交互设计) ← 本模板 → ad.md �
 
 **抽屉宽度切换 [SHOULD]**：默认 `width={1200}`，标题栏提供按钮切换到 800px。
 
-### 2.5 实用主义 [SHOULD]
+### 2.5 页面能力清单 [MUST]
+
+每个 PD 页面除 HTML 原型外，还 MUST 在模块 README 或同目录旁路文档中补一份**页面能力清单**，供 AI、plan、tasks、DD、harness 直接消费。
+
+这不是可选增强项，而是**下游准入前置条件**：若任一页面缺少 `page_goal` 或 `primary_user_flows`，则不得继续进入 `transform-pd / ad / dd / plan / tasks / implement / smoke`。
+
+最少字段如下：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `page_goal` | 是 | 该页面自己的业务目标，不允许直接复用模块级成功标准 |
+| `primary_user_flows` | 是 | 该页面自己的核心用户流，按“入口 -> 动作 -> 成功信号”描述 |
+| `page_boundary` | 是 | 页面 / drawer / modal / popover / 内嵌块 |
+| `user_visible_ui` | 是 | 主页面直接可见的表格、筛选器、统计卡、按钮 |
+| `interactive_containers` | 是 | 页面中的 Drawer / Modal / Popover / Tabs / Collapse |
+| `capability_checklist` | 是 | 必须落地的能力项（按 CRUD / 校验 / 状态 / 反馈 / 权限 / 跳转拆分） |
+| `action_contracts` | 是 | 每个动作的前置条件、成功信号、失败反馈、状态变化 |
+| `data_contracts` | 是 | 字段、表格列、导入导出项、编辑项 |
+| `business_rules` | 是 | 绑定关系、阈值继承、唯一性、删除/发布门禁等 |
+| `fr_mapping` | 是 | 能力级别映射到 FR，而不是只停留在页面级映射 |
+
+建议格式：
+
+```markdown
+### 页面能力清单: dataset-detail
+
+- `page_goal`: 维护意图、词槽、实体和问法数据，并确保保存/导入结果真实回读
+- `primary_user_flows`:
+  - 进入数据管理页 → 保存意图配置 → 列表回读最新值
+  - 打开相似问/排除问 Drawer → 新增训练样本 → Drawer 列表回读新增项
+  - 打开实体批量导入 Modal → 导入实体值/同义词 → 实体列表同步回读
+- `page_boundary`: 下级页面
+- `user_visible_ui`:
+  - 意图 Table
+  - 词槽卡片
+  - 管理入口按钮
+- `interactive_containers`:
+  - `functional-hidden-ui`: 意图配置 Drawer
+  - `functional-hidden-ui`: 相似问 / 排除问 Drawer
+  - `functional-hidden-ui`: 实体批量导入 Modal
+  - `explanatory-only`: 易错点说明 Drawer
+- `capability_checklist`:
+  - CRUD 意图定义
+  - 维护词槽与实体值
+  - 维护同义词、相似问、排除问
+  - 配置命中话术 / 未命中话术
+```
+
+### 2.6 实用主义 [SHOULD]
 
 - 企业级后台风格，白/灰背景 + 蓝色主色
 - 使用成熟组件库（推荐 Ant Design）
@@ -579,7 +644,7 @@ specs/<branch>/
 
 为支撑 PD 模块拆分，spec.md **MUST** 包含以下结构化信息：
 
-**7.6.1 模块与交付物映射表**
+**7.7.1 模块与交付物映射表**
 
 在 FR 章节之前（或 FR 章节开头）放置映射表：
 
@@ -597,7 +662,7 @@ specs/<branch>/
 | 安全隐私 | 基础设施 | - | FR-036-037 | (无 PD) |
 ```
 
-**7.6.2 FR 交付物类型标签 [MUST]**
+**7.7.2 FR 交付物类型标签 [MUST]**
 
 每条 FR 编号后 MUST 标注交付物类型标签：
 
@@ -615,7 +680,7 @@ specs/<branch>/
 | `[API]` | 纯 API/服务端需求 | 否，由 AD/DD 覆盖 |
 | `[Infra]` | 基础设施/非功能性需求 | 否，由 DD 覆盖 |
 
-**7.6.3 UI 类 FR 交互提示 [SHOULD]**
+**7.7.3 UI 类 FR 交互提示 [SHOULD]**
 
 UI 类 FR SHOULD 在需求描述后附加交互提示，帮助 PD 设计者理解预期交互：
 
@@ -876,3 +941,4 @@ README 中 SHOULD 按以下格式描述功能业务价值：
 | 4.1 | 2026-03-17 | §7.1补充跨文档一致性说明(PD/AD/DD模块Key对齐, AD/DD >3模块拆文件夹) |
 | 4.2 | 2026-03-18 | 新增§7.3 PD统一导航门户pd-hub.html(iframe浏览/树形导航/模块概览)；§7.4~§7.7编号顺延 |
 | 4.3 | 2026-03-18 | 所有PD产出物统一收纳至pd-all/目录(模块文件夹+pd-hub.html+pd-index.md) |
+| 4.4 | 2026-04-02 | 新增 Drawer/Modal 语义分类与页面能力清单，要求区分 explanatory-only 与 functional-hidden-ui |

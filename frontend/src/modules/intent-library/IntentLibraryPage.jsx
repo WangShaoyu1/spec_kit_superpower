@@ -1,9 +1,10 @@
-import { Button, Card, Empty, Form, Input, List, Modal, Select, Space, Tag, message } from 'antd'
+import { Button, Card, Empty, Form, Input, Modal, Select, Space, Table, Tag, message } from 'antd'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import {
   createIntentLibrary,
+  deleteIntentLibrary,
   fetchIntentLibraries,
 } from '../../services/api'
 import { DEFAULT_THRESHOLDS } from './intentLibraryShared'
@@ -14,6 +15,7 @@ export function IntentLibraryPage({ token }) {
   const [libraries, setLibraries] = useState([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const [createForm] = Form.useForm()
 
   async function loadDirectory() {
@@ -31,16 +33,42 @@ export function IntentLibraryPage({ token }) {
   }, [token])
 
   async function handleCreate(values) {
-    const result = await createIntentLibrary(token, {
-      ...values,
-      default_thresholds: DEFAULT_THRESHOLDS,
-    })
-    setCreateOpen(false)
-    createForm.resetFields()
-    await loadDirectory()
-    message.success(`指令库 ${values.name} 创建成功`)
-    navigate(`/intent-library/${result.library.id}`)
+    try {
+      const result = await createIntentLibrary(token, {
+        ...values,
+        default_thresholds: DEFAULT_THRESHOLDS,
+      })
+      setCreateOpen(false)
+      createForm.resetFields()
+      await loadDirectory()
+      message.success(`指令库 ${values.name} 创建成功`)
+      navigate(`/intent-library/${result.library.id}`)
+    } catch (error) {
+      const nextMessage = error.message || '指令库创建失败'
+      createForm.setFields([{ name: 'library_key', errors: [nextMessage] }])
+    }
   }
+
+  async function handleDelete(libraryId) {
+    if (!window.confirm('删除后将移除该指令库及其关联模型、数据集和评估记录，是否继续？')) {
+      return
+    }
+    try {
+      await deleteIntentLibrary(token, libraryId)
+      await loadDirectory()
+      message.success('指令库已删除')
+    } catch (error) {
+      message.error(error.message || '指令库删除失败')
+    }
+  }
+
+  const filteredLibraries = libraries.filter((item) => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) {
+      return true
+    }
+    return item.name.toLowerCase().includes(normalizedQuery) || item.library_key.toLowerCase().includes(normalizedQuery)
+  })
 
   return (
     <div className="page-stack">
@@ -60,34 +88,70 @@ export function IntentLibraryPage({ token }) {
       </Card>
 
       <Card className="module-card" variant="borderless" loading={loading}>
-        {libraries.length > 0 ? (
-          <List
-            dataSource={libraries}
-            renderItem={(item) => (
-              <List.Item
-                key={item.id}
-                actions={[
-                  <Button key="detail" type="link" onClick={() => navigate(`/intent-library/${item.id}`)}>
-                    进入详情
-                  </Button>,
-                ]}
-              >
-                <List.Item.Meta
-                  title={<Link to={`/intent-library/${item.id}`}>{item.name}</Link>}
-                  description={
-                    <Space wrap>
-                      <Tag color="blue">{item.library_key}</Tag>
-                      <Tag color="gold">{item.language}</Tag>
-                      <Tag>{item.model_count} 个模型</Tag>
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Input
+            placeholder="按名称或 Key 筛选"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {filteredLibraries.length > 0 ? (
+          <Table
+            rowKey="id"
+            pagination={false}
+            dataSource={filteredLibraries}
+            columns={[
+              {
+                title: '指令库名称',
+                dataIndex: 'name',
+                render: (_, item) => <Link to={`/intent-library/${item.id}`}>{item.name}</Link>,
+              },
+              {
+                title: '唯一 Key',
+                dataIndex: 'library_key',
+                render: (value) => <Tag color="blue">{value}</Tag>,
+              },
+              {
+                title: '语种',
+                dataIndex: 'language',
+                render: (value) => <Tag color="gold">{value}</Tag>,
+              },
+              {
+                title: '模型数',
+                dataIndex: 'model_count',
+                render: (value) => `${value} 个模型`,
+              },
+              {
+                title: '发布状态',
+                key: 'published',
+                render: (_, item) => (
+                  item.published_model_id ? <Tag color="green">已发布模型</Tag> : <Tag>未发布</Tag>
+                ),
+              },
+              {
+                title: '操作',
+                key: 'actions',
+                render: (_, item) => (
+                  <Space>
+                    <Button type="link" onClick={() => navigate(`/intent-library/${item.id}`)}>
+                      进入详情
+                    </Button>
+                    <Button
+                      danger
+                      type="link"
+                      disabled={Boolean(item.published_model_id)}
+                      onClick={() => void handleDelete(item.id)}
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                ),
+              },
+            ]}
           />
         ) : (
           <Empty description="暂无指令库，先创建一个开始配置主流程" />
         )}
+        </Space>
       </Card>
 
       <Modal

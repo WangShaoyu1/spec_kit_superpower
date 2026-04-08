@@ -15,15 +15,19 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
 ## 执行流程
 
 ### 前置检查
-1. 运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequirePlan -RequireDesign -RequireTasks -IncludeTasks`，解析 `FEATURE_DIR` 和 `AVAILABLE_DOCS`
-2. 运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认当前唯一允许推进的目标模块
+1. 运行 `.specify/scripts/powershell/get-module-rollout.ps1 -Json`，确认当前唯一允许推进的目标模块
+2. 使用目标模块运行 `.specify/scripts/powershell/check-prerequisites.ps1 -Json -Module <target-module> -RequirePlan -RequireDesign -RequireTasks -IncludeTasks`，解析 `FEATURE_DIR` 和 `AVAILABLE_DOCS`
 3. 紧接着运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage implement -Module <target-module> -Json`
    - 若返回 `status=blocked` 或存在任一 `BLOCKER` 失败码，必须停止并先修上游制品
+   - 若命中 `GATE-PLAN-001 / GATE-PLAN-002`，视为计划链路断裂，禁止继续派发实现任务
    - 若返回 `WARNING`，必须先向用户提示当前显式未完成风险，再决定是否继续
 4. 后续所有读取与写入都必须以 `FEATURE_DIR` 解析出的绝对路径为准，例如 `FEATURE_DIR/tasks/README.md`、`FEATURE_DIR/checklists/`、`FEATURE_DIR/plans/plan-<module>.md`
 5. 确认 `FEATURE_DIR/tasks/README.md` 与模块任务文件存在，且路径使用绝对路径
 6. 若 `FEATURE_DIR/checklists/` 存在未完成项，必须先向用户提示当前风险，再决定是否继续
 7. 若当前模块 plan 中仍存在未处理的 `BLOCKER` 或影响核心链路的 `Stub / Blocked By`，不得直接宣称进入可交付实现阶段
+8. 当前模块 plan 与 `tasks/` 必须显式引用 `ai-pd/ai-<module>.md`；实现主输入应为 AI-PD，`pd-all/` 仅作视觉参考
+9. 若 AI-PD 中存在 `hidden_interactions`，必须区分 `ui-capability / domain-rule / instructional / non-actionable-note`，不得把真实能力误降级为说明文字
+10. 若模块属于 `critical=true`，必须确认其 browser stage 已声明 `page_boundary_parity`、`route_navigation_chain` 与 `capability_parity`，否则不得继续实现收口
 
 ### 启动实现
 ```
@@ -52,7 +56,7 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
 ### 子代理工作流
 每个子代理：
 1. 读取分配的任务描述（来自具体的 `FEATURE_DIR/tasks/tasks-<task-slug>.md`）
-2. 按需读取 `FEATURE_DIR/pd-all/pd-<module>/`、`FEATURE_DIR/ad/ad-<module>.md`、`FEATURE_DIR/dd/dd-<module>.md` 的相关章节
+2. 按需读取 `FEATURE_DIR/ai-pd/ai-<module>.md`、`FEATURE_DIR/pd-all/pd-<module>/`、`FEATURE_DIR/ad/ad-<module>.md`、`FEATURE_DIR/dd/dd-<module>.md` 的相关章节
 3. 实现代码（TDD: 先确认测试红灯，再实现，最后绿灯）
 4. 运行测试
 5. 返回结果和摘要
@@ -98,7 +102,8 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
    - **筛选器**: PD 中定义的筛选/搜索条件 vs 页面实际筛选器
    - **操作按钮**: PD 中定义的按钮/入口 vs 页面实际按钮
    - **交互方式**: PD 中定义的组件类型（Switch/弹窗/Timeline 等）vs 实际组件
-   - **排除项**：「说明」按钮及 Drawer（AD/DD 逻辑参考文档）不纳入覆盖率计算
+   - **隐藏交互**: AI-PD `hidden_interactions` 中标记为 `ui-capability / domain-rule` 的内容，必须逐项比对并验证真实能力
+   - **排除项**: 仅允许排除 AI-PD 中标记为 `instructional / non-actionable-note` 的内容，且必须能追溯到 `ai-pd/ai-<module>.md`
    - 差异项 MUST 标注为：「有意省略」（附理由，如后端未支持）或「待实现」
    - **覆盖率 < 80% 为 MAJOR 阻塞**，MUST 补齐后才能继续
 4. **Placeholder 页面清零**: 检查前端路由表中所有注册的路由组件：
@@ -129,6 +134,7 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
    - 先运行 `.specify/scripts/powershell/validate-stage-gates.ps1 -Stage browser -Module <target-module> -Json`
    - 再执行 `/speckit.smoke <target-module>`，完成 `UI smoke + business e2e + quality probes`
    - 重点模块必须额外检查性能与准确率信号
+   - 重点模块必须额外证明 `page_boundary_parity`、`route_navigation_chain` 与 `capability_parity`
    - 未通过 browser stage 的模块不得标记为完成
 7. **代码审查**: 召唤 `code-reviewer` 子代理，对本模块代码进行审查
    - 审查范围: 本模块所有新增/变更的文件
@@ -164,7 +170,7 @@ description: 执行 tasks 目录中的任务，按证据门禁完成实现
 - [ ] Code Review 完成，CRITICAL/MAJOR 问题已修复
 - [ ] 代码符合 DD 定义的数据模型和接口契约
 - [ ] 对照 PD 交互稿验证功能正确性
-- [ ] PD UI 覆盖率 ≥ 80%（统计卡、表格列、筛选器、操作按钮逐项比对）
+- [ ] PD UI 覆盖率 ≥ 80%（统计卡、表格列、筛选器、操作按钮、AI-PD `hidden_interactions` 逐项比对）
 - [ ] 无 Placeholder 页面（所有注册路由均渲染完整功能）
 - [ ] 无假成功提示、假进度、假统计、仅更新状态但无真实业务逻辑的实现
 - [ ] 无回归问题（先前模块的测试仍然通过）

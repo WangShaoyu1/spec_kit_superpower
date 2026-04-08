@@ -20,11 +20,16 @@ specs/{branch}/tasks/
 
 ## 输入来源
 
-**前置条件**: pd-all/(交互设计，**首要驱动源**)、ad/(架构设计)、dd/(详细设计)、模块 plan(阶段规划)、spec.md(优先级参考)
+**前置条件**: ai-pd/(AI-PD，**首要驱动源**)、pd-all/(HumanPD 视觉参考)、ad/(架构设计)、dd/(详细设计)、模块 plan(阶段规划，含 AI-PD 承接矩阵)、spec.md(优先级参考)
 
 **TDD 强制**: 每个功能模块**必须**包含测试任务，测试先于实现编写。
 
-**组织原则**: 每个 PD 模块生成一个独立的任务文件，模块内按 `测试 → 后端 → 前端 → 检查点` 排列。
+**组织原则**: 每个 PD 模块生成一个独立的任务文件，模块内按 `测试 → 后端 → 前端 → 检查点` 排列；任务拆分以 AI-PD capability 为主骨架。
+
+**AI-PD 能力下传**:
+- `tasks-<module>.md` 不能只按页面名拆任务，必须继承模块 plan 的 `AI-PD 承接矩阵`
+- 每个 `[F-PAGE]` 任务至少覆盖：`visible_ui`、`hidden_interactions`、`capabilities`
+- 若隐藏交互被标记为 `ui-capability / domain-rule`，必须在任务正文中显式列出，不能写成“说明略”
 
 **证据驱动完成**:
 - 任务是否完成, 只能由勾选状态 + 检查点证据决定, 不能靠人工写"100%"或在备注中自认完成
@@ -66,7 +71,7 @@ specs/{branch}/tasks/
 # 任务索引: [FEATURE NAME]
 
 **生成时间**: [DATE]
-**设计依据**: pd-all/ + ad/ + dd/ + plans/
+**设计依据**: ai-pd/ + pd-all/ + ad/ + dd/ + plans/
 **TDD 模式**: 强制(每个模块包含测试任务, 测试先于实现)
 **进度口径**: 由任务勾选状态自动汇总, 显式未完成声明区中的事项会阻止模块被标记为 ✅ 完成
 
@@ -185,9 +190,11 @@ infra → module-1(P1 核心) → 验收
 ```markdown
 # [PD 模块名] 任务
 
+**AI-PD 主输入**: ai-pd/ai-<module>.md
 **PD 交互原型**: pd-all/pd-<module>/
 **架构设计**: ad/ad-<module>.md
 **详细设计**: dd/dd-<module>.md
+**AI-PD 承接矩阵**: plans/plan-<module>.md §AI-PD 承接矩阵
 **优先级**: [P1/P2/P3]
 **依赖**: tasks-infra.md 必须先完成
 
@@ -209,6 +216,12 @@ infra → module-1(P1 核心) → 验收
 - **Stub**: [如无则写"无"; 若存在, 必须返回 501 或显式 NotImplementedError]
 - **Out of Scope**: [如无则写"无"]
 - **Blocked By**: [如无则写"无"]
+
+## AI-PD 承接矩阵
+
+| 页面 | `visible_ui` | `hidden_interactions` | `capabilities` / 对应任务 | 状态 |
+|------|--------------|-----------------------|-----------------------------|------|
+| [page-key] | [Table/筛选器/统计卡/按钮] | [`ui-capability` / `domain-rule` ...] | [CAP-xxx -> T00x, T00y] | [未开始/进行中/完成] |
 
 ## 测试任务(TDD: 先写测试, 确保红灯)
 
@@ -259,7 +272,7 @@ infra → module-1(P1 核心) → 验收
 
 ### 页面(来自 PD 交互原型)
 
-- [ ] T00N [F-PAGE] 实施 [页面名称] → pd-all/pd-<module>/
+- [ ] T00N [F-PAGE] 实施 [页面名称] → pd-all/pd-<module>/（主页面元素 + `functional-hidden-ui` + 成功/失败反馈）
 ...
 
 ### 组件(可复用)
@@ -282,6 +295,7 @@ infra → module-1(P1 核心) → 验收
 - [ ] 每条核心业务链路至少有一组通过的测试或 smoke 证据
 - [ ] 前后端消费契约已验证（字段名、分页、下载、数组/对象返回）
 - [ ] 没有假成功提示、假进度、假统计、仅更新状态但无真实业务逻辑的实现
+- [ ] 所有页面能力清单中的 `functional-hidden-ui` 均已有对应任务与证据，不存在“只做页面骨架”
 
 **模块验收标准**(对照 PD 交互稿):
 - [ ] 每个 [B-SERVICE] 都有配套 [T-UNIT] 且通过
@@ -290,6 +304,7 @@ infra → module-1(P1 核心) → 验收
 - [ ] Code Review: 召唤 `code-reviewer` 子代理，CRITICAL/MAJOR 已修复
 - [ ] [列出 PD 中该模块的关键交互场景验证项]
 - [ ] [列出该模块核心业务链路的最终结果验证项]
+- [ ] [列出本模块 `functional-hidden-ui` 的能力验证项，如 Drawer/Modal 内 CRUD、导入导出、状态切换]
 - [ ] 无回归(先前模块测试仍通过)
 ```
 

@@ -113,6 +113,8 @@ function mockIntentLibraryFetches() {
           confidence: 0.96,
           slots: { device: '烤箱' },
           latency_ms: 42,
+          model_version: 'v1.0.1',
+          model_status: 'testable',
         },
       })
     }
@@ -203,6 +205,8 @@ describe('Intent library routes', () => {
 
     await waitFor(() => {
       expect(screen.getByText('device.on')).toBeInTheDocument()
+      expect(screen.getByText('模型版本 v1.0.1')).toBeInTheDocument()
+      expect(screen.getByText('当前状态 testable')).toBeInTheDocument()
     })
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -247,6 +251,7 @@ describe('Intent library routes', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: '数据集管理' })).toBeInTheDocument()
       expect(window.location.pathname).toBe('/intent-library/lib_001/datasets')
+      expect(screen.getByRole('table')).toBeInTheDocument()
     })
   })
 })

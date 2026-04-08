@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 /** dev/preview 把 /api 转到真实后端；端口必须与 uvicorn 一致（见 .env.example）。 */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiProxyTarget = (env.VITE_DEV_API_PROXY || 'http://127.0.0.1:8005').replace(/\/$/, '')
+  const apiProxyTarget = (env.VITE_DEV_API_PROXY || 'http://127.0.0.1:8006').replace(/\/$/, '')
 
   const apiProxy = {
     '^/api': {

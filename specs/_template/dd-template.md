@@ -1,8 +1,9 @@
 ---
-version: 2.4
-updated: 2026-03-20
+version: 2.5
+updated: 2026-04-02
 role: 从 ad.md 到可编码实现的桥梁
 changelog: |
+  2.5: 新增隐藏交互容器规格，要求区分 explanatory-only 与 functional-hidden-ui，并把后者纳入 DD UI 清单与检查
   2.4: 新增§9.5 前端UI组件清单[MUST](PD功能缺失根因修复:AD/DD需覆盖前端UI规格,防止实现阶段遗漏统计卡/筛选器/表格列/操作按钮)
   2.3: §1.3 DD拆分规则改为>3模块用文件夹(dd/), 明确dd-global.md+dd-<module>.md+README.md结构, 与PD/AD阈值对齐
   2.2: 新增§9 API实现映射表[SHOULD](桥接AD接口契约与DD内部实现); 章节号10~12顺延
@@ -445,7 +446,7 @@ async def update_{entity}(id: UUID, data: UpdateSchema):
 
 #### 9.5.4 操作按钮 / 交互入口
 
-> **排除项**：「说明」按钮及其 Drawer 属于 AD/DD 逻辑参考文档，不列入本清单，不纳入 PD 覆盖率计算。
+> **规则**：不能再默认排除「说明」按钮及其 Drawer。凡是承载真实产品能力的隐藏交互，都必须作为 `functional-hidden-ui` 进入 DD 清单；只有纯解释性内容才允许标为 `explanatory-only`。
 
 | PD 页面 | 按钮/入口 | 触发行为 | 组件类型 | 对应 API | 备注 |
 |---------|---------|---------|---------|---------|------|
@@ -458,6 +459,13 @@ async def update_{entity}(id: UUID, data: UpdateSchema):
 | PD 页面 | PD 交互描述 | 推荐组件 | 说明 |
 |---------|-----------|---------|------|
 | {模块}/detail | 发布确认 5秒倒计时 | Modal + useState countdown | AD §x.x |
+
+#### 9.5.6 隐藏交互容器与语义分类
+
+| PD 页面 | 容器 | 分类 | 承载能力 | 对应 API / 数据源 | 备注 |
+|---------|------|------|---------|-------------------|------|
+| {模块}/detail | 说明 Drawer | explanatory-only / functional-hidden-ui | {能力清单} | {API / 无} | |
+| {模块}/dataset-detail | 实体导入 Modal | functional-hidden-ui | 导入实体值 / 同义词 | POST /api/v1/... | |
 
 ---
 
@@ -554,6 +562,8 @@ async def update_{entity}(id: UUID, data: UpdateSchema):
 - [ ] 每个 PD 筛选器已列入 §9.5.3（筛选维度、组件类型、后端参数）
 - [ ] 每个 PD 操作按钮已列入 §9.5.4（按钮名称、触发行为、对应 API）
 - [ ] PD 中的特殊交互（非标准组件）已列入 §9.5.5
+- [ ] 所有 Drawer / Modal / Popover / Collapse 已按 §9.5.6 标记为 `explanatory-only` 或 `functional-hidden-ui`
+- [ ] 所有 `functional-hidden-ui` 均有承载能力、数据源与 API 归属
 - [ ] §9.5 清单与 PD 交互稿逐项比对，覆盖率 = 100%
 
 ---
@@ -593,4 +603,5 @@ async def update_{entity}(id: UUID, data: UpdateSchema):
 | 2.1 | 2026-03-17 | 新增§1.3 DD范围声明、§3.3 ER总图[MUST]、§6.1模块化错误码、§8.3预置/种子数据、§10.1检查项增强 |
 | 2.2 | 2026-03-17 | 新增§9 API实现映射表[SHOULD]（桥接AD契约与DD实现, 含Schema类名/服务方法/计算字段）; 章节重编号 |
 | 2.3 | 2026-03-17 | §1.3 DD拆分规则: >3模块用文件夹(`dd/`), 明确 dd-global.md + dd-\<module\>.md + README.md 结构 |
-|| 2.4 | 2026-03-20 | 新增§9.5 前端UI组件清单[MUST]、§11.5 前端UI组件检查[MUST]（PD功能缺失根因修复: 覆盖统计卡/表格列/筛选器/操作按钮） |
+| 2.4 | 2026-03-20 | 新增§9.5 前端UI组件清单[MUST]、§11.5 前端UI组件检查[MUST]（PD功能缺失根因修复: 覆盖统计卡/表格列/筛选器/操作按钮） |
+| 2.5 | 2026-04-02 | 新增隐藏交互容器规格，要求区分 explanatory-only 与 functional-hidden-ui，并纳入 DD UI 检查 |

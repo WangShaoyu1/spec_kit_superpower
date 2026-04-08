@@ -1,9 +1,15 @@
 # 任务文件: `pd-user-mgmt`
 
-**输入**: `specs/master/pd-all/pd-user-mgmt/` + `specs/master/ad/ad-user-mgmt.md` + `specs/master/dd/dd-user-mgmt.md`  
+**输入**: `specs/master/ai-pd/ai-user-mgmt.md` + `specs/master/pd-all/pd-user-mgmt/` + `specs/master/ad/ad-user-mgmt.md` + `specs/master/dd/dd-user-mgmt.md` + `specs/master/plans/plan-user-mgmt.md`  
 **前置依赖**: `tasks-infra.md`  
 **TDD 约束**: 先写失败测试，再写最小实现，再验证通过  
 **风险提示**: 不得用本地状态冒充权限收敛、角色调整或账号状态回读成功
+
+## AI-PD 消费说明
+
+- 主输入: `ai-pd/ai-user-mgmt.md`
+- HumanPD 参考: `pd-all/pd-user-mgmt/`
+- 当前任务文件中的页面、动作、字段、异常和隐藏交互，优先继承 AI-PD 的 `capabilities / action_contracts / data_contracts / exception_flows / hidden_interactions`
 
 ## 模块核心业务链路
 
@@ -19,6 +25,26 @@
 - **Stub**: 无
 - **Out of Scope**: 批量导入导出用户、自定义角色管理器
 - **Blocked By**: 无
+
+## AI-PD 承接矩阵（页面能力清单）
+
+兼容当前 gate 检查口径：下表中的 `hidden_interactions` 同时承担旧 `functional-hidden-ui / explanatory-only` 语义。
+其中 `ui-capability` 对应旧 `functional-hidden-ui`，`instructional` 对应旧 `explanatory-only`。
+
+| 页面 | `visible_ui` | `hidden_interactions` | 对应任务 | 当前状态 |
+|------|--------------|-----------------------|---------|---------|
+| `index` | 统计卡、用户列表、权限矩阵、操作按钮 | `ui-capability`: 新建账号 Modal、编辑角色 Modal、重置密码确认框；`domain-rule`: 管理员保护提示；`instructional`: 说明抽屉 | `T001-T019` | 已完成 |
+
+## AI-PD 关键能力映射
+
+| capability_id | 页面 | 对应任务 | 说明 |
+|---------------|------|---------|------|
+| `CAP-UM-INDEX-001` | `index` | `T018` | 用户目录与统计卡必须来自真实回读 |
+| `CAP-UM-INDEX-002` | `index` | `T001,T004,T008,T011,T015,T018` | 创建账号 |
+| `CAP-UM-INDEX-003` | `index` | `T002,T005,T009,T011,T015,T018` | 调整角色与能力预览 |
+| `CAP-UM-INDEX-004` | `index` | `T011,T015,T018` | 重置密码 |
+| `CAP-UM-INDEX-005` | `index` | `T003,T006,T010,T011,T015,T018` | 启停用账号与管理员保护 |
+| `CAP-UM-INDEX-006` | `index` | `T013,T015,T016,T018,T019` | 权限矩阵与 capability 可见性 |
 
 ## 测试任务
 

@@ -4,6 +4,8 @@
 
 将 spec.md 的业务需求转化为**模块化的可交互产品原型**，定义页面流程、状态变化和用户体验细节。
 
+注意：`pd-all/` 现在定位为 **HumanPD**，主要服务人类评审与交互确认，不再假设它就是 AI 的最佳主输入。
+
 **核心规范**: `specs/_template/pd-template.md` — 所有 PD 设计 MUST 遵循此模板。
 
 ## 前提条件
@@ -97,6 +99,15 @@ specs/{branch}/
     └── ...
 ```
 
+## 后续转换（MUST）
+
+PD 设计完成后，必须继续执行 `/speckit.transform-pd`：
+
+- `pd-all/` = HumanPD（人类阅读层）
+- `ai-spec/` = AISpec（AI / harness / 下游命令主输入）
+
+若只完成 `pd-all/` 而未生成 `ai-spec/`，不得进入稳定的 AD / DD / tasks / implement 链路。
+
 **命名规范**: `pd-all/pd-<module-key>/`, module-key 使用小写 + 短横线, 禁止使用缺陷/任务编号。
 
 ## PD 完整性检查清单
@@ -132,5 +143,5 @@ PD 设计通常需要多轮对话:
 
 ## 下一步
 
-所有 PD 模块完成后, 进入 `/speckit.design-ad` (架构设计) 阶段。
-PD 是 AD 的重要输入: AD 需要基于 PD 确定的页面结构来设计 API 契约和数据模型。
+所有 PD 模块完成后，先执行 `/speckit.transform-pd`，再进入 `/speckit.design-ad`。
+AD 的主输入应为 `ai-spec/`，`pd-all/` 仅作为视觉与交互参考。
